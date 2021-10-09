@@ -14,7 +14,7 @@ Furthermore I don't see any alternative so easy to use.
 
 ### Storage costs
 Storage cost on OVHCloud is 1ct/GB, so I keep 1€ of paying plan for the cost of the free plan.\
-For 100 paying customers, I can offer 5 000GB which corresponds to 1000 free account.
+For 100 paying customers, I can offer 5 000GB which corresponds to 1000 free account.\
 Backup cost on OVHCloud is 1ct for 5GB.
 
 ### infrastructure costs 
@@ -22,12 +22,16 @@ Bandwidth 1ct/GB which should never been more than 10Mo per customer per day and
 Authentication server to do the link to the customer with its S3 credentials. Start with 5€ for 2000 users.
 Billing server to store credit cards and do the payement with bank providers.
 
+### Taxes
+Credit card payment : 1,8% + 0,18€ = 0,2ct \
+TVA = 20% = 40ct  
+
 ## User stories
 I want to save my photo in the cloud and let me the possibility to do backup.\
 I want a smooth application to display my photos.\
 I want to know where are stored my photos and who can have access to it and why.\
 I want to share an album with my family.\
-I want to automatically synchronise my photos of my smartphone(Android/IOS)/\
+I want to automatically synchronise my photos of my smartphone(Android/IOS)\
 I want to upload and display my photo in my computer browser.\
 I want to be sure my photos will never been deleted with a backup option in another region.\
 \
@@ -39,6 +43,7 @@ Cheaper storage found is OVHCloud object storage and archive storage for backups
 Standard object storage is S3 Bucket API\
 Image compression with ImageMagick, to reduce cost, do the compression in the browser with [WASM-ImageMagick](https://github.com/KnicKnic/WASM-ImageMagick)\
 Frontend application using Cordova and Vue3 in typescript
+MongoPay looks like the cheaper billing system : 1,8% + 0,18€ = 0,2ct
 
 ## To be defined
 How to store customer subscriptions and payments means.\
