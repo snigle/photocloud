@@ -7,7 +7,7 @@ type ICustomer interface {
 }
 
 type Customer struct {
-	ID   string
-	Name string
-	Mail string
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Mail string `json:"mail"`
 }

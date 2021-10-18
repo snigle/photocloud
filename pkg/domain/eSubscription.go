@@ -20,10 +20,10 @@ type ISubscription interface {
 }
 
 type Subscription struct {
-	CustomerID  string
-	BilledUntil *time.Time
-	Plan        Plan
-	Status      SubscriptionStatus
+	CustomerID  string             `json:"customerId"`
+	BilledUntil *time.Time         `json:"billedUntil"`
+	Plan        Plan               `json:"plan"`
+	Status      SubscriptionStatus `json:"status"`
 }
 
 type ErrSubscriptionNotFound struct {

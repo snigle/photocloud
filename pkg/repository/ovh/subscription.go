@@ -33,9 +33,11 @@ const swiftRegion = "GRA"
 
 type Credentials = struct {
 	UserID      int
+	ProjectID   string
 	Mail        string
 	Endpoint    string
 	Container   string
+	Region      string
 	User        string
 	Password    string
 	Plan        string
@@ -157,10 +159,12 @@ func (s *subscription) CreateSubscription(ctx context.Context, customer domain.C
 	credentials := Credentials{
 		UserID:      user.ID,
 		Mail:        customer.Mail,
-		Endpoint:    client.Endpoint,
+		Endpoint:    connectors.OpenstackIdentityURL,
 		Container:   container.Name,
 		Password:    user.Password,
 		User:        user.Username,
+		ProjectID:   connectors.OpenstackProject,
+		Region:      swiftRegion,
 		Plan:        "free",
 		BilledUntil: nil,
 	}
@@ -212,6 +216,8 @@ func (s *subscription) GetSwiftCredentials(ctx context.Context, subscription dom
 		User:      creds.User,
 		Password:  creds.Password,
 		Container: creds.Container,
+		ProjectID: creds.ProjectID,
+		Region:    creds.Region,
 	}
 	return &res, nil
 }
