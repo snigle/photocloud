@@ -2,8 +2,8 @@
 **Customer**\
 ID\
 Name\
-Backend\
-S3Credentials\
+*GetSwiftCredentials()*\
+*GetS3Credentials()*\
 *Create()*\
 *Update()*\
 *Delete()*\
@@ -13,7 +13,8 @@ S3Credentials\
 CustomerID\
 BilledUntil\
 Plan\
-*Create()*\
+*GetDiskUsage()*\
+*Upgrade()*\
 *Renew()*\
 *Suspend()*\
 *Reopen()*\
@@ -22,7 +23,9 @@ Plan\
 **UploadedPhoto**\
 ID\
 LocalID\
-URL\
+ThumbURL\
+CompressURL\
+OriginalURL\
 *Get()*\
 *Upload()*\
 *list()*\
