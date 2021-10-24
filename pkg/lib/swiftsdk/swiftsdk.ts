@@ -34,7 +34,7 @@ export class SwiftClient {
 
     constructor(private identityEndpoint: string, private projectId: string, private username: string, private password: string) {
         try {
-            this.token = JSON.parse(localStorage.getItem("openstack.token") || undefined) || undefined
+            this.token = JSON.parse(localStorage.getItem("openstack.token") || "") || undefined
         } catch (e) {
             // dummy
         }
@@ -71,7 +71,12 @@ export class SwiftClient {
             throw `fail to authenticate to keystone, status ${resp.status}: ${text}`
         }
         const content = await resp.json();
-        this.token = {id : resp.headers.get("X-Subject-Token"), catalog: content.token.catalog}
+        const token = resp.headers.get("X-Subject-Token")
+        if (!token) {
+            throw `fail to authenticate to keystone, header X-Subject-Token not found`
+        }
+
+        this.token = {id : token, catalog: content.token.catalog}
         try {
             localStorage.setItem("openstack.token", JSON.stringify(this.token))
         } catch (e) {
@@ -83,6 +88,9 @@ export class SwiftClient {
         if (!this.token) {
             await this.getToken()
         }
+        if (!this.token) {
+            throw "missing token"
+        }
 
         if (!init) {
             init = {}
@@ -91,7 +99,7 @@ export class SwiftClient {
             init.headers = {}
         }
 
-        const endpoints = this.token.catalog.find(c => c.type === "object-store")
+        const endpoints = this.token?.catalog.find(c => c.type === "object-store")
         if (!endpoints) {
             throw `no object-store endpoint found in user catalog`
         }
@@ -106,7 +114,7 @@ export class SwiftClient {
         }
 
         const response = await fetch(url.toString(), {
-            ...init, timeout: 10000, headers: {
+            ...init, timeout: init.method === "POST"? undefined: 10000, headers: {
                 "Content-Type": "application/json", "Accept": "application/json", "X-Auth-Token": this.token.id
                 , ...init.headers
             }

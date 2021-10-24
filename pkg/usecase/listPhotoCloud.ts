@@ -1,18 +1,21 @@
 import { Customer } from "../domain/vCustomer";
 import { LocalPhoto } from "../domain/eLocalPhoto";
-import { UploadedPhoto } from "../domain/eUploadedPhoto";
+import { IUploadedPhoto, UploadedPhoto } from "../domain/eUploadedPhoto";
 import { Plan } from "../domain/vPlan";
 import { ImageMagick } from "../repository/imagemagick/imagemagick";
-import { PhotocloudAuthenticatedCustomer } from "../repository/photocloudAPI/authenticatedCustomer";
-import { SwiftPhoto } from "../repository/swift/photo";
+import { IAuthenticatedCustomer } from "../domain/eAuthenticatedCustomer";
 
-const PhotoRepo = SwiftPhoto
+export class ListPhoto {
 
-export async function listPhotoCloud(): Promise<UploadedPhoto[]> {
-    // Get customer
-    const customer = await PhotocloudAuthenticatedCustomer.Get()
+    constructor(private photocloudRepo: IAuthenticatedCustomer, private swiftRepo: IUploadedPhoto) { }
 
-    // Check if file exist in cloud
-    const files = await PhotoRepo.listFromCustomer(customer)
-    return files
+    async listPhotoCloud(): Promise<UploadedPhoto[]> {
+        // Get customer
+        const customer = await this.photocloudRepo.Get()
+
+        // Check if file exist in cloud
+        const files = await this.swiftRepo.listFromCustomer(customer)
+        return files
+    }
+
 }

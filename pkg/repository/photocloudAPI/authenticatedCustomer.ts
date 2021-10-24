@@ -3,40 +3,43 @@ import { AuthenticatedCustomer, IAuthenticatedCustomer } from "../../domain/eAut
 import { Customer} from "../../domain/vCustomer";
 import { S3Credentials } from "../../domain/vS3Credentials";
 import { SwiftCredentials } from "../../domain/vSwiftCredentials";
-import { photocloudConnector } from "../connectors/photcloudAPI";
+import { ICacheConnector } from "../connectors/cache";
+import { IPhotocloudConnector } from "../connectors/photcloudAPI";
 
-let login: AuthenticatedCustomer;
+export class PhotoCloud implements IAuthenticatedCustomer {
+    constructor(private photocloudConnector: IPhotocloudConnector, private cacheConnector: ICacheConnector){}
 
-async function Login(access_token:string) : Promise<AuthenticatedCustomer> {
-    const api = photocloudConnector.Connect(access_token)
-    const resp = await api("/1.0/login",{method: "POST",  headers: {"X-Token" : access_token}})
-    if (resp.status != 200) {
-        throw `login failed with status ${resp.status}`;
+    async Login(access_token:string) : Promise<AuthenticatedCustomer> {
+        const api = this.photocloudConnector.Connect(access_token)
+        const cache = this.cacheConnector.Connect()
+
+        const resp = await api("/1.0/login",{method: "POST",  headers: {"X-Token" : access_token}})
+        if (resp.status != 200) {
+            throw `login failed with status ${resp.status}`;
+        }
+        const customer : AuthenticatedCustomer = await resp.json()
+
+        cache.setItem("login", JSON.stringify(customer))
+        return customer
     }
-    const customer : AuthenticatedCustomer = await resp.json()
-    login = customer
-    return customer
-}
-
-function Get() : Promise<AuthenticatedCustomer> {
-    if (!login) {
-        throw "not logged"
+    
+    Get() : Promise<AuthenticatedCustomer> {
+        const cache = this.cacheConnector.Connect()
+        const loginString = cache.getItem("login")
+        if (!loginString) {
+            throw "not logged"
+        }
+        const login : AuthenticatedCustomer = JSON.parse(loginString)
+        return Promise.resolve(login)
     }
-    return Promise.resolve(login)
-}
-
-function Refresh(access_token:string) : Promise<AuthenticatedCustomer> {
-    return Login(access_token)
-}
-
-function Logout(): Promise<void> {
-    login = undefined
-    return Promise.resolve();
-}
-
-export const PhotocloudAuthenticatedCustomer: IAuthenticatedCustomer = {
-    Login,
-    Get,
-    Refresh,
-    Logout,
+    
+    Refresh(access_token:string) : Promise<AuthenticatedCustomer> {
+        return this.Login(access_token)
+    }
+    
+    Logout(): Promise<void> {
+        const cache = this.cacheConnector.Connect()
+        cache.clear()
+        return Promise.resolve();
+    }
 }
