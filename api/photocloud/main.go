@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +24,10 @@ func main() {
 		Addr:    ":8080",
 		Handler: f,
 	}
-	srv.ListenAndServe()
+	err := srv.ListenAndServe()
+	if err != nil {
+		log.Fatalf("fail to start server: %s", err)
+	}
 }
 
 type LoginInput struct {
