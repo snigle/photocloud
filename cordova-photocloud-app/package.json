@@ -1,0 +1,114 @@
+{
+  "name": "io.cordova.hellocordova",
+  "displayName": "HelloCordova",
+  "version": "1.0.0",
+  "description": "A sample Apache Cordova application that responds to the deviceready event.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "NODE_OPTIONS=--max-old-space-size=4096 cordova run browser -- -l",
+    "dev-android": "NODE_OPTIONS=--max-old-space-size=4096 cordova run android -- -l",
+    "android-debug": "NODE_OPTIONS=--max-old-space-size=4096 cordova run android",
+    "build-web": "NODE_OPTIONS=--max-old-space-size=4096 cordova build --release browser -- --webpack.env.prod",
+    "build-android": "NODE_OPTIONS=--max-old-space-size=4096 cordova build android --release --bundle -- --webpack.env.prod",
+    "bundle-android": "cd ./platforms/android ; ./gradlew app:bundleRelease ; cd ../.. ;",
+    "release-android": "perl -i -pe 's/(android-versionCode=\")(\\d+)/$1.($2+1)/e' config.xml && yarn build-android",
+    "release": "yarn build-web && yarn release-android && yarn bundle-android"
+  },
+  "keywords": [
+    "ecosystem:cordova"
+  ],
+  "author": "Apache Cordova Team",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@babel/plugin-proposal-decorators": "^7.15.8",
+    "@material/drawer": "^6.0.0",
+    "@material/fab": "^6.0.0",
+    "@material/form-field": "^6.0.0",
+    "@material/icon-button": "^6.0.0",
+    "@material/linear-progress": "^6.0.0",
+    "@material/progress-indicator": "^6.0.0",
+    "@material/tab-bar": "^6.0.0",
+    "@material/textfield": "^6.0.0",
+    "@material/top-app-bar": "^6.0.0",
+    "bootstrap": "^4.4.1",
+    "bs-breakpoints": "^1.1.1",
+    "chart.js": "^2.9.3",
+    "cordova-plugin-googleplus": "8.4.0",
+    "i18n-js": "^3.5.1",
+    "jquery": "^3.5.1",
+    "lodash": "^4.17.15",
+    "material-design-icons": "^3.0.1",
+    "popper.js": "^1.16.1",
+    "scss-loader": "^0.0.1",
+    "uuid": "^8.1.0",
+    "vue": "^3.2.20",
+    "vue-class-component": "^8.0.0-rc.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.10.2",
+    "@babel/preset-env": "^7.10.2",
+    "@types/bootstrap": "^4.3.2",
+    "@types/chart.js": "^2.9.20",
+    "@types/cordova": "^0.0.34",
+    "@types/i18n-js": "^3.0.3",
+    "@types/jquery": "^3.3.35",
+    "@types/lodash": "^4.14.153",
+    "@types/uuid": "^8.0.0",
+    "@vue/compiler-sfc": "^3.2.20",
+    "autoprefixer": "^9.8.0",
+    "babel-loader": "^8.1.0",
+    "brotli-webpack-plugin": "^1.1.0",
+    "clean-webpack-plugin": "^3.0.0",
+    "compare-func": "^2.0.0",
+    "cordova": "^9.0.0",
+    "cordova-android": "^9.1.0",
+    "cordova-browser": "^6.0.0",
+    "cordova-plugin-device": "^2.0.3",
+    "cordova-plugin-webpack": "^1.0.2",
+    "cordova-plugin-whitelist": "^1.3.4",
+    "css-loader": "^3.5.2",
+    "html-loader": "^1.1.0",
+    "html-webpack-plugin": "^4.2.0",
+    "htmllint-loader": "^2.1.4",
+    "less": "^3.11.1",
+    "less-loader": "^5.0.0",
+    "postcss-loader": "^3.0.0",
+    "sass": "^1.26.8",
+    "sass-loader": "^8.0.2",
+    "source-map-loader": "^0.2.4",
+    "style-loader": "^1.1.4",
+    "ts-loader": "^7.0.0",
+    "tslint": "^6.1.1",
+    "tslint-loader": "^3.5.4",
+    "typescript": "^4.4.4",
+    "url-loader": "^4.1.0",
+    "vue-loader": "^16.8.1",
+    "webpack": "^4.42.1",
+    "webpack-cli": "^3.3.11",
+    "webpack-dev-server": "^3.10.3"
+  },
+  "babel": {
+    "plugins": [
+      [
+        "@babel/plugin-proposal-decorators",
+        {
+          "legacy": true
+        }
+      ]
+    ]
+  },
+  "cordova": {
+    "plugins": {
+      "cordova-plugin-whitelist": {},
+      "cordova-plugin-webpack": {},
+      "cordova-plugin-googleplus": {
+        "REVERSED_CLIENT_ID": "myreversedclientid",
+        "WEB_APPLICATION_CLIENT_ID": "590660982246-cmmp4c3blkcdke8s64grt75pc36imab4.apps.googleusercontent.com"
+      }
+    },
+    "platforms": [
+      "browser",
+      "android"
+    ]
+  }
+}

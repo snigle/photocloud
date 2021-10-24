@@ -1,0 +1,20 @@
+{
+    "compileOnSave": true,
+    "compilerOptions": {
+      "outDir": "www",
+      "sourceMap": true,
+      "strict": true,
+      "module": "es2015",
+      "moduleResolution": "node",
+      "target": "es5",
+      "skipLibCheck": true,
+      "esModuleInterop": true,
+      "experimentalDecorators": true,
+      "allowJs": true,
+      "checkJs": true,
+      "allowSyntheticDefaultImports":true
+    },
+    "include": [
+      "./src/"
+    ]
+  }
