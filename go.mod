@@ -3,6 +3,7 @@ module github.com/snigle/photocloud
 go 1.16
 
 require (
+	github.com/gin-contrib/cors v1.3.1 // indirect
 	github.com/gophercloud/gophercloud v0.22.0
 	github.com/ovh/go-ovh v1.1.0
 	github.com/wI2L/fizz v0.17.0 // indirect

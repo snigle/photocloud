@@ -1,10 +1,11 @@
-import { resolve } from "path/posix";
 import { AuthenticatedCustomer, IAuthenticatedCustomer } from "../../domain/eAuthenticatedCustomer";
 import { Customer} from "../../domain/vCustomer";
 import { S3Credentials } from "../../domain/vS3Credentials";
 import { SwiftCredentials } from "../../domain/vSwiftCredentials";
 import { ICacheConnector } from "../connectors/cache";
 import { IPhotocloudConnector } from "../connectors/photcloudAPI";
+
+const cacheLoginKey = "photocloud#login"
 
 export class PhotoCloud implements IAuthenticatedCustomer {
     constructor(private photocloudConnector: IPhotocloudConnector, private cacheConnector: ICacheConnector){}
@@ -19,13 +20,13 @@ export class PhotoCloud implements IAuthenticatedCustomer {
         }
         const customer : AuthenticatedCustomer = await resp.json()
 
-        cache.setItem("login", JSON.stringify(customer))
+        cache.setItem(cacheLoginKey, JSON.stringify(customer))
         return customer
     }
     
     Get() : Promise<AuthenticatedCustomer> {
         const cache = this.cacheConnector.Connect()
-        const loginString = cache.getItem("login")
+        const loginString = cache.getItem(cacheLoginKey)
         if (!loginString) {
             throw "not logged"
         }

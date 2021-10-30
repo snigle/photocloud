@@ -7,8 +7,15 @@ export interface IPhotocloudConnector {
 }
 
 function Connect(access_token: string) {
-    return async (input: string, init?: RequestInit): Promise<Response> => {
-        const resp = await fetch(PhotocloudAPIEndpoint + input, init)
+    return async (input: string, init?: RequestInit): Promise<Response> => { 
+        if (!init){
+            init = {}
+        }
+        if (!init.headers) {
+            init.headers = {}
+        }
+
+        const resp = await fetch(PhotocloudAPIEndpoint + input, {...init, headers: {...init.headers}})
         return resp
     }
 }
