@@ -1,5 +1,4 @@
 import fetch, { Response, RequestInfo, RequestInit } from "node-fetch"
-import { json } from "stream/consumers"
 
 export interface IListOpts {
     prefix?: string
@@ -31,13 +30,17 @@ export interface Object {
 
 export class SwiftClient {
     private token?: {id: string, catalog: Catalog[]}
-
+    
     constructor(private identityEndpoint: string, private projectId: string, private username: string, private password: string) {
         try {
-            this.token = JSON.parse(localStorage.getItem("openstack.token") || "") || undefined
+            this.token = JSON.parse(localStorage.getItem(this.cacheKey) || "") || undefined
         } catch (e) {
             // dummy
         }
+    }
+
+    get cacheKey(): string {
+        return `openstack.token.${this.username}`
     }
 
     async getToken(): Promise<void> {
@@ -78,7 +81,7 @@ export class SwiftClient {
 
         this.token = {id : token, catalog: content.token.catalog}
         try {
-            localStorage.setItem("openstack.token", JSON.stringify(this.token))
+            localStorage.setItem(this.cacheKey, JSON.stringify(this.token))
         } catch (e) {
             // dummy
         }

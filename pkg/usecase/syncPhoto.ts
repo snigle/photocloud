@@ -18,8 +18,11 @@ export class SyncPhoto {
         if (files.find((f) => {
             return f.localId === file.name
         })) {
+            console.log("file already post")
             return;
         }
+
+        console.log("start upload")
 
         // Create thumbnail
         const thumbPromise = ImageMagick.createThumbnail(file)

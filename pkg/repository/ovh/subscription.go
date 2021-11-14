@@ -148,6 +148,12 @@ func (s *subscription) CreateSubscription(ctx context.Context, customer domain.C
 		container.ID = ovhContainerID
 	}
 
+	// Allow CORS on container
+	err = ovhClient.Post(fmt.Sprintf("/cloud/project/%s/storage/%s/cors", ovhClient.ProjectID, ovhContainerID), map[string]interface{}{"origin": "*"}, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create user
 	user := OVHUser{}
 	err = ovhClient.Post(fmt.Sprintf("/cloud/project/%s/storage/%s/user", ovhClient.ProjectID, container.ID), map[string]string{"description": customer.ID, "right": "all"}, &user)
@@ -212,7 +218,9 @@ func (s *subscription) GetSwiftCredentials(ctx context.Context, subscription dom
 	}
 
 	res := domain.SwiftCredentials{
-		Endpoint:  creds.Endpoint,
+		// Until keystone OVH doesn't allow CORS, need to proxify in our api
+		// Endpoint:  creds.Endpoint,
+		Endpoint:  connectors.OpenstackIdentityURLProxy,
 		User:      creds.User,
 		Password:  creds.Password,
 		Container: creds.Container,

@@ -8,10 +8,11 @@ import (
 )
 
 var (
-	OpenstackUsername    = ""
-	OpenstackPassword    = ""
-	OpenstackIdentityURL = ""
-	OpenstackProject     = ""
+	OpenstackUsername         = ""
+	OpenstackPassword         = ""
+	OpenstackIdentityURL      = ""
+	OpenstackProject          = ""
+	OpenstackIdentityURLProxy = ""
 )
 
 type IGophercloudConnector interface {

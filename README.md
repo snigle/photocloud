@@ -52,3 +52,10 @@ How to do the payment with credit card.
 
 # Contributing
 I don't defined the way to contribute but if you are interested by the project or you have advices, don't hesitate to contact me :) 
+
+# Installation
+
+Write file pkg/connectors/creds.go to init all configurations \
+Write 
+Run API with flags -cors-origin http://localhost:8081 -keystone-url https://auth.cloud.ovh.net/v3/ \
+Run Web app in quasar folder : export NODE_OPTIONS=--max-old-space-size=4096 quasar dev
