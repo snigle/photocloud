@@ -1,8 +1,9 @@
-import fetch, { Response, RequestInfo, RequestInit } from "node-fetch"
+// import fetch, {RequestInit, Response} from "node-fetch"
 
 export interface IListOpts {
     prefix?: string
     limit?: number
+    marker?: string
 }
 
 type Catalog = {
@@ -20,6 +21,12 @@ type Endpoint = {
     url: string
   }
 
+type Token = {
+    id: string,
+    catalog: Catalog[],
+    expires_at: string,
+}
+
 export interface Container {
     objects: Object[]
 }
@@ -29,7 +36,7 @@ export interface Object {
 }
 
 export class SwiftClient {
-    private token?: {id: string, catalog: Catalog[]}
+    private token?: Token
     
     constructor(private identityEndpoint: string, private projectId: string, private username: string, private password: string) {
         try {
@@ -43,7 +50,7 @@ export class SwiftClient {
         return `openstack.token.${this.username}`
     }
 
-    async getToken(): Promise<void> {
+    async getToken(): Promise<Token> {
         const resp = await fetch(`${this.identityEndpoint}/auth/tokens`, {
             method: "POST",
             headers: {
@@ -79,24 +86,26 @@ export class SwiftClient {
             throw `fail to authenticate to keystone, header X-Subject-Token not found`
         }
 
-        this.token = {id : token, catalog: content.token.catalog}
-        try {
-            localStorage.setItem(this.cacheKey, JSON.stringify(this.token))
-        } catch (e) {
-            // dummy
-        }
+        return {id : token, catalog: content.token.catalog, expires_at: content.token.expires_at}
     }
 
     async fetch(region:string, path: string, queryParams?: { [key: string]: any },init?: RequestInit): Promise<Response> {
-        if (!this.token) {
-            await this.getToken()
+        if (!this.token || new Date(this.token.expires_at).getTime() < new Date().getTime()) {
+            this.token = await this.getToken()
+            try {
+                localStorage.setItem(this.cacheKey, JSON.stringify(this.token))
+            } catch (e) {
+                // dummy
+            }
         }
         if (!this.token) {
             throw "missing token"
         }
 
         if (!init) {
-            init = {}
+            init = {
+                cache: "default",
+            }
         }
         if (!init.headers) {
             init.headers = {}
@@ -113,11 +122,18 @@ export class SwiftClient {
 
         const url = new URL(endpoint.url+path)
         if (queryParams) {
-            Object.keys(queryParams).forEach(key => url.searchParams.append(key, queryParams[key]))
+            Object.keys(queryParams).forEach(key => {
+                if (queryParams[key] === undefined) {
+                    return
+                }
+                url.searchParams.append(key, queryParams[key])
+            })
         }
 
         const response = await fetch(url.toString(), {
-            ...init, timeout: init.method === "POST"? undefined: 10000, headers: {
+            ...init,
+            // timeout: init.method === "POST"? undefined: 10000,
+            headers: {
                 "Content-Type": "application/json", "Accept": "application/json", "X-Auth-Token": this.token.id
                 , ...init.headers
             }
@@ -142,7 +158,7 @@ export class SwiftClient {
     }
 
     async listObjects(region: string, containerName: string, listOpts: IListOpts): Promise<Container> {
-        const response = await this.fetch(region,`/${encodeURIComponent(containerName)}`, listOpts)
+        const response = await this.fetch(region,`/${encodeURIComponent(containerName)}`, listOpts, { cache: "reload"})
         const objects = await response.json()
         return {
             objects

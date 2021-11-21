@@ -1,5 +1,5 @@
 <template>
-  <q-page class="row items-center justify-evenly">
+  <q-page class="row column items-center justify-evenly">
     <upload-photo />
     <list-photos
       title="Example component"

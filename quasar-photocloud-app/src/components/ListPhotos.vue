@@ -1,6 +1,6 @@
 <template>
-<div>
-  <div v-for="photo in photos" :key="photo.id"> 
+<div class="row inline justify-between">
+  <div v-for="photo in photos" :key="photo.id" class="photo"> 
     <img :src="links[photo.thumbnailURL]" alt="test"/>
   </div>
   </div>
@@ -17,6 +17,7 @@ import { NewSwiftConnector } from '../../../pkg/repository/connectors/swift'
 import { SwiftRepo } from '../../../pkg/repository/swift/photo'
 import { UploadedPhoto } from '../../../pkg/domain/eUploadedPhoto'
 import { GetPhoto } from '../../../pkg/usecase/getPhoto'
+import { Notify } from 'quasar'
 
 const photocloudConnector = NewPhotocloudConnector()
 const cacheConnector = NewCacheConnector()
@@ -40,6 +41,7 @@ export default class ListPhotos extends Vue.with(Props) {
 
   async mounted() {
     this.photos = await listUseCase.listPhotoCloud()
+    console.log("photos", this.photos)
     this.photos.map(photo => this.downloadPhoto(photo))
   }
 
@@ -49,3 +51,13 @@ export default class ListPhotos extends Vue.with(Props) {
   }
 }
 </script>
+
+<style lang="scss" scoped>
+.photo {
+  margin:1px;
+}
+.row {
+  padding-left:1px;
+  padding-right:1px;
+}
+</style>

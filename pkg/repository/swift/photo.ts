@@ -47,12 +47,23 @@ export class SwiftRepo implements IUploadedPhoto {
     async listFromCustomer(customer: AuthenticatedCustomer) : Promise<UploadedPhoto[]>{
         const client = await this.swiftConnector.Connect(customer.swiftCredentials)
         const customerPrefix = `/${customer.customer.id}${compressPrefix}`;
-        
-        const container = await client.listObjects(customer.swiftCredentials.region, customer.swiftCredentials.container, {prefix: customerPrefix})
-        if (!container.objects) {
-            return []
+        const objects : UploadedPhoto[] = []
+        let marker : string | undefined;
+        const limit = 10
+        while(true) {
+            const container = await client.listObjects(customer.swiftCredentials.region, customer.swiftCredentials.container, {prefix: customerPrefix, limit, marker})
+            if (!container.objects) {
+                break
+            }
+            const tmp = container.objects.map(object => this.toDomain(customerPrefix, object))
+            objects.push(...tmp)
+            marker = container.objects[container.objects.length - 1].name
+
+            if (container.objects.length < limit) {
+                break
+            }
         }
-        return container.objects.map(object => this.toDomain(customerPrefix, object))
+        return objects
     }
     
     async getThumbnail(customer: AuthenticatedCustomer, photo: UploadedPhoto) : Promise<PhotoRaw> {
