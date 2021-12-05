@@ -26,6 +26,7 @@ const photocloudRepo = new PhotoCloud(photocloudConnector, cacheConnector)
 const swiftRepo = new SwiftRepo(swiftConnector)
 
 const listUseCase = new ListPhoto(photocloudRepo, swiftRepo)
+const getUseCase : GetPhoto = new GetPhoto(photocloudRepo, swiftRepo)
     
 class Props {
   readonly title!: string;
@@ -44,7 +45,7 @@ export default class ListPhotos extends Vue.with(Props) {
   }
 
   async downloadPhoto(photo: UploadedPhoto) : Promise<void>{
-    const content = await new GetPhoto(photocloudRepo, swiftRepo).getPhoto(photo)
+    const content = await getUseCase.downloadThumbnail(photo)
     this.links[photo.thumbnailURL] = URL.createObjectURL(new Blob([content]))
   }
 }

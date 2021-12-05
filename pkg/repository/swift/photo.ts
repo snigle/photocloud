@@ -71,11 +71,22 @@ export class SwiftRepo implements IUploadedPhoto {
         const raw = await client.getObject(customer.swiftCredentials.region, customer.swiftCredentials.container, photo.thumbnailURL)
         return raw
     }
+
+    async getCompress(customer: AuthenticatedCustomer, photo: UploadedPhoto) : Promise<PhotoRaw> {
+        const client = await this.swiftConnector.Connect(customer.swiftCredentials)
+        const raw = await client.getObject(customer.swiftCredentials.region, customer.swiftCredentials.container, photo.compressURL)
+        return raw
+    }
+
+    async getFromID(customer: AuthenticatedCustomer, id: string) : Promise<UploadedPhoto> {
+        const customerPrefix = `/${customer.customer.id}${compressPrefix}`;
+        return Promise.resolve(this.toDomain(customerPrefix, { name: customerPrefix + id }))
+    }
     
     
      toDomain(customerPrefix: string, object: Object): UploadedPhoto {
         return {
-            id: object.name,
+            id: object.name.replace(customerPrefix, ""),
             localId: this.parseSwiftFileName(customerPrefix, object.name),
             compressURL: object.name,
             thumbnailURL: object.name.replace(compressPrefix, thumbnailPrefix),

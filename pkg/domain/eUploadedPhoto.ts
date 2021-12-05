@@ -17,4 +17,6 @@ export interface IUploadedPhoto {
     uploadCompress(file: LocalPhoto, compress: PhotoRaw, customer: AuthenticatedCustomer) : Promise<UploadedPhoto>
     listFromCustomer(customer: AuthenticatedCustomer) : Promise<UploadedPhoto[]>
     getThumbnail(customer: AuthenticatedCustomer, photo: UploadedPhoto) : Promise<PhotoRaw>
+    getCompress(customer: AuthenticatedCustomer, photo: UploadedPhoto) : Promise<PhotoRaw>
+    getFromID(customer: AuthenticatedCustomer, id: string) : Promise<UploadedPhoto>
 }

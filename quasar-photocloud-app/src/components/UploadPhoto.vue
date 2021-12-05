@@ -21,6 +21,7 @@ const swiftConnector = NewSwiftConnector()
 
 const photocloudRepo = new PhotoCloud(photocloudConnector, cacheConnector)
 const swiftRepo = new SwiftRepo(swiftConnector)
+const syncUseCase = new SyncPhoto(photocloudRepo, swiftRepo)
 
 export default class extends Vue {
 
@@ -75,7 +76,7 @@ async upload(event: Event) {
         const metadatas = ExifParserFactory.create(content).parse();
         const creationDate = metadatas.tags?.CreateDate ? new Date(metadatas.tags.CreateDate * 1000) : new Date();
 
-        await new SyncPhoto(photocloudRepo, swiftRepo).syncPhoto({
+        await syncUseCase.syncPhoto({
         name: file?.name || '',
         creationDate,
         content: new Uint8Array(content),

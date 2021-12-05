@@ -169,4 +169,9 @@ export class SwiftClient {
         const response = await this.fetch(region, `/${encodeURIComponent(containerName)}/${objectPath}`)
         return new Uint8Array(await response.arrayBuffer())
     }
+
+    async headObject(region:string, containerName: string, objectPath: string): Promise<{}> {
+        const response = await this.fetch(region, `/${encodeURIComponent(containerName)}/${objectPath}`, {method: "HEAD"})
+        return {name: objectPath}
+    }
 }

@@ -1,6 +1,6 @@
 <template>
   <q-page class="column" :style-fn="myTweak">
-    <pic />
+    <pic :id="$route.params.id"/>
   </q-page>
 </template>
 
@@ -11,7 +11,11 @@ import { Vue, Options } from 'vue-class-component'
 @Options({
   components: { pic: Picture }
 })
-export default class extends Vue {
+export default class PicturePage extends Vue {
+
+  mounted() {
+    console.log('picture id', this.$route.params.id)
+  }
      myTweak (offset: number) {
       // "offset" is a Number (pixels) that refers to the total
       // height of header + footer that occupies on screen,
