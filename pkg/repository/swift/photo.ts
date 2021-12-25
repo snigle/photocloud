@@ -49,19 +49,20 @@ export class SwiftRepo implements IUploadedPhoto {
         const customerPrefix = `/${customer.customer.id}${compressPrefix}`;
         const objects : UploadedPhoto[] = []
         let marker : string | undefined;
-        const limit = 10
+        const limit = 1000
         while(true) {
             const container = await client.listObjects(customer.swiftCredentials.region, customer.swiftCredentials.container, {prefix: customerPrefix, limit, marker})
-            if (!container.objects) {
+            if (!container.objects || !container.objects.length) {
                 break
             }
             const tmp = container.objects.map(object => this.toDomain(customerPrefix, object))
             objects.push(...tmp)
-            marker = container.objects[container.objects.length - 1].name
-
+            
             if (container.objects.length < limit) {
                 break
             }
+            marker = container.objects[container.objects.length - 1].name
+
         }
         return objects
     }
