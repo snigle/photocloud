@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "590660982246",
+    "project_id": "photocloud-329220",
+    "storage_bucket": "photocloud-329220.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:590660982246:android:8e45e4e47b158da50e7227",
+        "android_client_info": {
+          "package_name": "com.github.snigle.photocloud"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "590660982246-mnmkllba0lhi1b1dc1b42ak648a5gf0r.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.github.snigle.photocloud",
+            "certificate_hash": "b3df6a861dfa82b19f457d745cb2f2456ae0e4af"
+          }
+        },
+        {
+          "client_id": "590660982246-cmmp4c3blkcdke8s64grt75pc36imab4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9pPq4SqJqu6WFum8SxbdFtE3KHfrrGrM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "590660982246-cmmp4c3blkcdke8s64grt75pc36imab4.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

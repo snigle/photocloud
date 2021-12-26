@@ -1,0 +1,13 @@
+{
+  "name": "photocloud",
+  "version": "0.0.1",
+  "description": "Save your photos in the cloud",
+  "author": "Ludovic Lamarche <ludovic.lamarche@corp.ovh.com>",
+  "private": true,
+  "dependencies": {
+    "@capacitor/android": "2.5.0",
+    "@capacitor/cli": "^2.0.0",
+    "@capacitor/core": "^2.0.0",
+    "@codetrix-studio/capacitor-google-auth": "2.1.3"
+  }
+}

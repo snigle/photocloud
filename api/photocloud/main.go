@@ -26,7 +26,7 @@ var (
 )
 
 func init() {
-	flag.StringVar(&allowOrigin, "cors-origin", "", "origin allowed for CORS")
+	flag.StringVar(&allowOrigin, "cors-origin", "*", "origin allowed for CORS")
 	flag.StringVar(&keystoneProxyEndpoint, "keystone-url", "", "url of keystone to use this API as proxy if your keystone doesn't allow CORS")
 }
 
@@ -37,7 +37,7 @@ func main() {
 
 	f := fizz.NewFromEngine(engine)
 	f.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:8081"},
+		AllowOrigins:     []string{allowOrigin},
 		AllowMethods:     []string{"POST"},
 		AllowHeaders:     []string{"*"},
 		ExposeHeaders:    []string{"*"},
@@ -61,7 +61,7 @@ func main() {
 }
 
 type LoginInput struct {
-	AccessToken string `header:"X-Token" validate:"required"`
+	AuthorizationCode string `header:"X-Token" validate:"required"`
 }
 type LoginResponse struct {
 	Customer         domain.Customer         `json:"customer,omitempty"`
@@ -73,7 +73,7 @@ func Login(c *gin.Context, in *LoginInput) (*LoginResponse, error) {
 	customer, subscription, creds, err := usecase.NewLogin(
 		google.NewCustomerRepo(connectors.NewGoogleConnector()),
 		ovh.NewSubscriptionRep(connectors.NewOVHConnector(), connectors.NewGophercloudConnector()),
-	).Login(c, in.AccessToken)
+	).Login(c, in.AuthorizationCode)
 	if err != nil {
 		return nil, err
 	}

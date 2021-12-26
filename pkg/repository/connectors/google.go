@@ -26,7 +26,7 @@ func NewGoogleConnector() IGoogleConnector {
 	return &GoogleConnector{}
 }
 
-func (g *GoogleConnector) Google(ctx context.Context, accessToken string) (*http.Client, error) {
+func (g *GoogleConnector) GoogleWithAccessToken(ctx context.Context, accessToken string) (*http.Client, error) {
 	var config = &oauth2.Config{
 		ClientID:     GoogleClientID,
 		ClientSecret: GoogleClientSecret,
@@ -35,6 +35,21 @@ func (g *GoogleConnector) Google(ctx context.Context, accessToken string) (*http
 	}
 	token := &oauth2.Token{
 		AccessToken: accessToken,
+	}
+	return config.Client(ctx, token), nil
+}
+
+func (g *GoogleConnector) Google(ctx context.Context, authorizationCode string) (*http.Client, error) {
+	var config = &oauth2.Config{
+		ClientID:     GoogleClientID,
+		ClientSecret: GoogleClientSecret,
+		Endpoint:     google.Endpoint,
+		Scopes:       []string{authapi.UserinfoEmailScope},
+		RedirectURL:  "http://localhost:8081",
+	}
+	token, err := config.Exchange(ctx, authorizationCode)
+	if err != nil {
+		return nil, err
 	}
 	return config.Client(ctx, token), nil
 }
