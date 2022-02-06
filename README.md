@@ -41,15 +41,18 @@ I want to reduce the cost of the infrastructure to permit free access to most of
 ## Technical directions
 Cheaper storage found is OVHCloud object storage and archive storage for backups\
 Standard object storage is S3 Bucket API or Swift API, need to wait for end of life policies\
-~~Image compression with ImageMagick, to reduce cost, do the compression in the browser with [WASM-ImageMagick](https://github.com/KnicKnic/WASM-ImageMagick)~~\
-~~(Imagemagick in WASM is too slow and upload of photo became very slow.)~~\
-Image compression with HTML Canvas, maybe add more compression with imagemagick in backend.
-Frontend application using Cordova and Vue3 in typescript
-~~MongoPay looks like the cheaper billing system : 1,8% + 0,18€ = 0,2ct~~\
-~~(MongoPay didn't accept the product)~~\
+Image compression with HTML Canvas, maybe add more compression with imagemagick in backend.\
 [Stripe](https://stripe.com/fr/pricing) looks like the cheaper billing system : 1,4 % + 0,25 € = 0,28ct\
 Customer subscriptions are store in swift/s3 json payload.\
 Application is developped using Quasar cli (web,IOS,Android) : capacitor + vueJS
+
+### Abandonned directions 
+~~Frontend application using Cordova and Vue3 in typescript~~\
+Difficulty to find google auth plugin up to date with cordova. I wanted to use capacitor to get latest plugins. Quasar is a helper to also run capacitor for the web.\
+~~Image compression with ImageMagick, to reduce cost, do the compression in the browser with [WASM-ImageMagick](https://github.com/KnicKnic/WASM-ImageMagick)~~\
+Imagemagick in WASM is too slow and upload of photo became very slow.\
+~~MongoPay looks like the cheaper billing system : 1,8% + 0,18€ = 0,2ct~~\
+MongoPay didn't accept the product\
 
 ## To be defined
 How to do the payment with credit card.\
