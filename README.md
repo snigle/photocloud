@@ -46,7 +46,7 @@ Standard object storage is S3 Bucket API or Swift API, need to wait for end of l
 Image compression with HTML Canvas, maybe add more compression with imagemagick in backend.
 Frontend application using Cordova and Vue3 in typescript
 ~~MongoPay looks like the cheaper billing system : 1,8% + 0,18€ = 0,2ct~~\
-~~(MongoPay didn't accept the product)~~
+~~(MongoPay didn't accept the product)~~\
 [Stripe](https://stripe.com/fr/pricing) looks like the cheaper billing system : 1,4 % + 0,25 € = 0,28ct\
 Customer subscriptions are store in swift/s3 json payload.\
 Application is developped using Quasar cli (web,IOS,Android) : capacitor + vueJS
