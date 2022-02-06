@@ -3,3 +3,5 @@ tmp
 .vscode
 yarn-error.log
 cache
+main
+cli/creds.ts

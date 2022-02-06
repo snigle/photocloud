@@ -11,81 +11,81 @@ const thumbnailPrefix = `/thumbnail/`;
 const originalPrefix = `/original/`;
 
 export class SwiftRepo implements IUploadedPhoto {
-    constructor(private swiftConnector: ISwiftConnector){}
+    constructor(private swiftConnector: ISwiftConnector) { }
 
     private formatSwiftFileName(prefix: string, file: LocalPhoto): string {
-        return `${prefix}${file.creationDate.getTime()/1000}-${file.name}`
+        return `${prefix}${file.creationDate.getTime() / 1000}-${file.name}`
     }
     private parseSwiftFileName(prefix: string, swiftName: string): string {
-        return swiftName.replace(prefix, "").replace(/^\d+-/,"")
+        return swiftName.replace(prefix, "").replace(/^\d+-/, "")
     }
 
-    async uploadOriginal(file: LocalPhoto, customer: AuthenticatedCustomer) : Promise<UploadedPhoto>{
+    async uploadOriginal(file: LocalPhoto, customer: AuthenticatedCustomer): Promise<UploadedPhoto> {
         const swift = await this.swiftConnector.Connect(customer.swiftCredentials);
         const prefix = `/${customer.customer.id}${originalPrefix}`;
         const body = file.content
         const object = await swift.putObject(customer.swiftCredentials.region, customer.swiftCredentials.container, this.formatSwiftFileName(prefix, file), body, "image/jpeg")
         return this.toDomain(prefix, object)
     }
-    
-    async uploadThumbnail(file: LocalPhoto, thumbnail: PhotoRaw, customer: AuthenticatedCustomer) : Promise<UploadedPhoto>{
+
+    async uploadThumbnail(file: LocalPhoto, thumbnail: PhotoRaw, customer: AuthenticatedCustomer): Promise<UploadedPhoto> {
         const swift = await this.swiftConnector.Connect(customer.swiftCredentials);
         const prefix = `/${customer.customer.id}${thumbnailPrefix}`;
         const object = await swift.putObject(customer.swiftCredentials.region, customer.swiftCredentials.container, this.formatSwiftFileName(prefix, file), thumbnail, "image/jpeg")
         return this.toDomain(prefix, object)
     }
-    
-    async uploadCompress(file: LocalPhoto, compress: PhotoRaw, customer: AuthenticatedCustomer) : Promise<UploadedPhoto>{
+
+    async uploadCompress(file: LocalPhoto, compress: PhotoRaw, customer: AuthenticatedCustomer): Promise<UploadedPhoto> {
         const swift = await this.swiftConnector.Connect(customer.swiftCredentials);
         const prefix = `/${customer.customer.id}${compressPrefix}`;
         const object = await swift.putObject(customer.swiftCredentials.region, customer.swiftCredentials.container, this.formatSwiftFileName(prefix, file), compress, "image/jpeg")
         return this.toDomain(prefix, object)
     }
-    
-    
-    
-    async listFromCustomer(customer: AuthenticatedCustomer) : Promise<UploadedPhoto[]>{
+
+
+
+    async listFromCustomer(customer: AuthenticatedCustomer): Promise<UploadedPhoto[]> {
         const client = await this.swiftConnector.Connect(customer.swiftCredentials)
         const customerPrefix = `/${customer.customer.id}${compressPrefix}`;
-        const objects : UploadedPhoto[] = []
-        let marker : string | undefined;
+        const objects: UploadedPhoto[] = []
+        let marker: string | undefined;
         const limit = 1000
-        while(true) {
-            const container = await client.listObjects(customer.swiftCredentials.region, customer.swiftCredentials.container, {prefix: customerPrefix, limit, marker})
+        while (true) {
+            const container = await client.listObjects(customer.swiftCredentials.region, customer.swiftCredentials.container, { prefix: customerPrefix, limit, marker })
             if (!container.objects || !container.objects.length) {
                 break
             }
             const tmp = container.objects.map(object => this.toDomain(customerPrefix, object))
             objects.push(...tmp)
-            
+
             if (container.objects.length < limit) {
                 break
             }
             marker = container.objects[container.objects.length - 1].name
 
         }
-        return objects
+        return objects.reverse()
     }
-    
-    async getThumbnail(customer: AuthenticatedCustomer, photo: UploadedPhoto) : Promise<PhotoRaw> {
+
+    async getThumbnail(customer: AuthenticatedCustomer, photo: UploadedPhoto): Promise<PhotoRaw> {
         const client = await this.swiftConnector.Connect(customer.swiftCredentials)
         const raw = await client.getObject(customer.swiftCredentials.region, customer.swiftCredentials.container, photo.thumbnailURL)
         return raw
     }
 
-    async getCompress(customer: AuthenticatedCustomer, photo: UploadedPhoto) : Promise<PhotoRaw> {
+    async getCompress(customer: AuthenticatedCustomer, photo: UploadedPhoto): Promise<PhotoRaw> {
         const client = await this.swiftConnector.Connect(customer.swiftCredentials)
         const raw = await client.getObject(customer.swiftCredentials.region, customer.swiftCredentials.container, photo.compressURL)
         return raw
     }
 
-    async getFromID(customer: AuthenticatedCustomer, id: string) : Promise<UploadedPhoto> {
+    async getFromID(customer: AuthenticatedCustomer, id: string): Promise<UploadedPhoto> {
         const customerPrefix = `/${customer.customer.id}${compressPrefix}`;
         return Promise.resolve(this.toDomain(customerPrefix, { name: customerPrefix + id }))
     }
-    
-    
-     toDomain(customerPrefix: string, object: Object): UploadedPhoto {
+
+
+    toDomain(customerPrefix: string, object: Object): UploadedPhoto {
         return {
             id: object.name.replace(customerPrefix, ""),
             localId: this.parseSwiftFileName(customerPrefix, object.name),

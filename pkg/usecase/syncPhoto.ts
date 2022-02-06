@@ -1,5 +1,5 @@
 import { Customer } from "../domain/vCustomer";
-import { LocalPhoto } from "../domain/eLocalPhoto";
+import { ILocalPhoto, LocalPhoto } from "../domain/eLocalPhoto";
 import { Plan } from "../domain/vPlan";
 import { ImageMagick } from "../repository/imagemagick/imagemagick";
 import { IAuthenticatedCustomer } from "../domain/eAuthenticatedCustomer";
@@ -7,7 +7,7 @@ import { IUploadedPhoto } from "../domain/eUploadedPhoto";
 
 export class SyncPhoto {
 
-    constructor(private photocloudRepo: IAuthenticatedCustomer, private uploadPhotoRepo: IUploadedPhoto) { }
+    constructor(private photocloudRepo: IAuthenticatedCustomer, private uploadPhotoRepo: IUploadedPhoto, private localPhotoRepo: ILocalPhoto) { }
 
     async syncPhoto(file: LocalPhoto): Promise<void> {
         // Get customer
@@ -25,10 +25,10 @@ export class SyncPhoto {
         console.log("start upload")
 
         // Create thumbnail
-        const thumbPromise = ImageMagick.createThumbnail(file)
+        const thumbPromise = this.localPhotoRepo.createThumbnail(file)
             .then((thumbnail) => this.uploadPhotoRepo.uploadThumbnail(file, thumbnail, customer))
         // Create compress
-        const compressPromise = ImageMagick.compress(file)
+        const compressPromise = this.localPhotoRepo.compress(file)
             .then((compress) => this.uploadPhotoRepo.uploadCompress(file, compress, customer))
 
         // If subscription plan paid && customer configuration store Original

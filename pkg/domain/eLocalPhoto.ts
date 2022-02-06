@@ -7,6 +7,6 @@ export type LocalPhoto = {
 }
 
 export interface ILocalPhoto {
-    compress(file: LocalPhoto) : Promise<PhotoRaw>
-    createThumbnail(file: LocalPhoto) : Promise<PhotoRaw>
+    compress(file: LocalPhoto): Promise<PhotoRaw>
+    createThumbnail(file: LocalPhoto): Promise<PhotoRaw>
 }

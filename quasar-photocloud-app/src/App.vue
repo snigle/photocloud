@@ -4,7 +4,7 @@
   <div v-else @click="login()">Click here to login</div>
 </template>
 <script lang="ts">
-/* eslint-disable  @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call*/
+/* eslint-disable  @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access*/
 
 import { Vue } from 'vue-class-component';
 import { NewCacheConnector } from '../../pkg/repository/connectors/cache';
@@ -46,9 +46,7 @@ export default class App extends Vue {
     this.loading = true;
     try {
       const response = await Plugins.GoogleAuth.signIn();
-      await loginUsecase.login(
-        response.serverAuthCode
-      );
+      await loginUsecase.login(response.serverAuthCode);
       this.logged = true;
     } catch (e) {
       console.log('fail to login', e);

@@ -4,6 +4,5 @@
     <string name="title_activity_main">Photocloud</string>
     <string name="package_name">com.github.snigle.photocloud</string>
     <string name="custom_url_scheme">com.github.snigle.photocloud</string>
-
-
+    <string name="server_client_id">590660982246-cmmp4c3blkcdke8s64grt75pc36imab4.apps.googleusercontent.com</string>
 </resources>
