@@ -48,7 +48,7 @@ Frontend application using Cordova and Vue3 in typescript
 ~~MongoPay looks like the cheaper billing system : 1,8% + 0,18€ = 0,2ct~~\
 ~~(MongoPay didn't accept the product)~~
 [Stripe](https://stripe.com/fr/pricing) looks like the cheaper billing system : 1,4 % + 0,25 € = 0,28ct\
-Customer subscriptions are store in swift/s3 json payload
+Customer subscriptions are store in swift/s3 json payload.\
 Application is developped using Quasar cli (web,IOS,Android) : capacitor + vueJS
 
 ## To be defined
