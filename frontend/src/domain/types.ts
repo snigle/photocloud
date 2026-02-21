@@ -4,6 +4,7 @@ export interface S3Credentials {
   endpoint: string;
   region: string;
   bucket: string;
+  user_key?: string;
 }
 
 export interface Photo {
