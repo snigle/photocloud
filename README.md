@@ -78,6 +78,39 @@ export API_URL=http://localhost:8080
 export DEV_AUTH_ENABLED=true
 ```
 
+### Configuration CORS du Bucket S3
+
+Pour que l'application web (frontend) puisse communiquer avec le bucket S3, vous devez configurer les règles CORS (Cross-Origin Resource Sharing) sur votre bucket.
+
+1.  **Installez AWS CLI** : Si ce n'est pas déjà fait, [installez l'outil en ligne de commande AWS](https://aws.amazon.com/cli/).
+
+2.  **Configurez AWS CLI** : Configurez le CLI avec des clés d'accès qui ont les permissions de modifier la configuration de votre bucket OVH S3.
+
+    ```bash
+    aws configure
+    ```
+
+3.  **Créez le fichier de configuration CORS** : Créez un fichier nommé `aws.cors.json` à la racine du projet avec le contenu suivant. Assurez-vous que `AllowedOrigins` correspond à l'URL de votre application frontend.
+
+    ```json
+    {
+       "CORSRules": [
+            {
+                "AllowedHeaders": ["*"],
+                "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+                "AllowedOrigins": ["http://localhost:3000", "http://127.0.0.1:5173"],
+                "ExposeHeaders": ["Access-Control-Allow-Origin"]
+            }
+       ]
+    }
+    ```
+
+4.  **Appliquez la configuration CORS** : Exécutez la commande suivante en remplaçant `your_photocloud_bucket` par le nom de votre bucket et `https://s3.gra.io.cloud.ovh.net` par l'endpoint de votre région.
+
+    ```bash
+    aws s3api put-bucket-cors --bucket your_photocloud_bucket --cors-configuration file://aws.cors.json --endpoint-url https://s3.gra.io.cloud.ovh.net
+    ```
+
 ### Lancement
 ```bash
 # Installation des dépendances
@@ -93,3 +126,24 @@ go run cmd/api/main.go
 - `GET /auth/magic-link/request?email=USER_EMAIL` : Demander un lien magique.
 - `GET /auth/passkey/login/begin?email=USER_EMAIL` : Initier un login Passkey.
 - `GET /credentials` : Récupérer les clés S3 (nécessite header `X-User-Email` pour le POC).
+
+## 6. Guide de Lancement (Frontend)
+
+### Pré-requis
+- [nvm](https://github.com/nvm-sh/nvm) (Node Version Manager)
+- [pnpm](https://pnpm.io/)
+
+### Lancement
+```bash
+# Naviguer vers le dossier du frontend
+cd frontend
+
+# Sélectionner la bonne version de Node.js
+nvm use 22
+
+# Installation des dépendances
+pnpm install
+
+# Lancement du serveur de développement
+pnpm run dev
+```

@@ -61,23 +61,16 @@ func (r *StorageRepository) GetS3Credentials(ctx context.Context, email string) 
 		var newUser ovhUser
 		// We use a basic role for object storage.
 		// Note: Some API versions might require a separate call for role assignment.
-		err = r.client.Post(fmt.Sprintf("/cloud/project/%s/user", r.projectID), map[string]string{
+		err = r.client.Post(fmt.Sprintf("/cloud/project/%s/user", r.projectID), map[string]any{
 			"description": email,
+			"roles": []string{
+				"objectstore_operator",
+			},
 		}, &newUser)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create OVH user: %w", err)
 		}
 		userID = newUser.ID
-
-		// Assign role
-		err = r.client.Post(fmt.Sprintf("/cloud/project/%s/user/%v/role", r.projectID, userID), map[string]string{
-			"roleName": "objectstore_operator",
-		}, nil)
-		if err != nil {
-			// Some API use roleId instead of roleName, or it might already have a default role.
-			// We log but don't fail as it might be non-critical or different across regions.
-			fmt.Printf("Warning: failed to assign role to user %v: %v\n", userID, err)
-		}
 	}
 
 	// 3. Apply S3 Policy
@@ -131,6 +124,12 @@ func (r *StorageRepository) GetS3Credentials(ctx context.Context, email string) 
 		}
 	} else {
 		s3Cred = creds[0]
+		var secret ovhS3Credential
+		err = r.client.Post(fmt.Sprintf("/cloud/project/%s/user/%v/s3Credentials/%s/secret", r.projectID, userID, s3Cred.Access), nil, &secret)
+		s3Cred.Secret = secret.Secret
+		if err != nil {
+			return nil, fmt.Errorf("failed to get S3 secret: %w", err)
+		}
 	}
 
 	return &domain.S3Credentials{

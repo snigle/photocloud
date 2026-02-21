@@ -13,8 +13,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/rs/cors"
 	"github.com/ovh/go-ovh/ovh"
+	"github.com/rs/cors"
 	"github.com/snigle/photocloud/internal/infra/auth"
 	"github.com/snigle/photocloud/internal/infra/email"
 	ovhinfra "github.com/snigle/photocloud/internal/infra/ovh"
@@ -76,7 +76,7 @@ func main() {
 
 	webAuthn, err := auth.NewPasskeyAuthenticator(storageRepo, &webauthn.Config{
 		RPDisplayName: "Photo Cloud",
-		RPID:          os.Getenv("RP_ID"),       // e.g. localhost or your domain
+		RPID:          os.Getenv("RP_ID"),               // e.g. localhost or your domain
 		RPOrigins:     []string{os.Getenv("RP_ORIGIN")}, // e.g. http://localhost:3000
 	})
 	if err != nil {
