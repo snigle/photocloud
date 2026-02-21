@@ -3,14 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/rs/cors"
 	"github.com/ovh/go-ovh/ovh"
 	"github.com/snigle/photocloud/internal/infra/auth"
 	"github.com/snigle/photocloud/internal/infra/email"
@@ -52,11 +55,16 @@ func main() {
 	}
 
 	// S3 Client for internal use (admin access to bucket for passkeys/metadata)
-	cfg, err := config.LoadDefaultConfig(context.Background())
+	s3Endpoint := fmt.Sprintf("https://s3.%s.io.cloud.ovh.net", region)
+	cfg, err := config.LoadDefaultConfig(context.Background(),
+		config.WithRegion(region),
+	)
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
 	}
-	s3AdminClient := s3.NewFromConfig(cfg)
+	s3AdminClient := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(s3Endpoint)
+	})
 
 	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket, s3AdminClient)
 	getS3CredsUseCase := usecase.NewGetS3CredentialsUseCase(storageRepo)
@@ -205,8 +213,17 @@ func main() {
 		port = "8080"
 	}
 
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-User-Email"},
+		AllowCredentials: true,
+	})
+
+	handler := c.Handler(http.DefaultServeMux)
+
 	log.Printf("Server starting on port %s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
 }

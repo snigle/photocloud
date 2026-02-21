@@ -138,6 +138,7 @@ func (r *StorageRepository) GetS3Credentials(ctx context.Context, email string) 
 		SecretKey: s3Cred.Secret,
 		Endpoint:  fmt.Sprintf("https://s3.%s.io.cloud.ovh.net", r.region),
 		Region:    r.region,
+		Bucket:    r.bucket,
 	}, nil
 }
 
