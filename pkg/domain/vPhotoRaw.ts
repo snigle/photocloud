@@ -1,1 +1,0 @@
-export type PhotoRaw = Uint8Array
