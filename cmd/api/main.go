@@ -6,7 +6,10 @@ import (
 	"net/http"
 	"os"
 
+	"strings"
+
 	"github.com/ovh/go-ovh/ovh"
+	"github.com/snigle/photocloud/internal/infra/auth"
 	ovhinfra "github.com/snigle/photocloud/internal/infra/ovh"
 	"github.com/snigle/photocloud/internal/usecase"
 )
@@ -20,6 +23,7 @@ func main() {
 	projectID := os.Getenv("OVH_PROJECT_ID")
 	region := os.Getenv("OVH_REGION")
 	bucket := os.Getenv("OVH_S3_BUCKET")
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
 
 	if region == "" {
 		region = "gra" // Default region
@@ -32,6 +36,7 @@ func main() {
 
 	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket)
 	getS3CredsUseCase := usecase.NewGetS3CredentialsUseCase(storageRepo)
+	authenticator := auth.NewGoogleAuthenticator(googleClientID)
 
 	http.HandleFunc("/credentials", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -39,16 +44,23 @@ func main() {
 			return
 		}
 
-		// Mock authentication: get email from header
-		email := r.Header.Get("X-User-Email")
-		if email == "" {
-			http.Error(w, "Unauthorized: X-User-Email header is required", http.StatusUnauthorized)
+		authHeader := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			http.Error(w, "Unauthorized: Bearer token required", http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+
+		userInfo, err := authenticator.Authenticate(r.Context(), token)
+		if err != nil {
+			log.Printf("Authentication failed: %v", err)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		creds, err := getS3CredsUseCase.Execute(r.Context(), email)
+		creds, err := getS3CredsUseCase.Execute(r.Context(), userInfo.Email)
 		if err != nil {
-			log.Printf("Error getting S3 credentials for %s: %v", email, err)
+			log.Printf("Error getting S3 credentials for %s: %v", userInfo.Email, err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
