@@ -3,8 +3,12 @@ package ovh
 import (
 	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -18,15 +22,17 @@ type StorageRepository struct {
 	region    string
 	bucket    string
 	s3Client  *s3.Client
+	masterKey []byte
 }
 
-func NewStorageRepository(client *ovh.Client, projectID string, region string, bucket string, s3Client *s3.Client) *StorageRepository {
+func NewStorageRepository(client *ovh.Client, projectID string, region string, bucket string, s3Client *s3.Client, masterKey []byte) *StorageRepository {
 	return &StorageRepository{
 		client:    client,
 		projectID: projectID,
 		region:    region,
 		bucket:    bucket,
 		s3Client:  s3Client,
+		masterKey: masterKey,
 	}
 }
 
@@ -163,8 +169,26 @@ func (r *StorageRepository) GetUser(ctx context.Context, email string) (domain.P
 	}
 	defer output.Body.Close()
 
+	data, err := io.ReadAll(output.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read user data: %w", err)
+	}
+
+	decryptedData, err := r.decrypt(data)
+	if err != nil {
+		// Fallback for transition: try to decode as plain JSON if decryption fails
+		var record passkeyUserRecord
+		if err := json.Unmarshal(data, &record); err == nil {
+			return &domain.PasskeyUserEntity{
+				Email:       record.Email,
+				Credentials: record.Credentials,
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to decrypt user data: %w", err)
+	}
+
 	var record passkeyUserRecord
-	if err := json.NewDecoder(output.Body).Decode(&record); err != nil {
+	if err := json.Unmarshal(decryptedData, &record); err != nil {
 		return nil, fmt.Errorf("failed to decode user record: %w", err)
 	}
 
@@ -189,15 +213,105 @@ func (r *StorageRepository) SaveUser(ctx context.Context, email string, user dom
 		return fmt.Errorf("failed to marshal user record: %w", err)
 	}
 
+	encryptedData, err := r.encrypt(data)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt user record: %w", err)
+	}
+
 	key := fmt.Sprintf("users/%s/config/passkeys.json", email)
 	_, err = r.s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(r.bucket),
 		Key:    aws.String(key),
-		Body:   bytes.NewReader(data),
+		Body:   bytes.NewReader(encryptedData),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to save user to S3: %w", err)
 	}
 
 	return nil
+}
+
+func (r *StorageRepository) GetUserKey(ctx context.Context, email string) ([]byte, error) {
+	if r.s3Client == nil {
+		return nil, fmt.Errorf("s3 client not initialized")
+	}
+
+	key := fmt.Sprintf("users/%s/secret.key", email)
+	output, err := r.s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(r.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user key from S3: %w", err)
+	}
+	defer output.Body.Close()
+
+	data, err := io.ReadAll(output.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read user key: %w", err)
+	}
+
+	return r.decrypt(data)
+}
+
+func (r *StorageRepository) SaveUserKey(ctx context.Context, email string, userKey []byte) error {
+	if r.s3Client == nil {
+		return fmt.Errorf("s3 client not initialized")
+	}
+
+	encryptedKey, err := r.encrypt(userKey)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt user key: %w", err)
+	}
+
+	key := fmt.Sprintf("users/%s/secret.key", email)
+	_, err = r.s3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(r.bucket),
+		Key:    aws.String(key),
+		Body:   bytes.NewReader(encryptedKey),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to save user key to S3: %w", err)
+	}
+
+	return nil
+}
+
+func (r *StorageRepository) encrypt(data []byte) ([]byte, error) {
+	block, err := aes.NewCipher(r.masterKey)
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, err
+	}
+
+	return gcm.Seal(nonce, nonce, data, nil), nil
+}
+
+func (r *StorageRepository) decrypt(data []byte) ([]byte, error) {
+	block, err := aes.NewCipher(r.masterKey)
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonceSize := gcm.NonceSize()
+	if len(data) < nonceSize {
+		return nil, fmt.Errorf("ciphertext too short")
+	}
+
+	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
+	return gcm.Open(nil, nonce, ciphertext, nil)
 }
