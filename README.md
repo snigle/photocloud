@@ -73,6 +73,9 @@ export SMTP_FROM=your_email@domain.com
 # Configuration API
 export PORT=8080
 export API_URL=http://localhost:8080
+
+# Dev Auth (Optionnel)
+export DEV_AUTH_ENABLED=true
 ```
 
 ### Lancement
@@ -85,6 +88,7 @@ go run cmd/api/main.go
 ```
 
 ### Endpoints principaux
+- `GET /auth/dev` : Login de développement (si `DEV_AUTH_ENABLED=true`). Utilise l'email `dev@photocloud.local`.
 - `GET /auth/google?token=ID_TOKEN` : Login via Google.
 - `GET /auth/magic-link/request?email=USER_EMAIL` : Demander un lien magique.
 - `GET /auth/passkey/login/begin?email=USER_EMAIL` : Initier un login Passkey.

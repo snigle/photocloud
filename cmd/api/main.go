@@ -64,6 +64,7 @@ func main() {
 	googleAuth := auth.NewGoogleAuthenticator(googleClientID)
 	magicLinkAuth := auth.NewMagicLinkAuthenticator(jwtSecret, "photocloud-api")
 	emailSender := email.NewSMTPEmailSender(smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom)
+	devAuth := auth.NewDevAuthenticator("dev@photocloud.local")
 
 	webAuthn, err := auth.NewPasskeyAuthenticator(storageRepo, &webauthn.Config{
 		RPDisplayName: "Photo Cloud",
@@ -73,6 +74,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create WebAuthn authenticator: %v", err)
 	}
+
+	// 0. Dev Auth
+	http.HandleFunc("/auth/dev", func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("DEV_AUTH_ENABLED") != "true" {
+			http.Error(w, "Dev auth disabled", http.StatusForbidden)
+			return
+		}
+		userInfo, err := devAuth.Authenticate(r.Context(), "dev-token")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+		returnS3Credentials(w, r, getS3CredsUseCase, userInfo.Email)
+	})
 
 	// 1. Google Auth
 	http.HandleFunc("/auth/google", func(w http.ResponseWriter, r *http.Request) {
