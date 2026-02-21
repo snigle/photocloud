@@ -1,10 +1,13 @@
 package ovh
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/ovh/go-ovh/ovh"
 	"github.com/snigle/photocloud/internal/domain"
 )
@@ -14,14 +17,16 @@ type StorageRepository struct {
 	projectID string
 	region    string
 	bucket    string
+	s3Client  *s3.Client
 }
 
-func NewStorageRepository(client *ovh.Client, projectID string, region string, bucket string) *StorageRepository {
+func NewStorageRepository(client *ovh.Client, projectID string, region string, bucket string, s3Client *s3.Client) *StorageRepository {
 	return &StorageRepository{
 		client:    client,
 		projectID: projectID,
 		region:    region,
 		bucket:    bucket,
+		s3Client:  s3Client,
 	}
 }
 
@@ -134,4 +139,65 @@ func (r *StorageRepository) GetS3Credentials(ctx context.Context, email string) 
 		Endpoint:  fmt.Sprintf("https://s3.%s.io.cloud.ovh.net", r.region),
 		Region:    r.region,
 	}, nil
+}
+
+// UserStorage implementation
+
+type passkeyUserRecord struct {
+	Email       string                     `json:"email"`
+	Credentials []domain.PasskeyCredential `json:"credentials"`
+}
+
+func (r *StorageRepository) GetUser(ctx context.Context, email string) (domain.PasskeyUser, error) {
+	if r.s3Client == nil {
+		return nil, fmt.Errorf("s3 client not initialized")
+	}
+
+	key := fmt.Sprintf("users/%s/config/passkeys.json", email)
+	output, err := r.s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(r.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user from S3: %w", err)
+	}
+	defer output.Body.Close()
+
+	var record passkeyUserRecord
+	if err := json.NewDecoder(output.Body).Decode(&record); err != nil {
+		return nil, fmt.Errorf("failed to decode user record: %w", err)
+	}
+
+	return &domain.PasskeyUserEntity{
+		Email:       record.Email,
+		Credentials: record.Credentials,
+	}, nil
+}
+
+func (r *StorageRepository) SaveUser(ctx context.Context, email string, user domain.PasskeyUser) error {
+	if r.s3Client == nil {
+		return fmt.Errorf("s3 client not initialized")
+	}
+
+	record := passkeyUserRecord{
+		Email:       email,
+		Credentials: user.GetCredentials(),
+	}
+
+	data, err := json.Marshal(record)
+	if err != nil {
+		return fmt.Errorf("failed to marshal user record: %w", err)
+	}
+
+	key := fmt.Sprintf("users/%s/config/passkeys.json", email)
+	_, err = r.s3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(r.bucket),
+		Key:    aws.String(key),
+		Body:   bytes.NewReader(data),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to save user to S3: %w", err)
+	}
+
+	return nil
 }
