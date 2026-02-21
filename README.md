@@ -76,6 +76,10 @@ export API_URL=http://localhost:8080
 
 # Dev Auth (Optionnel)
 export DEV_AUTH_ENABLED=true
+
+# Chiffrement (Optionnel - Une clé par défaut est utilisée en dev)
+# Générez une clé de 32 octets (AES-256) encodée en base64 : openssl rand -base64 32
+export MASTER_KEY=your_base64_master_key
 ```
 
 ### Configuration CORS du Bucket S3

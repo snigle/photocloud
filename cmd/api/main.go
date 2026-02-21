@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -45,6 +46,23 @@ func main() {
 		jwtSecret = "default-secret-change-me"
 	}
 
+	masterKeyStr := os.Getenv("MASTER_KEY")
+	var masterKey []byte
+	if masterKeyStr != "" {
+		var err error
+		masterKey, err = base64.StdEncoding.DecodeString(masterKeyStr)
+		if err != nil || len(masterKey) != 32 {
+			if len(masterKeyStr) == 32 {
+				masterKey = []byte(masterKeyStr)
+			} else {
+				log.Printf("Warning: MASTER_KEY must be a 32-byte base64 string or 32-byte raw string. Using dev key.")
+				masterKey = []byte("dev-master-key-must-be-32-bytes-")
+			}
+		}
+	} else {
+		masterKey = []byte("dev-master-key-must-be-32-bytes-")
+	}
+
 	if region == "" {
 		region = "gra" // Default region
 	}
@@ -66,8 +84,8 @@ func main() {
 		o.BaseEndpoint = aws.String(s3Endpoint)
 	})
 
-	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket, s3AdminClient)
-	getS3CredsUseCase := usecase.NewGetS3CredentialsUseCase(storageRepo)
+	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket, s3AdminClient, masterKey)
+	getS3CredsUseCase := usecase.NewGetS3CredentialsUseCase(storageRepo, storageRepo)
 
 	googleAuth := auth.NewGoogleAuthenticator(googleClientID)
 	magicLinkAuth := auth.NewMagicLinkAuthenticator(jwtSecret, "photocloud-api")
