@@ -10,3 +10,8 @@ export interface Photo {
   key: string;
   url: string;
 }
+
+export interface UserSession {
+  creds: S3Credentials;
+  email: string;
+}

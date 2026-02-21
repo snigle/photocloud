@@ -17,6 +17,7 @@ import (
 	"github.com/rs/cors"
 	"github.com/snigle/photocloud/internal/infra/auth"
 	"github.com/snigle/photocloud/internal/infra/email"
+	"github.com/snigle/photocloud/internal/domain"
 	ovhinfra "github.com/snigle/photocloud/internal/infra/ovh"
 	"github.com/snigle/photocloud/internal/usecase"
 )
@@ -116,7 +117,11 @@ func main() {
 			http.Error(w, "Internal error", http.StatusInternalServerError)
 			return
 		}
-		body := "Click here to login: " + os.Getenv("API_URL") + "/auth/magic-link/callback?token=" + token
+		link := os.Getenv("API_URL") + "/auth/magic-link/callback?token=" + token
+		if frontendURL := os.Getenv("FRONTEND_URL"); frontendURL != "" {
+			link = frontendURL + "?token=" + token
+		}
+		body := "Click here to login: " + link
 		err = emailSender.SendEmail(r.Context(), email, "Your Magic Link", body)
 		if err != nil {
 			http.Error(w, "Failed to send email", http.StatusInternalServerError)
@@ -228,6 +233,11 @@ func main() {
 	}
 }
 
+type AuthResponse struct {
+	*domain.S3Credentials
+	Email string `json:"email"`
+}
+
 func returnS3Credentials(w http.ResponseWriter, r *http.Request, useCase *usecase.GetS3CredentialsUseCase, email string) {
 	creds, err := useCase.Execute(r.Context(), email)
 	if err != nil {
@@ -236,5 +246,8 @@ func returnS3Credentials(w http.ResponseWriter, r *http.Request, useCase *usecas
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(creds)
+	json.NewEncoder(w).Encode(AuthResponse{
+		S3Credentials: creds,
+		Email:         email,
+	})
 }
