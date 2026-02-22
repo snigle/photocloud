@@ -1,16 +1,25 @@
+import { Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
-import * as SQLite from 'expo-sqlite';
 import { ILocalGalleryRepository, LocalPhoto, Photo } from '../domain/types';
 
+// We use dynamic imports for native-only libraries to avoid crashes on web
+let SQLite: any;
+if (Platform.OS !== 'web') {
+    SQLite = require('expo-sqlite');
+}
+
 export class LocalGalleryRepository implements ILocalGalleryRepository {
-  private dbPromise: Promise<SQLite.SQLiteDatabase>;
+  private dbPromise: Promise<any> | null = null;
 
   constructor() {
-    this.dbPromise = SQLite.openDatabaseAsync('gallery.db');
-    this.initDb();
+    if (Platform.OS !== 'web') {
+        this.dbPromise = SQLite.openDatabaseAsync('gallery.db');
+        this.initDb();
+    }
   }
 
   private async initDb() {
+    if (Platform.OS === 'web' || !this.dbPromise) return;
     try {
         const db = await this.dbPromise;
         await db.execAsync(`
@@ -32,6 +41,7 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
   }
 
   async listLocalPhotos(): Promise<LocalPhoto[]> {
+    if (Platform.OS === 'web') return []; // Web doesn't support local media library access this way
     try {
         const { status } = await MediaLibrary.requestPermissionsAsync();
         if (status !== 'granted') return [];
@@ -71,6 +81,7 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
   }
 
   async saveToCache(photos: Photo[]): Promise<void> {
+    if (Platform.OS === 'web' || !this.dbPromise) return;
     const db = await this.dbPromise;
     try {
         await db.withTransactionAsync(async () => {
@@ -102,6 +113,7 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
   }
 
   async loadFromCache(limit: number = 100, offset: number = 0): Promise<Photo[]> {
+    if (Platform.OS === 'web' || !this.dbPromise) return [];
     const db = await this.dbPromise;
     try {
         const rows = await db.getAllAsync(
