@@ -57,6 +57,7 @@ export interface IS3Repository {
   ): Promise<void>;
   getFile(bucket: string, key: string): Promise<Uint8Array>;
   getDownloadUrl(bucket: string, key: string): Promise<string>;
+  exists(bucket: string, key: string): Promise<boolean>;
 }
 
 export interface ILocalGalleryRepository {

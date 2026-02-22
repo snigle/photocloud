@@ -128,11 +128,15 @@ export class UploadUseCase {
   private async updateIndex(creds: S3Credentials, email: string, year: string): Promise<void> {
     const indexKey = `users/${email}/index.json`;
     let index: { years: string[] } = { years: [] };
-    try {
-        const existingIndexData = await this.s3Repo.getFile(creds.bucket, indexKey);
-        index = JSON.parse(new TextDecoder().decode(existingIndexData));
-    } catch (e) {
-        // Ignore
+
+    const exists = await this.s3Repo.exists(creds.bucket, indexKey);
+    if (exists) {
+        try {
+            const existingIndexData = await this.s3Repo.getFile(creds.bucket, indexKey);
+            index = JSON.parse(new TextDecoder().decode(existingIndexData));
+        } catch (e) {
+            // Ignore
+        }
     }
 
     if (!index.years.includes(year)) {

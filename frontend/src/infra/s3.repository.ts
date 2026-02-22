@@ -3,6 +3,7 @@ import {
   ListObjectsV2Command,
   GetObjectCommand,
   PutObjectCommand,
+  HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { IS3Repository, S3Credentials, UploadedPhoto } from '../domain/types';
@@ -104,5 +105,21 @@ export class S3Repository implements IS3Repository {
     // Depending on environment (web/native), we might need different transformations.
     // transformToUint8Array is available in recent SDK v3 versions.
     return await (data.Body as any).transformToUint8Array();
+  }
+
+  async exists(bucket: string, key: string): Promise<boolean> {
+    try {
+      const command = new HeadObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      });
+      await this.s3.send(command);
+      return true;
+    } catch (err: any) {
+      if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
+        return false;
+      }
+      throw err;
+    }
   }
 }
