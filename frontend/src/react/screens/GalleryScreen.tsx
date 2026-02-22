@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
-import { Appbar, List, Text, useTheme, Divider } from 'react-native-paper';
-import { LogOut, RefreshCw, FileText } from 'lucide-react-native';
+import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { Appbar, List, Text, useTheme, Divider, FAB } from 'react-native-paper';
+import { LogOut, RefreshCw, FileText, Upload } from 'lucide-react-native';
 import { useGallery } from '../hooks/useGallery';
+import { useUpload } from '../hooks/useUpload';
 import type { S3Credentials } from '../../domain/types';
 
 interface Props {
@@ -14,18 +15,32 @@ interface Props {
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
   const { photos, loading, error, refresh } = useGallery(creds, email);
+  const { upload, uploading, error: uploadError } = useUpload(creds, email);
+
+  const handleUpload = async () => {
+    const success = await upload();
+    if (success) {
+      refresh();
+    }
+  };
 
   return (
     <View style={styles.container}>
       <Appbar.Header elevated>
         <Appbar.Content title="My Cloud" subtitle={email} />
+        {uploading && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
+        <Appbar.Action
+          icon={() => <Upload size={24} color={theme.colors.onSurface} />}
+          onPress={handleUpload}
+          disabled={uploading}
+        />
         <Appbar.Action icon={() => <RefreshCw size={24} color={theme.colors.onSurface} />} onPress={refresh} />
         <Appbar.Action icon={() => <LogOut size={24} color={theme.colors.onSurface} />} onPress={onLogout} />
       </Appbar.Header>
 
-      {error && (
-        <View style={styles.center}>
-          <Text style={{ color: theme.colors.error }}>{error}</Text>
+      {(error || uploadError) && (
+        <View style={styles.errorBanner}>
+          <Text style={{ color: theme.colors.error }}>{error || uploadError}</Text>
         </View>
       )}
 
@@ -54,6 +69,14 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
           </>
         )}
       />
+
+      <FAB
+        icon={() => <Upload size={24} color={theme.colors.onPrimaryContainer} />}
+        style={styles.fab}
+        onPress={handleUpload}
+        loading={uploading}
+        disabled={uploading}
+      />
     </View>
   );
 };
@@ -71,6 +94,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  errorBanner: {
+    backgroundColor: '#fee',
+    padding: 10,
+    alignItems: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    margin: 16,
+    right: 0,
+    bottom: 0,
   },
 });
 
