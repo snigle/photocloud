@@ -2,6 +2,7 @@ import {
   S3Client,
   ListObjectsV2Command,
   GetObjectCommand,
+  PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { IS3Repository, S3Credentials, Photo } from '../domain/types';
@@ -44,5 +45,34 @@ export class S3Repository implements IS3Repository {
     });
 
     return Promise.all(photos);
+  }
+
+  async uploadFile(
+    bucket: string,
+    key: string,
+    data: Uint8Array,
+    contentType: string
+  ): Promise<void> {
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: data,
+      ContentType: contentType,
+    });
+
+    await this.s3.send(command);
+  }
+
+  async getFile(bucket: string, key: string): Promise<Uint8Array> {
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    });
+
+    const data = await this.s3.send(command);
+    if (!data.Body) {
+      throw new Error('No body in S3 response');
+    }
+    return await data.Body.transformToUint8Array();
   }
 }

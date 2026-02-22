@@ -34,4 +34,11 @@ export interface IAuthRepository {
 
 export interface IS3Repository {
   listPhotos(bucket: string, prefix: string): Promise<Photo[]>;
+  uploadFile(
+    bucket: string,
+    key: string,
+    data: Uint8Array,
+    contentType: string
+  ): Promise<void>;
+  getFile(bucket: string, key: string): Promise<Uint8Array>;
 }
