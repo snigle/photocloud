@@ -25,77 +25,101 @@ export class S3Repository implements IS3Repository {
 
   async listPhotos(bucket: string, email: string): Promise<UploadedPhoto[]> {
     let allPhotos: UploadedPhoto[] = [];
+    const basePrefix = `users/${email}/`;
 
     try {
-        // 1. Get available years from index.json
-        const indexKey = `users/${email}/index.json`;
+        // 1. Try to get years from index.json for targeted listing
         let years: string[] = [];
         try {
+            const indexKey = `${basePrefix}index.json`;
             const indexData = await this.getFile(bucket, indexKey);
             const index = JSON.parse(new TextDecoder().decode(indexData));
-            years = index.years || [];
+            if (index && Array.isArray(index.years)) {
+                years = index.years.map((y: any) => y.toString());
+            }
         } catch (e) {
-            console.log('No index.json found or failed to parse, listing root folder as fallback');
-            // If no index.json, we can fallback to listing the whole prefix once
-            // but the user wants us to use the targeted folders.
-            // For a new user, years will be empty.
+            // index.json might not exist yet
         }
 
-        if (years.length === 0) {
-            // Last resort fallback: list the root but it might be slow
-            return await this.listFolder(bucket, `users/${email}/`);
+        if (years.length > 0) {
+            for (const year of years) {
+                const yearPhotos = await this.listFolder(bucket, `${basePrefix}${year}/original/`);
+                allPhotos = [...allPhotos, ...yearPhotos];
+            }
         }
 
-        // 2. List each year's original/ folder
-        for (const year of years) {
-            const yearPhotos = await this.listFolder(bucket, `users/${email}/${year}/original/`);
-            allPhotos = [...allPhotos, ...yearPhotos];
+        // 2. Fallback: If no photos found in targeted folders, search more broadly
+        if (allPhotos.length === 0) {
+            // List everything under the user's prefix and filter for any /original/ folder
+            const allFiles = await this.listFolder(bucket, basePrefix);
+            allPhotos = allFiles.filter(p => p.key.includes('/original/'));
+        }
+
+        // 3. Last resort: If still nothing, just return all .enc files we found
+        if (allPhotos.length === 0) {
+            const allFiles = await this.listFolder(bucket, basePrefix);
+            allPhotos = allFiles.filter(p => p.key.endsWith('.enc') && !p.key.endsWith('.json.enc'));
         }
 
     } catch (err) {
-        console.error('Error listing photos from S3:', err);
+        console.error('Error in listPhotos:', err);
         throw err;
     }
 
-    return allPhotos;
+    // Deduplicate by ID just in case
+    const uniquePhotos = Array.from(new Map(allPhotos.map(p => [p.id, p])).values());
+    return uniquePhotos;
   }
 
   private async listFolder(bucket: string, prefix: string): Promise<UploadedPhoto[]> {
     let folderPhotos: UploadedPhoto[] = [];
     let continuationToken: string | undefined = undefined;
 
-    do {
-        const command: ListObjectsV2Command = new ListObjectsV2Command({
-          Bucket: bucket,
-          Prefix: prefix,
-          ContinuationToken: continuationToken,
-        });
+    try {
+        do {
+            const command: ListObjectsV2Command = new ListObjectsV2Command({
+              Bucket: bucket,
+              Prefix: prefix,
+              ContinuationToken: continuationToken,
+            });
 
-        const data = await this.s3.send(command);
-        const items: UploadedPhoto[] = (data.Contents || [])
-          .filter(item => item.Key?.endsWith('.enc') && !item.Key?.endsWith('.json.enc'))
-          .map(item => {
-            const parts = item.Key!.split('/');
-            const filename = parts.pop()!;
-            const timestampMatch = filename.match(/^(\d+)-/);
-            const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0;
+            const data = await this.s3.send(command);
+            if (!data.Contents) break;
 
-            return {
-              id: filename.replace('.enc', ''),
-              key: item.Key!,
-              creationDate: timestamp,
-              size: item.Size || 0,
-              width: 0,
-              height: 0,
-              type: 'cloud' as const,
-            };
-          });
+            const items: UploadedPhoto[] = data.Contents
+              .filter(item => {
+                  const key = item.Key || '';
+                  // We want files, not "folders" (prefixes)
+                  return !key.endsWith('/');
+              })
+              .map(item => {
+                const key = item.Key!;
+                const parts = key.split('/');
+                const filename = parts.pop()!;
 
-        folderPhotos = [...folderPhotos, ...items];
-        continuationToken = data.NextContinuationToken;
-      } while (continuationToken);
+                // Try to parse timestamp from filename (e.g. 1712345678-uuid.enc)
+                const timestampMatch = filename.match(/^(\d+)-/);
+                const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0;
 
-      return folderPhotos;
+                return {
+                  id: filename.replace('.enc', '').replace('.json', ''),
+                  key: key,
+                  creationDate: timestamp || (item.LastModified ? Math.floor(item.LastModified.getTime() / 1000) : 0),
+                  size: item.Size || 0,
+                  width: 0,
+                  height: 0,
+                  type: 'cloud' as const,
+                };
+              });
+
+            folderPhotos = [...folderPhotos, ...items];
+            continuationToken = data.NextContinuationToken;
+          } while (continuationToken);
+    } catch (e) {
+        console.error(`Error listing folder ${prefix}:`, e);
+    }
+
+    return folderPhotos;
   }
 
   async getDownloadUrl(bucket: string, key: string): Promise<string> {
@@ -134,8 +158,6 @@ export class S3Repository implements IS3Repository {
     if (!data.Body) {
       throw new Error('No body in S3 response');
     }
-    // Depending on environment (web/native), we might need different transformations.
-    // transformToUint8Array is available in recent SDK v3 versions.
     return await (data.Body as any).transformToUint8Array();
   }
 
