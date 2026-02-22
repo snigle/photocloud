@@ -16,7 +16,7 @@ export class GalleryUseCase {
         const local = await this.localRepo.listLocalPhotos();
 
         // Fetch cloud photos
-        const cloud = await this.s3Repo.listPhotos(creds.bucket, `users/${email}/`);
+        const cloud = await this.s3Repo.listPhotos(creds.bucket, email);
 
         // Merge and sort
         const all = [...local, ...cloud].sort((a, b) => b.creationDate - a.creationDate);

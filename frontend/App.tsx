@@ -31,6 +31,10 @@ export default function App() {
         try {
           const response = await authUseCase.validateMagicLink(queryParams.token as string);
           login(response, response.email);
+          // Clear URL params to avoid reload loops
+          if (typeof window !== 'undefined' && window.history) {
+            window.history.replaceState({}, '', '/');
+          }
         } catch (e) {
           console.error('Failed to validate magic link from URL', e);
         }

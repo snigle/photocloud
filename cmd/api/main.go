@@ -135,7 +135,12 @@ func main() {
 			http.Error(w, "Internal error", http.StatusInternalServerError)
 			return
 		}
-		body := "Click here to login: " + os.Getenv("API_URL") + "/auth/magic-link/callback?token=" + token
+
+		frontendURL := os.Getenv("FRONTEND_URL")
+		if frontendURL == "" {
+			frontendURL = "http://localhost:8081" // Expo web default
+		}
+		body := "Click here to login: " + frontendURL + "/?token=" + token
 		err = emailSender.SendEmail(r.Context(), email, "Your Magic Link", body)
 		if err != nil {
 			http.Error(w, "Failed to send email", http.StatusInternalServerError)

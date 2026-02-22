@@ -20,18 +20,32 @@ const PhotoItem = React.memo(({ photo, creds }: { photo: Photo, creds: S3Credent
     let isMounted = true;
     if (photo.type === 'cloud' && !url) {
       const s3Repo = new S3Repository(creds);
-      // Try thumbnail first
-      const thumbKey = photo.key.replace('/original/', '/thumbnail/');
-      s3Repo.getDownloadUrl(creds.bucket, thumbKey)
-        .then(u => {
-          if (isMounted) setUrl(u);
-        })
-        .catch(() => {
-           // Fallback to original
-           s3Repo.getDownloadUrl(creds.bucket, photo.key).then(u => {
-             if (isMounted) setUrl(u);
-           });
-        });
+
+      const load = async () => {
+          try {
+              const thumbKey = photo.key.replace('/original/', '/thumbnail/');
+              let data: Uint8Array;
+              try {
+                  data = await s3Repo.getFile(creds.bucket, thumbKey);
+              } catch (e) {
+                  data = await s3Repo.getFile(creds.bucket, photo.key);
+              }
+
+              if (isMounted) {
+                  let binary = '';
+                  const len = data.byteLength;
+                  for (let i = 0; i < len; i++) {
+                    binary += String.fromCharCode(data[i]);
+                  }
+                  const base64 = btoa(binary);
+                  setUrl(`data:image/jpeg;base64,${base64}`);
+              }
+          } catch (err) {
+              console.error('Failed to load cloud image', err);
+          }
+      };
+
+      load();
     }
     return () => { isMounted = false; };
   }, [photo, creds]);
