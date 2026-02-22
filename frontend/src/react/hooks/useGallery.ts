@@ -36,7 +36,19 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
           const newCount = await galleryUseCase.getTotalCount();
           setTotalCount(newCount);
           const refreshed = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
-          setPhotos(refreshed);
+
+          setPhotos(prev => {
+              // Merge existing state with refreshed state to avoid losing newly uploaded photos
+              // that might not have been caught by sync yet.
+              const merged = [...refreshed];
+              const refreshedIds = new Set(refreshed.map(p => p.id));
+              for (const p of prev) {
+                  if (!refreshedIds.has(p.id)) {
+                      merged.push(p);
+                  }
+              }
+              return merged.sort((a, b) => b.creationDate - a.creationDate);
+          });
           setHasMore(refreshed.length < newCount);
       });
     } catch (err: any) {

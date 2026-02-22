@@ -3,6 +3,8 @@ import { IS3Repository, ILocalGalleryRepository, S3Credentials, UploadedPhoto } 
 import { encodeText, decodeText, md5Hex } from '../infra/utils';
 
 export class UploadUseCase {
+  private static indexedYears = new Set<string>();
+
   constructor(
     private s3Repo: IS3Repository,
     private localRepo: ILocalGalleryRepository
@@ -113,6 +115,8 @@ export class UploadUseCase {
   }
 
   private async updateIndex(creds: S3Credentials, email: string, year: string): Promise<void> {
+    if (UploadUseCase.indexedYears.has(`${email}-${year}`)) return;
+
     const indexKey = `users/${email}/index.json`;
     let index: { years: string[] } = { years: [] };
 
@@ -135,5 +139,6 @@ export class UploadUseCase {
             'application/json'
         );
     }
+    UploadUseCase.indexedYears.add(`${email}-${year}`);
   }
 }

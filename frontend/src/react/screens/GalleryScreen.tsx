@@ -85,7 +85,11 @@ interface Props {
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
   const { width } = useWindowDimensions();
-  const { photos, totalCount, loading, refreshing, error, refresh, loadMore, addPhoto } = useGallery(creds, email);
+
+  // Memoize creds to ensure stability for PhotoItem memoization
+  const stableCreds = React.useMemo(() => creds, [creds.access, creds.secret, creds.bucket, creds.endpoint]);
+
+  const { photos, totalCount, loading, refreshing, error, refresh, loadMore, addPhoto } = useGallery(stableCreds, email);
   const { upload, uploading, progress, error: uploadError } = useUpload(creds, email);
 
   const handleUpload = async () => {
@@ -124,27 +128,29 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
         </View>
       )}
 
-      {!loading && photos.length === 0 && !error && (
-        <View style={styles.center}>
-          <Text>No photos found.</Text>
-          <Text variant="bodySmall">Local and Cloud photos will appear here.</Text>
-        </View>
-      )}
+      <View style={{ flex: 1 }}>
+          {!loading && !uploading && photos.length === 0 && !error && (
+            <View style={styles.center}>
+              <Text>No photos found.</Text>
+              <Text variant="bodySmall">Local and Cloud photos will appear here.</Text>
+            </View>
+          )}
 
-      <FlashListAny
-        data={photos}
-        renderItem={({ item }: any) => <PhotoItem photo={item} creds={creds} size={itemSize} />}
-        keyExtractor={(item: Photo) => item.id}
+          <FlashListAny
+            data={photos}
+            renderItem={({ item }: any) => <PhotoItem photo={item} creds={stableCreds} size={itemSize} />}
+            keyExtractor={(item: Photo) => item.id}
         numColumns={numColumns}
         key={numColumns} // Force re-render when column count changes
         estimatedItemSize={180}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={refresh} />
         }
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 20 }} /> : null}
-      />
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 20 }} /> : null}
+          />
+      </View>
 
       <FAB
         icon={() => <Upload size={24} color={theme.colors.onPrimaryContainer} />}

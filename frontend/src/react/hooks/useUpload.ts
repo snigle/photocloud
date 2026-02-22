@@ -45,8 +45,8 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
             if (uploaded && onUploadSuccess) {
                 onUploadSuccess(uploaded);
             }
-            // Give the UI thread some time to breathe between heavy image manipulations
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Give the UI thread more time to breathe between heavy image manipulations
+            await new Promise(resolve => setTimeout(resolve, 300));
           } catch (e) {
             console.error(`Failed to upload ${asset.name}`, e);
             // Continue with other assets
