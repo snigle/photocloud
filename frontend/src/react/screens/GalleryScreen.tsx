@@ -11,16 +11,11 @@ import { uint8ArrayToBase64 } from '../../infra/utils';
 
 const FlashListAny = FlashList as any;
 
-const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo | null, creds: S3Credentials, size: number }) => {
+const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3Credentials, size: number }) => {
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-
-    if (!photo) {
-        setUrl(null);
-        return;
-    }
 
     if (photo.type === 'local') {
       setUrl(photo.uri);
@@ -56,10 +51,10 @@ const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo | null, cre
         <Image source={{ uri: url }} style={styles.image} resizeMode="cover" />
       ) : (
         <View style={styles.placeholder}>
-            {photo && <ActivityIndicator size="small" />}
+            <ActivityIndicator size="small" />
         </View>
       )}
-      {photo?.type === 'cloud' && (
+      {photo.type === 'cloud' && (
           <View style={styles.cloudBadge}>
               <Text style={styles.cloudBadgeText}>☁️</Text>
           </View>
@@ -126,7 +121,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
       <FlashListAny
         data={photos}
         renderItem={({ item }: any) => <PhotoItem photo={item} creds={creds} size={itemSize} />}
-        keyExtractor={(item: Photo | null, index: number) => item?.id || `placeholder-${index}`}
+        keyExtractor={(item: Photo) => item.id}
         numColumns={numColumns}
         key={numColumns} // Force re-render when column count changes
         estimatedItemSize={180}

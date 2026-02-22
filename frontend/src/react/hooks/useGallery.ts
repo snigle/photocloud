@@ -5,7 +5,7 @@ import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
 import { GalleryUseCase } from '../../usecase/gallery.usecase';
 
 export const useGallery = (creds: S3Credentials | null, email: string | null) => {
-  const [photos, setPhotos] = useState<(Photo | null)[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,12 +27,7 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
       setTotalCount(count);
 
       const initialPhotos = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
-
-      const newPhotos = new Array(count).fill(null);
-      for (let i = 0; i < initialPhotos.length; i++) {
-        newPhotos[i] = initialPhotos[i];
-      }
-      setPhotos(newPhotos);
+      setPhotos(initialPhotos);
       setHasMore(initialPhotos.length < count);
 
       // Trigger background sync
@@ -41,12 +36,7 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
           const newCount = await galleryUseCase.getTotalCount();
           setTotalCount(newCount);
           const refreshed = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
-
-          const updatedPhotos = new Array(newCount).fill(null);
-          for (let i = 0; i < refreshed.length; i++) {
-              updatedPhotos[i] = refreshed[i];
-          }
-          setPhotos(updatedPhotos);
+          setPhotos(refreshed);
           setHasMore(refreshed.length < newCount);
       });
     } catch (err: any) {
@@ -59,29 +49,16 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
   const loadMore = useCallback(async () => {
     if (!galleryUseCase || loading || !hasMore) return;
 
-    // Find first null index
-    const offset = photos.findIndex(p => p === null);
-    if (offset === -1) {
-        setHasMore(false);
-        return;
-    }
-
     try {
-      const nextPhotos = await galleryUseCase.getPhotos(PAGE_SIZE, offset);
-      setPhotos(prev => {
-          const next = [...prev];
-          for (let i = 0; i < nextPhotos.length; i++) {
-              next[offset + i] = nextPhotos[i];
-          }
-          return next;
-      });
-      if (nextPhotos.length < PAGE_SIZE || offset + nextPhotos.length >= totalCount) {
+      const nextPhotos = await galleryUseCase.getPhotos(PAGE_SIZE, photos.length);
+      setPhotos(prev => [...prev, ...nextPhotos]);
+      if (nextPhotos.length < PAGE_SIZE || photos.length + nextPhotos.length >= totalCount) {
           setHasMore(false);
       }
     } catch (err) {
       console.error('Failed to load more photos', err);
     }
-  }, [galleryUseCase, loading, hasMore, photos, totalCount]);
+  }, [galleryUseCase, loading, hasMore, photos.length, totalCount]);
 
   const refresh = useCallback(async () => {
     if (!galleryUseCase || !creds || !email) return;
@@ -91,12 +68,7 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
       const newCount = await galleryUseCase.getTotalCount();
       setTotalCount(newCount);
       const refreshed = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
-
-      const updatedPhotos = new Array(newCount).fill(null);
-      for (let i = 0; i < refreshed.length; i++) {
-          updatedPhotos[i] = refreshed[i];
-      }
-      setPhotos(updatedPhotos);
+      setPhotos(refreshed);
       setHasMore(refreshed.length < newCount);
     } catch (err: any) {
       setError(err.message || 'Failed to refresh photos');
@@ -108,13 +80,16 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
   const addPhoto = useCallback((photo: Photo) => {
     setTotalCount(prev => prev + 1);
     setPhotos(prev => {
-        if (prev.find(p => p && p.id === photo.id)) return prev;
+        if (prev.find(p => p.id === photo.id)) return prev;
+
+        // Fast path: if it's newer than the first photo, just prepend
+        if (prev.length === 0 || photo.creationDate >= prev[0].creationDate) {
+            return [photo, ...prev];
+        }
+
+        // Slow path: insert and sort
         const newPhotos = [photo, ...prev];
-        return newPhotos.sort((a, b) => {
-            const dateA = a?.creationDate || 0;
-            const dateB = b?.creationDate || 0;
-            return dateB - dateA;
-        });
+        return newPhotos.sort((a, b) => b.creationDate - a.creationDate);
     });
   }, []);
 

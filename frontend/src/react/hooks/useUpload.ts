@@ -30,7 +30,7 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
       const localRepo = new LocalGalleryRepository();
       const uploadUseCase = new UploadUseCase(s3Repo, localRepo);
 
-      const CONCURRENCY = 3;
+      const CONCURRENCY = 1;
       const assets = [...result.assets];
       let current = 0;
       const total = assets.length;
