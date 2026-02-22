@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions, Platform } from 'react-native';
 import { Appbar, Text, useTheme, FAB, ProgressBar } from 'react-native-paper';
 import { LogOut, RefreshCw, Upload } from 'lucide-react-native';
 import { FlashList } from "@shopify/flash-list";
@@ -16,6 +16,7 @@ const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3C
 
   useEffect(() => {
     let isMounted = true;
+    let currentUrl: string | null = null;
 
     if (photo.type === 'local') {
       setUrl(photo.uri);
@@ -29,11 +30,18 @@ const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3C
 
       const load = async () => {
           try {
-              // Use signed URL for better performance and browser caching
-              const signedUrl = await s3Repo.getDownloadUrl(creds.bucket, photo.key);
+              // SSE-C objects cannot be displayed via simple presigned URLs in browser <img> tags
+              const data = await s3Repo.getFile(creds.bucket, photo.key);
 
               if (isMounted) {
-                  setUrl(signedUrl);
+                  if (Platform.OS === 'web') {
+                      const blob = new Blob([data], { type: 'image/jpeg' });
+                      currentUrl = URL.createObjectURL(blob);
+                      setUrl(currentUrl);
+                  } else {
+                      const base64 = uint8ArrayToBase64(data);
+                      setUrl(`data:image/jpeg;base64,${base64}`);
+                  }
               }
           } catch (err) {
               console.error('Failed to load cloud image', err);
@@ -42,7 +50,12 @@ const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3C
 
       load();
     }
-    return () => { isMounted = false; };
+    return () => {
+        isMounted = false;
+        if (currentUrl && Platform.OS === 'web') {
+            URL.revokeObjectURL(currentUrl);
+        }
+    };
   }, [photo.id, photo.type, photo.key, photo.uri, creds]);
 
   return (
