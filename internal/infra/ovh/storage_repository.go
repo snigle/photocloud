@@ -91,6 +91,7 @@ func (r *StorageRepository) GetS3Credentials(ctx context.Context, email string) 
 					"Condition": map[string]interface{}{
 						"StringLike": map[string]interface{}{
 							"s3:prefix": []string{
+								fmt.Sprintf("users/%s/", email),
 								fmt.Sprintf("users/%s/*", email),
 							},
 						},

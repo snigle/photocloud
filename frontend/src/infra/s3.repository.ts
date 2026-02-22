@@ -6,8 +6,8 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import * as Crypto from 'expo-crypto';
 import type { IS3Repository, S3Credentials, UploadedPhoto } from '../domain/types';
+import { base64ToUint8Array, uint8ArrayToBase64, decodeText, md5 } from './utils';
 
 export class S3Repository implements IS3Repository {
   private s3: S3Client;
@@ -31,18 +31,12 @@ export class S3Repository implements IS3Repository {
     if (this.sseParams) return this.sseParams;
 
     const key = this.creds.user_key; // already base64
-    const binaryKey = this.base64ToUint8Array(key);
+    const binaryKey = base64ToUint8Array(key);
 
-    // Compute MD5 of the binary key
-    // We use expo-crypto digest
-    const hash = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.MD5,
-        this.uint8ArrayToBinaryString(binaryKey) // Digest works on strings or ArrayBuffers
-    );
-    // hash is hex string by default in digestStringAsync
-    // We need base64 of the binary hash
-    const binaryHash = this.hexToUint8Array(hash);
-    const keyMD5 = this.uint8ArrayToBase64(binaryHash);
+    // Compute MD5 of the binary key using our cross-platform utility
+    const hash = md5(binaryKey);
+
+    const keyMD5 = uint8ArrayToBase64(hash);
 
     this.sseParams = {
         algorithm: 'AES256',
@@ -62,7 +56,7 @@ export class S3Repository implements IS3Repository {
         try {
             const indexKey = `${basePrefix}index.json`;
             const indexData = await this.getFile(bucket, indexKey);
-            const index = JSON.parse(new TextDecoder().decode(indexData));
+            const index = JSON.parse(decodeText(indexData));
             if (index && Array.isArray(index.years)) {
                 years = index.years.map((y: any) => y.toString());
             }
@@ -195,9 +189,37 @@ export class S3Repository implements IS3Repository {
       throw new Error('No body in S3 response');
     }
 
-    // Fixed transformation: consume stream fully and return Uint8Array
-    const bytes = await (data.Body as any).transformToUint8Array();
-    return new Uint8Array(bytes);
+    // Robust transformation: try transformToUint8Array first, then fallback to manual stream consumption
+    if (typeof (data.Body as any).transformToUint8Array === 'function') {
+        const bytes = await (data.Body as any).transformToUint8Array();
+        return new Uint8Array(bytes);
+    }
+
+    // Fallback for environments where transformToUint8Array is not available (e.g. some browser versions)
+    const reader = (data.Body as any).getReader ? (data.Body as any).getReader() : null;
+    if (reader) {
+        const chunks: Uint8Array[] = [];
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+        }
+        const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+        const result = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+            result.set(chunk, offset);
+            offset += chunk.length;
+        }
+        return result;
+    }
+
+    // Last resort: if it's already a Uint8Array or similar
+    if (data.Body instanceof Uint8Array) {
+        return data.Body;
+    }
+
+    throw new Error('Unsupported S3 body type');
   }
 
   async exists(bucket: string, key: string): Promise<boolean> {
@@ -220,38 +242,4 @@ export class S3Repository implements IS3Repository {
     }
   }
 
-  private base64ToUint8Array(base64: string): Uint8Array {
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-  }
-
-  private uint8ArrayToBase64(bytes: Uint8Array): string {
-    let binary = '';
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  }
-
-  private uint8ArrayToBinaryString(bytes: Uint8Array): string {
-    let binary = '';
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return binary;
-  }
-
-  private hexToUint8Array(hex: string): Uint8Array {
-    const bytes = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < hex.length; i += 2) {
-        bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-    }
-    return bytes;
-  }
 }
