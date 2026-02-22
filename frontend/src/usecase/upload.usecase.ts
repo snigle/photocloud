@@ -1,6 +1,7 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Crypto from 'expo-crypto';
 import { IS3Repository, S3Credentials } from '../domain/types';
+import { encodeText, decodeText } from '../infra/utils';
 
 export class UploadUseCase {
   constructor(private s3Repo: IS3Repository) {}
@@ -62,7 +63,7 @@ export class UploadUseCase {
       original_filename: filename,
       created_at: new Date().toISOString(),
     };
-    const metadataData = new TextEncoder().encode(JSON.stringify(metadata));
+    const metadataData = encodeText(JSON.stringify(metadata));
     await this.s3Repo.uploadFile(
       creds.bucket,
       `${basePrefix}/metadata/${photoId}.json.enc`,
@@ -88,7 +89,7 @@ export class UploadUseCase {
     if (exists) {
         try {
             const existingIndexData = await this.s3Repo.getFile(creds.bucket, indexKey);
-            index = JSON.parse(new TextDecoder().decode(existingIndexData));
+            index = JSON.parse(decodeText(existingIndexData));
         } catch (e) {
             console.error('Failed to update index.json', e);
         }
@@ -99,7 +100,7 @@ export class UploadUseCase {
         await this.s3Repo.uploadFile(
             creds.bucket,
             indexKey,
-            new TextEncoder().encode(JSON.stringify(index)),
+            encodeText(JSON.stringify(index)),
             'application/json'
         );
     }

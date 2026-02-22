@@ -7,6 +7,7 @@ import { useGallery } from '../hooks/useGallery';
 import { useUpload } from '../hooks/useUpload';
 import { S3Repository } from '../../infra/s3.repository';
 import type { S3Credentials, Photo } from '../../domain/types';
+import { uint8ArrayToBase64 } from '../../infra/utils';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
@@ -32,12 +33,7 @@ const PhotoItem = React.memo(({ photo, creds }: { photo: Photo, creds: S3Credent
               }
 
               if (isMounted) {
-                  let binary = '';
-                  const len = data.byteLength;
-                  for (let i = 0; i < len; i++) {
-                    binary += String.fromCharCode(data[i]);
-                  }
-                  const base64 = btoa(binary);
+                  const base64 = uint8ArrayToBase64(data);
                   setUrl(`data:image/jpeg;base64,${base64}`);
               }
           } catch (err) {
