@@ -1,10 +1,4 @@
 import { S3Repository } from '../s3.repository';
-import * as Crypto from 'expo-crypto';
-
-jest.mock('expo-crypto', () => ({
-  digest: jest.fn(),
-  CryptoDigestAlgorithm: { MD5: 'MD5' }
-}));
 
 describe('S3Repository', () => {
     let repo: S3Repository;
@@ -19,7 +13,6 @@ describe('S3Repository', () => {
 
     beforeEach(() => {
         repo = new S3Repository(mockCreds);
-        (Crypto.digest as jest.Mock).mockResolvedValue(new Uint8Array(16).buffer); // MD5 is 16 bytes
     });
 
     it('should be definable', () => {

@@ -6,9 +6,8 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import * as Crypto from 'expo-crypto';
 import type { IS3Repository, S3Credentials, UploadedPhoto } from '../domain/types';
-import { base64ToUint8Array, uint8ArrayToBase64, decodeText } from './utils';
+import { base64ToUint8Array, uint8ArrayToBase64, decodeText, md5 } from './utils';
 
 export class S3Repository implements IS3Repository {
   private s3: S3Client;
@@ -34,13 +33,10 @@ export class S3Repository implements IS3Repository {
     const key = this.creds.user_key; // already base64
     const binaryKey = base64ToUint8Array(key);
 
-    // Compute MD5 of the binary key using Crypto.digest for better accuracy with binary data
-    const hashBuffer = await Crypto.digest(
-        Crypto.CryptoDigestAlgorithm.MD5,
-        binaryKey as any
-    );
+    // Compute MD5 of the binary key using our cross-platform utility
+    const hash = md5(binaryKey);
 
-    const keyMD5 = uint8ArrayToBase64(new Uint8Array(hashBuffer));
+    const keyMD5 = uint8ArrayToBase64(hash);
 
     this.sseParams = {
         algorithm: 'AES256',
