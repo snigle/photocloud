@@ -9,6 +9,10 @@ export type UploadedPhoto = {
     thumbnailURL: string,
     compressURL:string,
     originalURL:string,
+    creationDate: Date,
+    size?: number,
+    width?: number,
+    height?: number,
 }
 
 export interface IUploadedPhoto {

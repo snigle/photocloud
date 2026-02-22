@@ -27,6 +27,10 @@ export interface Container {
 
 export interface Object {
     name: string
+    hash?: string
+    bytes?: number
+    content_type?: string
+    last_modified?: string
 }
 
 export class SwiftClient {

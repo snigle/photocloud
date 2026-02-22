@@ -19,11 +19,19 @@ export class SwiftRepo implements IUploadedPhoto {
     private parseSwiftFileName(prefix: string, swiftName: string): string {
         return swiftName.replace(prefix, "").replace(/^\d+-/,"")
     }
+    private parseSwiftFileDate(prefix: string, swiftName: string): Date {
+        const match = swiftName.replace(prefix, "").match(/^(\d+)-/)
+        if (match) {
+            return new Date(parseInt(match[1]) * 1000)
+        }
+        return new Date()
+    }
 
     async uploadOriginal(file: LocalPhoto, customer: AuthenticatedCustomer) : Promise<UploadedPhoto>{
         const swift = await this.swiftConnector.Connect(customer.swiftCredentials);
         const prefix = `/${customer.customer.id}${originalPrefix}`;
         const body = file.content
+        if (!body) throw "file content is missing";
         const object = await swift.putObject(customer.swiftCredentials.region, customer.swiftCredentials.container, this.formatSwiftFileName(prefix, file), body, "image/jpeg")
         return this.toDomain(prefix, object)
     }
@@ -69,7 +77,8 @@ export class SwiftRepo implements IUploadedPhoto {
             compressURL: object.name,
             thumbnailURL: object.name.replace(compressPrefix, thumbnailPrefix),
             originalURL: object.name.replace(compressPrefix, originalPrefix),
+            creationDate: this.parseSwiftFileDate(customerPrefix, object.name),
+            size: object.bytes,
         }
     }
 }
-
