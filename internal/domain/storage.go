@@ -8,6 +8,7 @@ type S3Credentials struct {
 	Endpoint  string `json:"endpoint"`
 	Region    string `json:"region"`
 	Bucket    string `json:"bucket"`
+	UserKey   string `json:"user_key"`
 }
 
 type StorageRepository interface {

@@ -46,6 +46,11 @@ func main() {
 		jwtSecret = "default-secret-change-me"
 	}
 
+	masterKey := os.Getenv("MASTER_KEY")
+	if masterKey == "" {
+		masterKey = "this-is-a-32-byte-master-key-!!!!" // 32 bytes for AES-256
+	}
+
 	if region == "" {
 		region = "gra" // Default region
 	}
@@ -67,7 +72,7 @@ func main() {
 		o.BaseEndpoint = aws.String(s3Endpoint)
 	})
 
-	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket, s3AdminClient)
+	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket, s3AdminClient, []byte(masterKey))
 	getS3CredsUseCase := usecase.NewGetS3CredentialsUseCase(storageRepo)
 
 	googleAuth := auth.NewGoogleAuthenticator(googleClientID)

@@ -3,13 +3,17 @@ package ovh
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/ovh/go-ovh/ovh"
 	"github.com/snigle/photocloud/internal/domain"
+	"github.com/snigle/photocloud/internal/infra/encryption"
 )
 
 type StorageRepository struct {
@@ -18,15 +22,17 @@ type StorageRepository struct {
 	region    string
 	bucket    string
 	s3Client  *s3.Client
+	masterKey []byte
 }
 
-func NewStorageRepository(client *ovh.Client, projectID string, region string, bucket string, s3Client *s3.Client) *StorageRepository {
+func NewStorageRepository(client *ovh.Client, projectID string, region string, bucket string, s3Client *s3.Client, masterKey []byte) *StorageRepository {
 	return &StorageRepository{
 		client:    client,
 		projectID: projectID,
 		region:    region,
 		bucket:    bucket,
 		s3Client:  s3Client,
+		masterKey: masterKey,
 	}
 }
 
@@ -132,12 +138,48 @@ func (r *StorageRepository) GetS3Credentials(ctx context.Context, email string) 
 		}
 	}
 
+	// User Key Management
+	userKeyKey := fmt.Sprintf("users/%s/secret.key", email)
+	var userKey []byte
+	output, err := r.s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(r.bucket),
+		Key:    aws.String(userKeyKey),
+	})
+	if err == nil {
+		defer output.Body.Close()
+		encryptedKey := new(bytes.Buffer)
+		encryptedKey.ReadFrom(output.Body)
+		userKey, err = encryption.Decrypt(encryptedKey.Bytes(), r.masterKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt user key: %w", err)
+		}
+	} else {
+		// Generate new key
+		userKey = make([]byte, 32)
+		if _, err := io.ReadFull(rand.Reader, userKey); err != nil {
+			return nil, fmt.Errorf("failed to generate user key: %w", err)
+		}
+		encryptedKey, err := encryption.Encrypt(userKey, r.masterKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt user key: %w", err)
+		}
+		_, err = r.s3Client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: aws.String(r.bucket),
+			Key:    aws.String(userKeyKey),
+			Body:   bytes.NewReader(encryptedKey),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to save user key: %w", err)
+		}
+	}
+
 	return &domain.S3Credentials{
 		AccessKey: s3Cred.Access,
 		SecretKey: s3Cred.Secret,
 		Endpoint:  fmt.Sprintf("https://s3.%s.io.cloud.ovh.net", r.region),
 		Region:    r.region,
 		Bucket:    r.bucket,
+		UserKey:   base64.StdEncoding.EncodeToString(userKey),
 	}, nil
 }
 
@@ -163,8 +205,15 @@ func (r *StorageRepository) GetUser(ctx context.Context, email string) (domain.P
 	}
 	defer output.Body.Close()
 
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(output.Body)
+	decrypted, err := encryption.Decrypt(buf.Bytes(), r.masterKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt user record: %w", err)
+	}
+
 	var record passkeyUserRecord
-	if err := json.NewDecoder(output.Body).Decode(&record); err != nil {
+	if err := json.Unmarshal(decrypted, &record); err != nil {
 		return nil, fmt.Errorf("failed to decode user record: %w", err)
 	}
 
@@ -189,11 +238,16 @@ func (r *StorageRepository) SaveUser(ctx context.Context, email string, user dom
 		return fmt.Errorf("failed to marshal user record: %w", err)
 	}
 
+	encrypted, err := encryption.Encrypt(data, r.masterKey)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt user record: %w", err)
+	}
+
 	key := fmt.Sprintf("users/%s/config/passkeys.json", email)
 	_, err = r.s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(r.bucket),
 		Key:    aws.String(key),
-		Body:   bytes.NewReader(data),
+		Body:   bytes.NewReader(encrypted),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to save user to S3: %w", err)
