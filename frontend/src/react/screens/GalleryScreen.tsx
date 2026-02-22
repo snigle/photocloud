@@ -1,10 +1,58 @@
-import React from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
-import { Appbar, List, Text, useTheme, Divider, FAB } from 'react-native-paper';
-import { LogOut, RefreshCw, FileText, Upload } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, Dimensions } from 'react-native';
+import { Appbar, Text, useTheme, FAB } from 'react-native-paper';
+import { LogOut, RefreshCw, Upload } from 'lucide-react-native';
+import { FlashList } from "@shopify/flash-list";
 import { useGallery } from '../hooks/useGallery';
 import { useUpload } from '../hooks/useUpload';
-import type { S3Credentials } from '../../domain/types';
+import { S3Repository } from '../../infra/s3.repository';
+import type { S3Credentials, Photo } from '../../domain/types';
+
+const { width } = Dimensions.get('window');
+const COLUMN_COUNT = 3;
+const ITEM_SIZE = width / COLUMN_COUNT;
+const FlashListAny = FlashList as any;
+
+const PhotoItem = React.memo(({ photo, creds }: { photo: Photo, creds: S3Credentials }) => {
+  const [url, setUrl] = useState<string | null>(photo.type === 'local' ? photo.uri : null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (photo.type === 'cloud' && !url) {
+      const s3Repo = new S3Repository(creds);
+      // Try thumbnail first
+      const thumbKey = photo.key.replace('/original/', '/thumbnail/');
+      s3Repo.getDownloadUrl(creds.bucket, thumbKey)
+        .then(u => {
+          if (isMounted) setUrl(u);
+        })
+        .catch(() => {
+           // Fallback to original
+           s3Repo.getDownloadUrl(creds.bucket, photo.key).then(u => {
+             if (isMounted) setUrl(u);
+           });
+        });
+    }
+    return () => { isMounted = false; };
+  }, [photo, creds]);
+
+  return (
+    <View style={styles.imageContainer}>
+      {url ? (
+        <Image source={{ uri: url }} style={styles.image} />
+      ) : (
+        <View style={styles.placeholder}>
+            <ActivityIndicator size="small" />
+        </View>
+      )}
+      {photo.type === 'cloud' && (
+          <View style={styles.cloudBadge}>
+              <Text style={styles.cloudBadgeText}>☁️</Text>
+          </View>
+      )}
+    </View>
+  );
+});
 
 interface Props {
   creds: S3Credentials;
@@ -14,7 +62,7 @@ interface Props {
 
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
-  const { photos, loading, error, refresh } = useGallery(creds, email);
+  const { photos, loading, refreshing, error, refresh, loadMore } = useGallery(creds, email);
   const { upload, uploading, error: uploadError } = useUpload(creds, email);
 
   const handleUpload = async () => {
@@ -27,7 +75,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   return (
     <View style={styles.container}>
       <Appbar.Header elevated>
-        <Appbar.Content title="My Cloud" subtitle={email} />
+        <Appbar.Content title="PhotoCloud" subtitle={`${photos.length} photos`} />
         {uploading && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
         <Appbar.Action
           icon={() => <Upload size={24} color={theme.colors.onSurface} />}
@@ -46,28 +94,23 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
 
       {!loading && photos.length === 0 && !error && (
         <View style={styles.center}>
-          <Text>No files found in your cloud.</Text>
-          <Text variant="bodySmall">Storage and indexing specs coming soon.</Text>
+          <Text>No photos found.</Text>
+          <Text variant="bodySmall">Local and Cloud photos will appear here.</Text>
         </View>
       )}
 
-      <FlatList
+      <FlashListAny
         data={photos}
-        keyExtractor={(item) => item.key}
-        contentContainerStyle={styles.listContent}
+        renderItem={({ item }: any) => <PhotoItem photo={item} creds={creds} />}
+        keyExtractor={(item: Photo) => item.id}
+        numColumns={COLUMN_COUNT}
+        estimatedItemSize={ITEM_SIZE}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={refresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} />
         }
-        renderItem={({ item }) => (
-          <>
-            <List.Item
-              title={item.key.split('/').pop()}
-              description={item.key}
-              left={props => <List.Icon {...props} icon={() => <FileText size={24} color={theme.colors.primary} />} />}
-            />
-            <Divider />
-          </>
-        )}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 20 }} /> : null}
       />
 
       <FAB
@@ -86,9 +129,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  listContent: {
-    paddingBottom: 20,
-  },
   center: {
     flex: 1,
     justifyContent: 'center',
@@ -106,6 +146,32 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  imageContainer: {
+    width: ITEM_SIZE,
+    height: ITEM_SIZE,
+    padding: 1,
+  },
+  image: {
+    flex: 1,
+    backgroundColor: '#eee',
+  },
+  placeholder: {
+    flex: 1,
+    backgroundColor: '#eee',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cloudBadge: {
+      position: 'absolute',
+      top: 5,
+      right: 5,
+      backgroundColor: 'rgba(255,255,255,0.7)',
+      borderRadius: 10,
+      padding: 2,
+  },
+  cloudBadgeText: {
+      fontSize: 10,
+  }
 });
 
 export default GalleryScreen;
