@@ -4,9 +4,9 @@ import {
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import type { S3Credentials, Photo } from '../domain/types';
+import type { IS3Repository, S3Credentials, Photo } from '../domain/types';
 
-export class S3Service {
+export class S3Repository implements IS3Repository {
   private s3: S3Client;
 
   constructor(creds: S3Credentials) {

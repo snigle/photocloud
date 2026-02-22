@@ -16,6 +16,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/ovh/go-ovh/ovh"
 	"github.com/rs/cors"
+	"github.com/snigle/photocloud/internal/domain"
 	"github.com/snigle/photocloud/internal/infra/auth"
 	"github.com/snigle/photocloud/internal/infra/email"
 	ovhinfra "github.com/snigle/photocloud/internal/infra/ovh"
@@ -246,6 +247,11 @@ func main() {
 	}
 }
 
+type AuthResponse struct {
+	*domain.S3Credentials
+	Email string `json:"email"`
+}
+
 func returnS3Credentials(w http.ResponseWriter, r *http.Request, useCase *usecase.GetS3CredentialsUseCase, email string) {
 	creds, err := useCase.Execute(r.Context(), email)
 	if err != nil {
@@ -254,5 +260,8 @@ func returnS3Credentials(w http.ResponseWriter, r *http.Request, useCase *usecas
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(creds)
+	json.NewEncoder(w).Encode(AuthResponse{
+		S3Credentials: creds,
+		Email:         email,
+	})
 }
