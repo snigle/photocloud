@@ -48,7 +48,7 @@ export interface IAuthRepository {
 }
 
 export interface IS3Repository {
-  listPhotos(bucket: string, prefix: string): Promise<UploadedPhoto[]>;
+  listPhotos(bucket: string, email: string): Promise<UploadedPhoto[]>;
   uploadFile(
     bucket: string,
     key: string,
