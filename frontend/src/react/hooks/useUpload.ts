@@ -15,6 +15,7 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
       const result = await DocumentPicker.getDocumentAsync({
         type: 'image/*',
         copyToCacheDirectory: true,
+        multiple: true,
       });
 
       if (result.canceled) return;
@@ -22,11 +23,12 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
       setUploading(true);
       setError(null);
 
-      const asset = result.assets[0];
       const s3Repo = new S3Repository(creds);
       const uploadUseCase = new UploadUseCase(s3Repo);
 
-      await uploadUseCase.execute(asset.uri, asset.name, creds, email);
+      for (const asset of result.assets) {
+        await uploadUseCase.execute(asset.uri, asset.name, creds, email);
+      }
 
       return true; // Success
     } catch (err: any) {

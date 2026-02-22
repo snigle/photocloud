@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, Dimensions } from 'react-native';
+import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
 import { Appbar, Text, useTheme, FAB } from 'react-native-paper';
 import { LogOut, RefreshCw, Upload } from 'lucide-react-native';
 import { FlashList } from "@shopify/flash-list";
@@ -9,17 +9,22 @@ import { S3Repository } from '../../infra/s3.repository';
 import type { S3Credentials, Photo } from '../../domain/types';
 import { uint8ArrayToBase64 } from '../../infra/utils';
 
-const { width } = Dimensions.get('window');
-const COLUMN_COUNT = 3;
-const ITEM_SIZE = width / COLUMN_COUNT;
 const FlashListAny = FlashList as any;
 
-const PhotoItem = React.memo(({ photo, creds }: { photo: Photo, creds: S3Credentials }) => {
-  const [url, setUrl] = useState<string | null>(photo.type === 'local' ? photo.uri : null);
+const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3Credentials, size: number }) => {
+  const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    if (photo.type === 'cloud' && !url) {
+
+    if (photo.type === 'local') {
+      setUrl(photo.uri);
+      return;
+    }
+
+    setUrl(null); // Reset URL when photo changes
+
+    if (photo.type === 'cloud') {
       const s3Repo = new S3Repository(creds);
 
       const load = async () => {
@@ -44,12 +49,12 @@ const PhotoItem = React.memo(({ photo, creds }: { photo: Photo, creds: S3Credent
       load();
     }
     return () => { isMounted = false; };
-  }, [photo, creds]);
+  }, [photo.id, photo.type, photo.key, photo.uri, creds]);
 
   return (
-    <View style={styles.imageContainer}>
+    <View style={[styles.imageContainer, { width: size, height: size }]}>
       {url ? (
-        <Image source={{ uri: url }} style={styles.image} />
+        <Image source={{ uri: url }} style={styles.image} resizeMode="cover" />
       ) : (
         <View style={styles.placeholder}>
             <ActivityIndicator size="small" />
@@ -72,6 +77,7 @@ interface Props {
 
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
+  const { width } = useWindowDimensions();
   const { photos, loading, refreshing, error, refresh, loadMore } = useGallery(creds, email);
   const { upload, uploading, error: uploadError } = useUpload(creds, email);
 
@@ -81,6 +87,9 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
       refresh();
     }
   };
+
+  const numColumns = Math.max(3, Math.floor(width / 180));
+  const itemSize = width / numColumns;
 
   return (
     <View style={styles.container}>
@@ -111,10 +120,11 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
 
       <FlashListAny
         data={photos}
-        renderItem={({ item }: any) => <PhotoItem photo={item} creds={creds} />}
+        renderItem={({ item }: any) => <PhotoItem photo={item} creds={creds} size={itemSize} />}
         keyExtractor={(item: Photo) => item.id}
-        numColumns={COLUMN_COUNT}
-        estimatedItemSize={ITEM_SIZE}
+        numColumns={numColumns}
+        key={numColumns} // Force re-render when column count changes
+        estimatedItemSize={180}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={refresh} />
         }
@@ -157,8 +167,6 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   imageContainer: {
-    width: ITEM_SIZE,
-    height: ITEM_SIZE,
     padding: 1,
   },
   image: {
