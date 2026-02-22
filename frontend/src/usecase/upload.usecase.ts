@@ -11,7 +11,8 @@ export class UploadUseCase {
     creds: S3Credentials,
     email: string
   ): Promise<void> {
-    const photoId = Crypto.randomUUID ? Crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
+    const timestamp = Math.floor(Date.now() / 1000);
+    const photoId = `${timestamp}-${Crypto.randomUUID ? Crypto.randomUUID() : Math.random().toString(36).substring(2, 15)}`;
     const year = new Date().getFullYear().toString();
     const userKey = this.base64ToUint8Array(creds.user_key);
 

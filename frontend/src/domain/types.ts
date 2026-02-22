@@ -7,10 +7,25 @@ export interface S3Credentials {
   user_key: string;
 }
 
-export interface Photo {
-  key: string;
-  url: string;
+export interface BasePhoto {
+  id: string;
+  creationDate: number; // timestamp in seconds
+  size: number;
+  width: number;
+  height: number;
 }
+
+export interface LocalPhoto extends BasePhoto {
+  uri: string;
+  type: 'local';
+}
+
+export interface UploadedPhoto extends BasePhoto {
+  key: string;
+  type: 'cloud';
+}
+
+export type Photo = LocalPhoto | UploadedPhoto;
 
 export interface UserSession {
   creds: S3Credentials;
@@ -33,7 +48,7 @@ export interface IAuthRepository {
 }
 
 export interface IS3Repository {
-  listPhotos(bucket: string, prefix: string): Promise<Photo[]>;
+  listPhotos(bucket: string, prefix: string): Promise<UploadedPhoto[]>;
   uploadFile(
     bucket: string,
     key: string,
@@ -41,4 +56,11 @@ export interface IS3Repository {
     contentType: string
   ): Promise<void>;
   getFile(bucket: string, key: string): Promise<Uint8Array>;
+  getDownloadUrl(bucket: string, key: string): Promise<string>;
+}
+
+export interface ILocalGalleryRepository {
+  listLocalPhotos(): Promise<LocalPhoto[]>;
+  saveToCache(photos: Photo[]): Promise<void>;
+  loadFromCache(limit?: number, offset?: number): Promise<Photo[]>;
 }
