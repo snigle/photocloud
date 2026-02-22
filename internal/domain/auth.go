@@ -36,6 +36,8 @@ type PasskeyCredential struct {
 type UserStorage interface {
 	GetUser(ctx context.Context, email string) (PasskeyUser, error)
 	SaveUser(ctx context.Context, email string, user PasskeyUser) error
+	GetUserKey(ctx context.Context, email string) ([]byte, error)
+	SaveUserKey(ctx context.Context, email string, key []byte) error
 }
 
 type PasskeyUserEntity struct {

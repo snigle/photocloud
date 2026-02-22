@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { PaperProvider, ActivityIndicator, MD3LightTheme } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
-import { useAuth } from './src/hooks/useAuth';
-import AuthScreen from './src/screens/AuthScreen';
-import GalleryScreen from './src/screens/GalleryScreen';
+import * as Linking from 'expo-linking';
+import { useAuth } from './src/react/hooks/useAuth';
+import AuthScreen from './src/react/screens/AuthScreen';
+import GalleryScreen from './src/react/screens/GalleryScreen';
+import { AuthRepository } from './src/infra/auth.repository';
+import { AuthUseCase } from './src/usecase/auth.usecase';
 
 const theme = {
   ...MD3LightTheme,
@@ -15,8 +18,36 @@ const theme = {
   },
 };
 
+const authRepo = new AuthRepository();
+const authUseCase = new AuthUseCase(authRepo);
+
 export default function App() {
   const { session, loading, login, logout } = useAuth();
+
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      const { queryParams } = Linking.parse(event.url);
+      if (queryParams?.token) {
+        try {
+          const response = await authUseCase.validateMagicLink(queryParams.token as string);
+          login(response, response.email);
+        } catch (e) {
+          console.error('Failed to validate magic link from URL', e);
+        }
+      }
+    };
+
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Check if app was opened with a link
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink({ url });
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [authUseCase, login]);
 
   if (loading) {
     return (
@@ -37,7 +68,7 @@ export default function App() {
             onLogout={logout}
           />
         ) : (
-          <AuthScreen onLogin={login} />
+          <AuthScreen onLogin={login} authUseCase={authUseCase} />
         )}
       </View>
     </PaperProvider>

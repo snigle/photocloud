@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,9 +16,9 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/ovh/go-ovh/ovh"
 	"github.com/rs/cors"
+	"github.com/snigle/photocloud/internal/domain"
 	"github.com/snigle/photocloud/internal/infra/auth"
 	"github.com/snigle/photocloud/internal/infra/email"
-	"github.com/snigle/photocloud/internal/domain"
 	ovhinfra "github.com/snigle/photocloud/internal/infra/ovh"
 	"github.com/snigle/photocloud/internal/usecase"
 )
@@ -46,9 +47,21 @@ func main() {
 		jwtSecret = "default-secret-change-me"
 	}
 
-	masterKey := os.Getenv("MASTER_KEY")
-	if masterKey == "" {
-		masterKey = "this-is-a-32-byte-master-key-!!!!" // 32 bytes for AES-256
+	masterKeyStr := os.Getenv("MASTER_KEY")
+	var masterKey []byte
+	if masterKeyStr != "" {
+		var err error
+		masterKey, err = base64.StdEncoding.DecodeString(masterKeyStr)
+		if err != nil || len(masterKey) != 32 {
+			if len(masterKeyStr) == 32 {
+				masterKey = []byte(masterKeyStr)
+			} else {
+				log.Printf("Warning: MASTER_KEY must be a 32-byte base64 string or 32-byte raw string. Using dev key.")
+				masterKey = []byte("dev-master-key-must-be-32-bytes-")
+			}
+		}
+	} else {
+		masterKey = []byte("dev-master-key-must-be-32-bytes-")
 	}
 
 	if region == "" {
@@ -72,8 +85,8 @@ func main() {
 		o.BaseEndpoint = aws.String(s3Endpoint)
 	})
 
-	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket, s3AdminClient, []byte(masterKey))
-	getS3CredsUseCase := usecase.NewGetS3CredentialsUseCase(storageRepo)
+	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket, s3AdminClient, masterKey)
+	getS3CredsUseCase := usecase.NewGetS3CredentialsUseCase(storageRepo, storageRepo)
 
 	googleAuth := auth.NewGoogleAuthenticator(googleClientID)
 	magicLinkAuth := auth.NewMagicLinkAuthenticator(jwtSecret, "photocloud-api")
@@ -122,11 +135,7 @@ func main() {
 			http.Error(w, "Internal error", http.StatusInternalServerError)
 			return
 		}
-		link := os.Getenv("API_URL") + "/auth/magic-link/callback?token=" + token
-		if frontendURL := os.Getenv("FRONTEND_URL"); frontendURL != "" {
-			link = frontendURL + "?token=" + token
-		}
-		body := "Click here to login: " + link
+		body := "Click here to login: " + os.Getenv("API_URL") + "/auth/magic-link/callback?token=" + token
 		err = emailSender.SendEmail(r.Context(), email, "Your Magic Link", body)
 		if err != nil {
 			http.Error(w, "Failed to send email", http.StatusInternalServerError)

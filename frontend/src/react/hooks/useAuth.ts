@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { S3Credentials, UserSession } from '../domain/types';
+import type { S3Credentials, UserSession } from '../../domain/types';
 
 const SESSION_KEY = '@photocloud_session';
 

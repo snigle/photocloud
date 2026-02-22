@@ -1,19 +1,15 @@
 import React from 'react';
-import { View, StyleSheet, FlatList, Image, Dimensions, RefreshControl } from 'react-native';
-import { Appbar, Card, Text, useTheme, ActivityIndicator } from 'react-native-paper';
-import { LogOut, RefreshCw } from 'lucide-react-native';
+import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { Appbar, List, Text, useTheme, Divider } from 'react-native-paper';
+import { LogOut, RefreshCw, FileText } from 'lucide-react-native';
 import { useGallery } from '../hooks/useGallery';
-import type { S3Credentials } from '../domain/types';
+import type { S3Credentials } from '../../domain/types';
 
 interface Props {
   creds: S3Credentials;
   email: string;
   onLogout: () => void;
 }
-
-const { width } = Dimensions.get('window');
-const columnCount = width > 600 ? 4 : 2;
-const itemSize = (width - 40) / columnCount;
 
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
@@ -22,7 +18,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   return (
     <View style={styles.container}>
       <Appbar.Header elevated>
-        <Appbar.Content title="My Gallery" subtitle={email} />
+        <Appbar.Content title="My Cloud" subtitle={email} />
         <Appbar.Action icon={() => <RefreshCw size={24} color={theme.colors.onSurface} />} onPress={refresh} />
         <Appbar.Action icon={() => <LogOut size={24} color={theme.colors.onSurface} />} onPress={onLogout} />
       </Appbar.Header>
@@ -35,31 +31,27 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
 
       {!loading && photos.length === 0 && !error && (
         <View style={styles.center}>
-          <Text>No photos found in your cloud.</Text>
+          <Text>No files found in your cloud.</Text>
+          <Text variant="bodySmall">Storage and indexing specs coming soon.</Text>
         </View>
       )}
 
       <FlatList
         data={photos}
         keyExtractor={(item) => item.key}
-        numColumns={columnCount}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={refresh} />
         }
         renderItem={({ item }) => (
-          <Card style={[styles.photoCard, { width: itemSize, height: itemSize + 40 }]}>
-            <Image
-              source={{ uri: item.url }}
-              style={[styles.image, { height: itemSize }]}
-              resizeMode="cover"
+          <>
+            <List.Item
+              title={item.key.split('/').pop()}
+              description={item.key}
+              left={props => <List.Icon {...props} icon={() => <FileText size={24} color={theme.colors.primary} />} />}
             />
-            <View style={styles.photoInfo}>
-              <Text numberOfLines={1} variant="labelSmall">
-                {item.key.split('/').pop()}
-              </Text>
-            </View>
-          </Card>
+            <Divider />
+          </>
         )}
       />
     </View>
@@ -72,19 +64,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   listContent: {
-    padding: 10,
-  },
-  photoCard: {
-    margin: 5,
-    overflow: 'hidden',
-  },
-  image: {
-    width: '100%',
-  },
-  photoInfo: {
-    padding: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingBottom: 20,
   },
   center: {
     flex: 1,

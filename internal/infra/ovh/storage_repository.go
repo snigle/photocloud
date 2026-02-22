@@ -3,7 +3,7 @@ package ovh
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
+	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -13,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/ovh/go-ovh/ovh"
 	"github.com/snigle/photocloud/internal/domain"
-	"github.com/snigle/photocloud/internal/infra/encryption"
 )
 
 type StorageRepository struct {
@@ -138,48 +137,12 @@ func (r *StorageRepository) GetS3Credentials(ctx context.Context, email string) 
 		}
 	}
 
-	// User Key Management
-	userKeyKey := fmt.Sprintf("users/%s/secret.key", email)
-	var userKey []byte
-	output, err := r.s3Client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(r.bucket),
-		Key:    aws.String(userKeyKey),
-	})
-	if err == nil {
-		defer output.Body.Close()
-		encryptedKey := new(bytes.Buffer)
-		encryptedKey.ReadFrom(output.Body)
-		userKey, err = encryption.Decrypt(encryptedKey.Bytes(), r.masterKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt user key: %w", err)
-		}
-	} else {
-		// Generate new key
-		userKey = make([]byte, 32)
-		if _, err := io.ReadFull(rand.Reader, userKey); err != nil {
-			return nil, fmt.Errorf("failed to generate user key: %w", err)
-		}
-		encryptedKey, err := encryption.Encrypt(userKey, r.masterKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt user key: %w", err)
-		}
-		_, err = r.s3Client.PutObject(ctx, &s3.PutObjectInput{
-			Bucket: aws.String(r.bucket),
-			Key:    aws.String(userKeyKey),
-			Body:   bytes.NewReader(encryptedKey),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to save user key: %w", err)
-		}
-	}
-
 	return &domain.S3Credentials{
 		AccessKey: s3Cred.Access,
 		SecretKey: s3Cred.Secret,
 		Endpoint:  fmt.Sprintf("https://s3.%s.io.cloud.ovh.net", r.region),
 		Region:    r.region,
 		Bucket:    r.bucket,
-		UserKey:   base64.StdEncoding.EncodeToString(userKey),
 	}, nil
 }
 
@@ -196,24 +159,36 @@ func (r *StorageRepository) GetUser(ctx context.Context, email string) (domain.P
 	}
 
 	key := fmt.Sprintf("users/%s/config/passkeys.json", email)
+	algo, sseKey, sseKeyMD5 := r.getSSEParams()
 	output, err := r.s3Client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(r.bucket),
-		Key:    aws.String(key),
+		Bucket:               aws.String(r.bucket),
+		Key:                  aws.String(key),
+		SSECustomerAlgorithm: aws.String(algo),
+		SSECustomerKey:       aws.String(sseKey),
+		SSECustomerKeyMD5:    aws.String(sseKeyMD5),
 	})
 	if err != nil {
+		// Fallback for transition: try without SSE-C if it fails
+		outputPlain, errPlain := r.s3Client.GetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(r.bucket),
+			Key:    aws.String(key),
+		})
+		if errPlain == nil {
+			defer outputPlain.Body.Close()
+			var record passkeyUserRecord
+			if err := json.NewDecoder(outputPlain.Body).Decode(&record); err == nil {
+				return &domain.PasskeyUserEntity{
+					Email:       record.Email,
+					Credentials: record.Credentials,
+				}, nil
+			}
+		}
 		return nil, fmt.Errorf("failed to get user from S3: %w", err)
 	}
 	defer output.Body.Close()
 
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(output.Body)
-	decrypted, err := encryption.Decrypt(buf.Bytes(), r.masterKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt user record: %w", err)
-	}
-
 	var record passkeyUserRecord
-	if err := json.Unmarshal(decrypted, &record); err != nil {
+	if err := json.NewDecoder(output.Body).Decode(&record); err != nil {
 		return nil, fmt.Errorf("failed to decode user record: %w", err)
 	}
 
@@ -238,20 +213,70 @@ func (r *StorageRepository) SaveUser(ctx context.Context, email string, user dom
 		return fmt.Errorf("failed to marshal user record: %w", err)
 	}
 
-	encrypted, err := encryption.Encrypt(data, r.masterKey)
-	if err != nil {
-		return fmt.Errorf("failed to encrypt user record: %w", err)
-	}
-
 	key := fmt.Sprintf("users/%s/config/passkeys.json", email)
+	algo, sseKey, sseKeyMD5 := r.getSSEParams()
 	_, err = r.s3Client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(r.bucket),
-		Key:    aws.String(key),
-		Body:   bytes.NewReader(encrypted),
+		Bucket:               aws.String(r.bucket),
+		Key:                  aws.String(key),
+		Body:                 bytes.NewReader(data),
+		SSECustomerAlgorithm: aws.String(algo),
+		SSECustomerKey:       aws.String(sseKey),
+		SSECustomerKeyMD5:    aws.String(sseKeyMD5),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to save user to S3: %w", err)
 	}
 
 	return nil
+}
+
+func (r *StorageRepository) GetUserKey(ctx context.Context, email string) ([]byte, error) {
+	if r.s3Client == nil {
+		return nil, fmt.Errorf("s3 client not initialized")
+	}
+
+	key := fmt.Sprintf("users/%s/secret.key", email)
+	algo, sseKey, sseKeyMD5 := r.getSSEParams()
+	output, err := r.s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket:               aws.String(r.bucket),
+		Key:                  aws.String(key),
+		SSECustomerAlgorithm: aws.String(algo),
+		SSECustomerKey:       aws.String(sseKey),
+		SSECustomerKeyMD5:    aws.String(sseKeyMD5),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user key from S3: %w", err)
+	}
+	defer output.Body.Close()
+
+	return io.ReadAll(output.Body)
+}
+
+func (r *StorageRepository) SaveUserKey(ctx context.Context, email string, userKey []byte) error {
+	if r.s3Client == nil {
+		return fmt.Errorf("s3 client not initialized")
+	}
+
+	key := fmt.Sprintf("users/%s/secret.key", email)
+	algo, sseKey, sseKeyMD5 := r.getSSEParams()
+	_, err := r.s3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:               aws.String(r.bucket),
+		Key:                  aws.String(key),
+		Body:                 bytes.NewReader(userKey),
+		SSECustomerAlgorithm: aws.String(algo),
+		SSECustomerKey:       aws.String(sseKey),
+		SSECustomerKeyMD5:    aws.String(sseKeyMD5),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to save user key to S3: %w", err)
+	}
+
+	return nil
+}
+
+func (r *StorageRepository) getSSEParams() (string, string, string) {
+	key := base64.StdEncoding.EncodeToString(r.masterKey)
+	hash := md5.Sum(r.masterKey)
+	keyMD5 := base64.StdEncoding.EncodeToString(hash[:])
+	return "AES256", key, keyMD5
 }

@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Text, TextInput, Button, Card, Title, Paragraph, ActivityIndicator, Divider, useTheme, HelperText } from 'react-native-paper';
-import { LogIn, Mail, Chrome, Code, Fingerprint } from 'lucide-react-native';
+import { Mail, Chrome, Code, Fingerprint } from 'lucide-react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-import { AuthService } from '../services/auth.service';
-import type { S3Credentials } from '../domain/types';
+import type { S3Credentials } from '../../domain/types';
+import type { AuthUseCase } from '../../usecase/auth.usecase';
 
 WebBrowser.maybeCompleteAuthSession();
 
 interface Props {
   onLogin: (creds: S3Credentials, email: string) => void;
+  authUseCase: AuthUseCase;
 }
 
-const AuthScreen: React.FC<Props> = ({ onLogin }) => {
+const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase }) => {
   const theme = useTheme();
   const [email, setEmail] = useState('');
   const [magicLinkSent, setMagicLinkSent] = useState(false);
@@ -22,7 +23,7 @@ const AuthScreen: React.FC<Props> = ({ onLogin }) => {
 
   // Google Auth
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com', // Would normally come from config
+    clientId: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
   });
 
   useEffect(() => {
@@ -38,8 +39,8 @@ const AuthScreen: React.FC<Props> = ({ onLogin }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await AuthService.googleLogin(token);
-      onLogin(response, response.email);
+      const res = await authUseCase.loginWithGoogle(token);
+      onLogin(res, res.email);
     } catch (err) {
       setError('Google login failed');
     } finally {
@@ -55,8 +56,8 @@ const AuthScreen: React.FC<Props> = ({ onLogin }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await AuthService.passkeyLogin(email);
-      onLogin(response, response.email);
+      const res = await authUseCase.loginWithPasskey(email);
+      onLogin(res, res.email);
     } catch (err: any) {
       console.error(err);
       setError('Passkey login failed. Have you registered a passkey?');
@@ -73,7 +74,7 @@ const AuthScreen: React.FC<Props> = ({ onLogin }) => {
     setLoading(true);
     setError(null);
     try {
-      await AuthService.passkeyRegister(email);
+      await authUseCase.registerPasskey(email);
       setError('Passkey registered successfully! You can now login with it.');
     } catch (err: any) {
       console.error(err);
@@ -87,8 +88,8 @@ const AuthScreen: React.FC<Props> = ({ onLogin }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await AuthService.devLogin();
-      onLogin(response, response.email);
+      const res = await authUseCase.loginWithDev();
+      onLogin(res, res.email);
     } catch (err) {
       setError('Dev login failed. Is DEV_AUTH_ENABLED=true?');
     } finally {
@@ -101,7 +102,7 @@ const AuthScreen: React.FC<Props> = ({ onLogin }) => {
     setLoading(true);
     setError(null);
     try {
-      await AuthService.requestMagicLink(email);
+      await authUseCase.requestMagicLink(email);
       setMagicLinkSent(true);
     } catch (err) {
       setError('Failed to send magic link');
