@@ -10,12 +10,30 @@ if (Platform.OS !== 'web') {
 
 export class LocalGalleryRepository implements ILocalGalleryRepository {
   private dbPromise: Promise<any> | null = null;
+  private indexedDBPromise: Promise<IDBDatabase> | null = null;
 
   constructor() {
     if (Platform.OS !== 'web') {
         this.dbPromise = SQLite.openDatabaseAsync('gallery.db');
         this.initDb();
+    } else {
+        this.indexedDBPromise = this.initIndexedDB();
     }
+  }
+
+  private async initIndexedDB(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('gallery', 1);
+        request.onupgradeneeded = (event: any) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('photos')) {
+                const store = db.createObjectStore('photos', { keyPath: 'id' });
+                store.createIndex('creationDate', 'creationDate', { unique: false });
+            }
+        };
+        request.onsuccess = (event: any) => resolve(event.target.result);
+        request.onerror = (event: any) => reject(event.target.error);
+    });
   }
 
   private async initDb() {
@@ -81,7 +99,24 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
   }
 
   async saveToCache(photos: Photo[]): Promise<void> {
-    if (Platform.OS === 'web' || !this.dbPromise) return;
+    if (Platform.OS === 'web') {
+        if (!this.indexedDBPromise) return;
+        const db = await this.indexedDBPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['photos'], 'readwrite');
+            const store = transaction.objectStore('photos');
+
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = (event: any) => reject(event.target.error);
+
+            store.clear();
+            for (const photo of photos) {
+                store.add(photo);
+            }
+        });
+    }
+
+    if (!this.dbPromise) return;
     const db = await this.dbPromise;
     try {
         await db.withTransactionAsync(async () => {
@@ -113,7 +148,45 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
   }
 
   async loadFromCache(limit: number = 100, offset: number = 0): Promise<Photo[]> {
-    if (Platform.OS === 'web' || !this.dbPromise) return [];
+    if (Platform.OS === 'web') {
+        if (!this.indexedDBPromise) return [];
+        const db = await this.indexedDBPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['photos'], 'readonly');
+            const store = transaction.objectStore('photos');
+            const index = store.index('creationDate');
+            const request = index.openCursor(null, 'prev'); // descending order
+            let count = 0;
+            const results: Photo[] = [];
+            let advanced = false;
+
+            request.onsuccess = (event: any) => {
+                const cursor = event.target.result;
+                if (!cursor) {
+                    resolve(results);
+                    return;
+                }
+
+                if (!advanced && offset > 0) {
+                    advanced = true;
+                    cursor.advance(offset);
+                    return;
+                }
+
+                results.push(cursor.value);
+                count++;
+
+                if (count < limit) {
+                    cursor.continue();
+                } else {
+                    resolve(results);
+                }
+            };
+            request.onerror = (event: any) => reject(event.target.error);
+        });
+    }
+
+    if (!this.dbPromise) return [];
     const db = await this.dbPromise;
     try {
         const rows = await db.getAllAsync(
