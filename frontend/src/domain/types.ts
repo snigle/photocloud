@@ -63,6 +63,8 @@ export interface IS3Repository {
 export interface ILocalGalleryRepository {
   listLocalPhotos(): Promise<LocalPhoto[]>;
   saveToCache(photos: Photo[]): Promise<void>;
+  savePhoto(photo: Photo): Promise<void>;
   loadFromCache(limit?: number, offset?: number): Promise<Photo[]>;
   existsById(id: string): Promise<boolean>;
+  countPhotos(): Promise<number>;
 }

@@ -11,11 +11,16 @@ import { uint8ArrayToBase64 } from '../../infra/utils';
 
 const FlashListAny = FlashList as any;
 
-const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3Credentials, size: number }) => {
+const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo | null, creds: S3Credentials, size: number }) => {
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
+
+    if (!photo) {
+        setUrl(null);
+        return;
+    }
 
     if (photo.type === 'local') {
       setUrl(photo.uri);
@@ -29,12 +34,11 @@ const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3C
 
       const load = async () => {
           try {
-              // Now that listing is based on thumbnails, photo.key is already the thumbnail
-              const data = await s3Repo.getFile(creds.bucket, photo.key);
+              // Use signed URL for better performance and browser caching
+              const signedUrl = await s3Repo.getDownloadUrl(creds.bucket, photo.key);
 
               if (isMounted) {
-                  const base64 = uint8ArrayToBase64(data);
-                  setUrl(`data:image/jpeg;base64,${base64}`);
+                  setUrl(signedUrl);
               }
           } catch (err) {
               console.error('Failed to load cloud image', err);
@@ -52,10 +56,10 @@ const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3C
         <Image source={{ uri: url }} style={styles.image} resizeMode="cover" />
       ) : (
         <View style={styles.placeholder}>
-            <ActivityIndicator size="small" />
+            {photo && <ActivityIndicator size="small" />}
         </View>
       )}
-      {photo.type === 'cloud' && (
+      {photo?.type === 'cloud' && (
           <View style={styles.cloudBadge}>
               <Text style={styles.cloudBadgeText}>☁️</Text>
           </View>
@@ -73,12 +77,12 @@ interface Props {
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
   const { width } = useWindowDimensions();
-  const { photos, loading, refreshing, error, refresh, loadMore } = useGallery(creds, email);
+  const { photos, totalCount, loading, refreshing, error, refresh, loadMore, addPhoto } = useGallery(creds, email);
   const { upload, uploading, progress, error: uploadError } = useUpload(creds, email);
 
   const handleUpload = async () => {
-    await upload(() => {
-        refresh(); // Refresh gallery after each upload
+    await upload((photo) => {
+        addPhoto(photo);
     });
   };
 
@@ -90,7 +94,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
       <Appbar.Header elevated>
         <Appbar.Content
             title="PhotoCloud"
-            subtitle={uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${photos.length} photos`}
+            subtitle={uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`}
         />
         {uploading && !progress && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
         <Appbar.Action
@@ -122,7 +126,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
       <FlashListAny
         data={photos}
         renderItem={({ item }: any) => <PhotoItem photo={item} creds={creds} size={itemSize} />}
-        keyExtractor={(item: Photo) => item.id}
+        keyExtractor={(item: Photo | null, index: number) => item?.id || `placeholder-${index}`}
         numColumns={numColumns}
         key={numColumns} // Force re-render when column count changes
         estimatedItemSize={180}

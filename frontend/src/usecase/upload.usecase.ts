@@ -1,5 +1,5 @@
 import * as ImageManipulator from 'expo-image-manipulator';
-import { IS3Repository, ILocalGalleryRepository, S3Credentials } from '../domain/types';
+import { IS3Repository, ILocalGalleryRepository, S3Credentials, UploadedPhoto } from '../domain/types';
 import { encodeText, decodeText, md5Hex } from '../infra/utils';
 
 export class UploadUseCase {
@@ -14,7 +14,7 @@ export class UploadUseCase {
     creds: S3Credentials,
     email: string,
     shouldUploadOriginal: boolean = false
-  ): Promise<void> {
+  ): Promise<UploadedPhoto | null> {
     // 1. Process images
     const originalData = await this.uriToUint8Array(uri);
 
@@ -23,7 +23,7 @@ export class UploadUseCase {
     // Check if already exists in local cache (synced with cloud)
     if (await this.localRepo.existsById(hash)) {
         console.log(`Photo ${filename} already exists (hash: ${hash}), skipping upload.`);
-        return;
+        return null;
     }
 
     const timestamp = Math.floor(Date.now() / 1000);
@@ -91,6 +91,19 @@ export class UploadUseCase {
 
     // Index
     await this.updateIndex(creds, email, year);
+
+    const uploadedPhoto: UploadedPhoto = {
+        id: hash,
+        key: `${basePrefix}/thumbnail/${photoId}.enc`,
+        creationDate: timestamp,
+        size: thumbnailData.length,
+        width: 0,
+        height: 0,
+        type: 'cloud'
+    };
+
+    await this.localRepo.savePhoto(uploadedPhoto);
+    return uploadedPhoto;
   }
 
   private async uriToUint8Array(uri: string): Promise<Uint8Array> {
