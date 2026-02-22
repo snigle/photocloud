@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
-import { Appbar, Text, useTheme, FAB } from 'react-native-paper';
+import { Appbar, Text, useTheme, FAB, ProgressBar } from 'react-native-paper';
 import { LogOut, RefreshCw, Upload } from 'lucide-react-native';
 import { FlashList } from "@shopify/flash-list";
 import { useGallery } from '../hooks/useGallery';
@@ -29,13 +29,8 @@ const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3C
 
       const load = async () => {
           try {
-              const thumbKey = photo.key.replace('/original/', '/thumbnail/');
-              let data: Uint8Array;
-              try {
-                  data = await s3Repo.getFile(creds.bucket, thumbKey);
-              } catch (e) {
-                  data = await s3Repo.getFile(creds.bucket, photo.key);
-              }
+              // Now that listing is based on thumbnails, photo.key is already the thumbnail
+              const data = await s3Repo.getFile(creds.bucket, photo.key);
 
               if (isMounted) {
                   const base64 = uint8ArrayToBase64(data);
@@ -79,13 +74,12 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
   const { width } = useWindowDimensions();
   const { photos, loading, refreshing, error, refresh, loadMore } = useGallery(creds, email);
-  const { upload, uploading, error: uploadError } = useUpload(creds, email);
+  const { upload, uploading, progress, error: uploadError } = useUpload(creds, email);
 
   const handleUpload = async () => {
-    const success = await upload();
-    if (success) {
-      refresh();
-    }
+    await upload(() => {
+        refresh(); // Refresh gallery after each upload
+    });
   };
 
   const numColumns = Math.max(3, Math.floor(width / 180));
@@ -94,8 +88,11 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   return (
     <View style={styles.container}>
       <Appbar.Header elevated>
-        <Appbar.Content title="PhotoCloud" subtitle={`${photos.length} photos`} />
-        {uploading && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
+        <Appbar.Content
+            title="PhotoCloud"
+            subtitle={uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${photos.length} photos`}
+        />
+        {uploading && !progress && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
         <Appbar.Action
           icon={() => <Upload size={24} color={theme.colors.onSurface} />}
           onPress={handleUpload}
@@ -104,6 +101,10 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
         <Appbar.Action icon={() => <RefreshCw size={24} color={theme.colors.onSurface} />} onPress={refresh} />
         <Appbar.Action icon={() => <LogOut size={24} color={theme.colors.onSurface} />} onPress={onLogout} />
       </Appbar.Header>
+
+      {uploading && progress && (
+          <ProgressBar progress={progress.current / progress.total} color={theme.colors.primary} />
+      )}
 
       {(error || uploadError) && (
         <View style={styles.errorBanner}>

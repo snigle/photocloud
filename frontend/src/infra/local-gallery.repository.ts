@@ -213,4 +213,28 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
         return [];
     }
   }
+
+  async existsById(id: string): Promise<boolean> {
+    if (Platform.OS === 'web') {
+        if (!this.indexedDBPromise) return false;
+        const db = await this.indexedDBPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['photos'], 'readonly');
+            const store = transaction.objectStore('photos');
+            const request = store.get(id);
+            request.onsuccess = (event: any) => resolve(!!event.target.result);
+            request.onerror = (event: any) => reject(event.target.error);
+        });
+    }
+
+    if (!this.dbPromise) return false;
+    const db = await this.dbPromise;
+    try {
+        const row = await db.getFirstAsync('SELECT id FROM photos WHERE id = ?', [id]);
+        return !!row;
+    } catch (e) {
+        console.error('Error checking photo existence in SQLite:', e);
+        return false;
+    }
+  }
 }

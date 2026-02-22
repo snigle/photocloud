@@ -1,14 +1,16 @@
 import { useState, useCallback } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { S3Repository } from '../../infra/s3.repository';
+import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
 import { UploadUseCase } from '../../usecase/upload.usecase';
 import type { S3Credentials } from '../../domain/types';
 
 export const useUpload = (creds: S3Credentials | null, email: string | null) => {
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<{ current: number, total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const upload = useCallback(async () => {
+  const upload = useCallback(async (onUploadSuccess?: () => void) => {
     if (!creds || !email) return;
 
     try {
@@ -22,13 +24,40 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
 
       setUploading(true);
       setError(null);
+      setProgress({ current: 0, total: result.assets.length });
 
       const s3Repo = new S3Repository(creds);
-      const uploadUseCase = new UploadUseCase(s3Repo);
+      const localRepo = new LocalGalleryRepository();
+      const uploadUseCase = new UploadUseCase(s3Repo, localRepo);
 
-      for (const asset of result.assets) {
-        await uploadUseCase.execute(asset.uri, asset.name, creds, email);
-      }
+      const CONCURRENCY = 3;
+      const assets = [...result.assets];
+      let current = 0;
+      const total = assets.length;
+
+      const worker = async () => {
+        while (assets.length > 0) {
+          const asset = assets.shift();
+          if (!asset) break;
+
+          try {
+            await uploadUseCase.execute(asset.uri, asset.name, creds, email);
+          } catch (e) {
+            console.error(`Failed to upload ${asset.name}`, e);
+            // Continue with other assets
+          } finally {
+            current++;
+            setProgress({ current, total });
+            if (onUploadSuccess) onUploadSuccess();
+          }
+        }
+      };
+
+      const workers = Array(Math.min(CONCURRENCY, total))
+        .fill(null)
+        .map(() => worker());
+
+      await Promise.all(workers);
 
       return true; // Success
     } catch (err: any) {
@@ -40,5 +69,5 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
     }
   }, [creds, email]);
 
-  return { upload, uploading, error };
+  return { upload, uploading, progress, error };
 };

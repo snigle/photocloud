@@ -66,7 +66,7 @@ export class S3Repository implements IS3Repository {
 
         if (years.length > 0) {
             for (const year of years) {
-                const yearPhotos = await this.listFolder(bucket, `${basePrefix}${year}/original/`);
+                const yearPhotos = await this.listFolder(bucket, `${basePrefix}${year}/thumbnail/`);
                 allPhotos = [...allPhotos, ...yearPhotos];
             }
         }
@@ -74,7 +74,7 @@ export class S3Repository implements IS3Repository {
         // 2. Fallback: If no photos found in targeted folders, search more broadly
         if (allPhotos.length === 0) {
             const allFiles = await this.listFolder(bucket, basePrefix);
-            allPhotos = allFiles.filter(p => p.key.includes('/original/'));
+            allPhotos = allFiles.filter(p => p.key.includes('/thumbnail/'));
         }
 
         // 3. Last resort fallback
@@ -116,11 +116,14 @@ export class S3Repository implements IS3Repository {
                 const key = item.Key!;
                 const parts = key.split('/');
                 const filename = parts.pop()!;
-                const timestampMatch = filename.match(/^(\d+)-/);
+
+                const namePart = filename.replace('.enc', '').replace('.json', '');
+                const timestampMatch = namePart.match(/^(\d+)-/);
                 const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0;
+                const id = timestampMatch ? namePart.substring(timestampMatch[0].length) : namePart;
 
                 return {
-                  id: filename.replace('.enc', '').replace('.json', ''),
+                  id: id,
                   key: key,
                   creationDate: timestamp || (item.LastModified ? Math.floor(item.LastModified.getTime() / 1000) : 0),
                   size: item.Size || 0,

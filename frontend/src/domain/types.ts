@@ -64,4 +64,5 @@ export interface ILocalGalleryRepository {
   listLocalPhotos(): Promise<LocalPhoto[]>;
   saveToCache(photos: Photo[]): Promise<void>;
   loadFromCache(limit?: number, offset?: number): Promise<Photo[]>;
+  existsById(id: string): Promise<boolean>;
 }

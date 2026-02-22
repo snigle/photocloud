@@ -27,6 +27,7 @@ describe('GalleryUseCase', () => {
       listLocalPhotos: jest.fn(),
       saveToCache: jest.fn(),
       loadFromCache: jest.fn(),
+      existsById: jest.fn(),
     };
     galleryUseCase = new GalleryUseCase(mockS3Repo, mockLocalRepo);
   });
