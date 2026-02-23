@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { S3Credentials, Photo } from '../../domain/types';
 import { S3Repository } from '../../infra/s3.repository';
 import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
@@ -19,15 +19,39 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
     return new GalleryUseCase(new S3Repository(creds), new LocalGalleryRepository());
   }, [creds]);
 
+  const photosRef = useRef<Photo[]>([]);
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
+
   const loadInitial = useCallback(async () => {
     if (!galleryUseCase || !creds || !email) return;
-    setLoading(true);
+
+    // If we already have photos, don't show the full loading state to avoid flicker/disappearance
+    if (photosRef.current.length === 0) {
+        setLoading(true);
+    }
+
     try {
       const count = await galleryUseCase.getTotalCount();
       setTotalCount(count);
 
       const initialPhotos = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
-      setPhotos(initialPhotos);
+
+      setPhotos(prev => {
+          if (prev.length === 0) return initialPhotos;
+
+          // Merge to avoid losing items during re-loads
+          const merged = [...initialPhotos];
+          const initialIds = new Set(initialPhotos.map(p => p.id));
+          for (const p of prev) {
+              if (!initialIds.has(p.id)) {
+                  merged.push(p);
+              }
+          }
+          return merged.sort((a, b) => b.creationDate - a.creationDate);
+      });
+
       setHasMore(initialPhotos.length < count);
 
       // Trigger background sync
@@ -89,7 +113,11 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
     }
   }, [galleryUseCase, creds, email]);
 
-  const addPhoto = useCallback((photo: Photo) => {
+  const addPhoto = useCallback(async (photo: Photo) => {
+    // Persist to local cache
+    const localRepo = new LocalGalleryRepository();
+    await localRepo.savePhoto(photo);
+
     setTotalCount(prev => prev + 1);
     setPhotos(prev => {
         if (prev.find(p => p.id === photo.id)) return prev;

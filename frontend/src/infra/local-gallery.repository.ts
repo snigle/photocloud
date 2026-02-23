@@ -23,12 +23,15 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
 
   private async initIndexedDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open('gallery', 1);
+        const request = indexedDB.open('gallery', 2);
         request.onupgradeneeded = (event: any) => {
             const db = event.target.result;
             if (!db.objectStoreNames.contains('photos')) {
                 const store = db.createObjectStore('photos', { keyPath: 'id' });
                 store.createIndex('creationDate', 'creationDate', { unique: false });
+            }
+            if (!db.objectStoreNames.contains('uploaded_assets')) {
+                db.createObjectStore('uploaded_assets', { keyPath: 'localId' });
             }
         };
         request.onsuccess = (event: any) => resolve(event.target.result);
@@ -52,6 +55,11 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
             s3_key TEXT
           );
           CREATE INDEX IF NOT EXISTS idx_creationDate ON photos(creationDate);
+
+          CREATE TABLE IF NOT EXISTS uploaded_assets (
+            localId TEXT PRIMARY KEY,
+            cloudId TEXT
+          );
         `);
     } catch (e) {
         console.error('Failed to initialize SQLite DB', e);
@@ -294,5 +302,45 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
         console.error('Error counting photos in SQLite:', e);
         return 0;
     }
+  }
+
+  async markAsUploaded(localId: string, cloudId: string): Promise<void> {
+      if (Platform.OS === 'web') {
+          const db = await this.indexedDBPromise;
+          if (!db) return;
+          return new Promise((resolve, reject) => {
+              const transaction = db.transaction(['uploaded_assets'], 'readwrite');
+              const store = transaction.objectStore('uploaded_assets');
+              const request = store.put({ localId, cloudId });
+              request.onsuccess = () => resolve();
+              request.onerror = (event: any) => reject(event.target.error);
+          });
+      }
+
+      const db = await this.dbPromise;
+      if (!db) return;
+      await db.runAsync('INSERT OR REPLACE INTO uploaded_assets (localId, cloudId) VALUES (?, ?)', [localId, cloudId]);
+  }
+
+  async getUploadedLocalIds(): Promise<Set<string>> {
+      if (Platform.OS === 'web') {
+          const db = await this.indexedDBPromise;
+          if (!db) return new Set();
+          return new Promise((resolve, reject) => {
+              const transaction = db.transaction(['uploaded_assets'], 'readonly');
+              const store = transaction.objectStore('uploaded_assets');
+              const request = store.getAll();
+              request.onsuccess = (event: any) => {
+                  const ids = new Set<string>(event.target.result.map((r: any) => r.localId as string));
+                  resolve(ids);
+              };
+              request.onerror = (event: any) => reject(event.target.error);
+          });
+      }
+
+      const db = await this.dbPromise;
+      if (!db) return new Set();
+      const rows = await db.getAllAsync('SELECT localId FROM uploaded_assets');
+      return new Set<string>(rows.map((r: any) => r.localId as string));
   }
 }

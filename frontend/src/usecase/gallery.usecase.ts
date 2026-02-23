@@ -18,8 +18,12 @@ export class GalleryUseCase {
         // Fetch cloud photos
         const cloud = await this.s3Repo.listPhotos(creds.bucket, email);
 
+        // De-duplicate local photos that are already uploaded
+        const uploadedLocalIds = await this.localRepo.getUploadedLocalIds();
+        const filteredLocal = local.filter(p => !uploadedLocalIds.has(p.id));
+
         // Merge and sort
-        const all = [...local, ...cloud].sort((a, b) => b.creationDate - a.creationDate);
+        const all = [...filteredLocal, ...cloud].sort((a, b) => b.creationDate - a.creationDate);
 
         // Update cache
         await this.localRepo.saveToCache(all);

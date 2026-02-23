@@ -30,6 +30,8 @@ describe('GalleryUseCase', () => {
       loadFromCache: jest.fn(),
       existsById: jest.fn(),
       countPhotos: jest.fn(),
+      markAsUploaded: jest.fn(),
+      getUploadedLocalIds: jest.fn().mockResolvedValue(new Set()),
     };
     galleryUseCase = new GalleryUseCase(mockS3Repo, mockLocalRepo);
   });

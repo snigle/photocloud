@@ -3,6 +3,14 @@ jest.mock('expo-image-manipulator', () => ({
   SaveFormat: { JPEG: 'jpeg' }
 }));
 
+jest.mock('expo-media-library', () => ({
+  getAssetInfoAsync: jest.fn(),
+}));
+
+jest.mock('react-native', () => ({
+  Platform: { OS: 'web' },
+}));
+
 jest.mock('expo-crypto', () => ({
   randomUUID: jest.fn(() => 'test-uuid'),
   getRandomBytes: jest.fn(() => new Uint8Array(12)),
@@ -25,6 +33,8 @@ describe('UploadUseCase', () => {
             savePhoto: jest.fn(),
             loadFromCache: jest.fn(),
             countPhotos: jest.fn(),
+            markAsUploaded: jest.fn(),
+            getUploadedLocalIds: jest.fn(),
         };
         const useCase = new UploadUseCase(mockS3Repo as any, mockLocalRepo as any);
         expect(useCase).toBeDefined();

@@ -1,4 +1,6 @@
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as MediaLibrary from 'expo-media-library';
+import { Platform } from 'react-native';
 import { IS3Repository, ILocalGalleryRepository, S3Credentials, UploadedPhoto } from '../domain/types';
 import { encodeText, decodeText, md5Hex } from '../infra/utils';
 
@@ -15,7 +17,8 @@ export class UploadUseCase {
     filename: string,
     creds: S3Credentials,
     email: string,
-    shouldUploadOriginal: boolean = false
+    shouldUploadOriginal: boolean = false,
+    localId?: string
   ): Promise<UploadedPhoto | null> {
     // 1. Process images
     const originalData = await this.uriToUint8Array(uri);
@@ -28,9 +31,23 @@ export class UploadUseCase {
         return null;
     }
 
-    const timestamp = Math.floor(Date.now() / 1000);
+    let timestamp = Math.floor(Date.now() / 1000);
+
+    // Try to get actual creation date from MediaLibrary if on native
+    if (Platform.OS !== 'web') {
+        try {
+            const asset = await MediaLibrary.getAssetInfoAsync(uri);
+            if (asset && asset.creationTime) {
+                timestamp = Math.floor(asset.creationTime / 1000);
+            }
+        } catch (e) {
+            console.log('Failed to get asset info for timestamp', e);
+        }
+    }
+
     const photoId = `${timestamp}-${hash}`;
-    const year = new Date().getFullYear().toString();
+    const date = new Date(timestamp * 1000);
+    const year = date.getFullYear().toString();
 
     const reducedImage = await ImageManipulator.manipulateAsync(
       uri,
@@ -105,6 +122,11 @@ export class UploadUseCase {
     };
 
     await this.localRepo.savePhoto(uploadedPhoto);
+
+    if (localId) {
+        await this.localRepo.markAsUploaded(localId, uploadedPhoto.id);
+    }
+
     return uploadedPhoto;
   }
 

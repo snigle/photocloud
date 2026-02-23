@@ -67,4 +67,6 @@ export interface ILocalGalleryRepository {
   loadFromCache(limit?: number, offset?: number): Promise<Photo[]>;
   existsById(id: string): Promise<boolean>;
   countPhotos(): Promise<number>;
+  markAsUploaded(localId: string, cloudId: string): Promise<void>;
+  getUploadedLocalIds(): Promise<Set<string>>;
 }
