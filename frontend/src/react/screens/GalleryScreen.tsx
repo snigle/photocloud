@@ -51,7 +51,7 @@ const PhotoItem = React.memo(({
     size: number,
     onPress: (id: string, event?: any) => void,
     isSelected: boolean,
-    onSelect: (id: string) => void,
+    onSelect: (id: string, event?: any) => void,
     onLongPress: (id: string) => void,
     isSelectionMode: boolean
 }) => {
@@ -106,8 +106,8 @@ const PhotoItem = React.memo(({
     };
   }, [photo.id, photo.type, (photo as any).key, (photo as any).uri, creds]);
 
-  const handleSelect = useCallback(() => {
-    onSelect(photo.id);
+  const handleSelect = useCallback((e: any) => {
+    onSelect(photo.id, e);
   }, [photo.id, onSelect]);
 
   const handleLongPress = useCallback(() => {
@@ -140,7 +140,7 @@ const PhotoItem = React.memo(({
                 style={styles.selectionIndicator}
                 onPress={(e) => {
                     e.stopPropagation();
-                    handleSelect();
+                    handleSelect(e);
                 }}
             >
                 {isSelected ? (
@@ -180,7 +180,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const stableCreds = React.useMemo(() => creds, [creds.access, creds.secret, creds.bucket, creds.endpoint]);
 
   const { photos, totalCount, loading, refreshing, error, refresh, loadMore, addPhoto, deletePhotos } = useGallery(stableCreds, email);
-  const { upload, uploading, progress, error: uploadError } = useUpload(creds, email);
+  const { upload, uploadSingle, uploading, progress, error: uploadError } = useUpload(creds, email);
 
   const listData = React.useMemo(() => groupPhotosByDay(photos), [photos]);
 
@@ -259,12 +259,11 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   };
 
   const handleEditSave = async (photo: Photo, newUri: string) => {
-    const newPhoto: Photo = {
-        ...photo,
-        type: 'local',
-        uri: newUri,
-    };
-    await addPhoto(newPhoto);
+    // Persist to S3
+    const filename = `edited-${photo.id}.jpg`;
+    await uploadSingle(newUri, filename, (uploaded) => {
+        addPhoto(uploaded);
+    });
     setSnackbarVisible(true);
   };
 
@@ -286,7 +285,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
             size={itemSize}
             onPress={handleItemPress}
             isSelected={selectedIds.has(item.photo.id)}
-            onSelect={(id) => handleSelect(id)}
+            onSelect={(id, event) => handleSelect(id, event)}
             onLongPress={handleLongPress}
             isSelectionMode={selectedIds.size > 0}
         />

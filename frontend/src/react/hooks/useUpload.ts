@@ -73,5 +73,30 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
     }
   }, [creds, email]);
 
-  return { upload, uploading, progress, error };
+  const uploadSingle = useCallback(async (uri: string, filename: string, onUploadSuccess?: (photo: Photo) => void) => {
+    if (!creds || !email) return;
+
+    try {
+      setUploading(true);
+      setError(null);
+
+      const s3Repo = new S3Repository(creds);
+      const localRepo = new LocalGalleryRepository();
+      const uploadUseCase = new UploadUseCase(s3Repo, localRepo);
+
+      const uploaded = await uploadUseCase.execute(uri, filename, creds, email, false);
+      if (uploaded && onUploadSuccess) {
+          onUploadSuccess(uploaded);
+      }
+      return uploaded;
+    } catch (err: any) {
+      console.error('Single upload error:', err);
+      setError(err.message || 'Failed to upload photo');
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  }, [creds, email]);
+
+  return { upload, uploadSingle, uploading, progress, error };
 };
