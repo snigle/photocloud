@@ -1,40 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions, Platform, TouchableOpacity } from 'react-native';
 import { Appbar, Text, useTheme, FAB, ProgressBar, Snackbar, Portal, Dialog, Button } from 'react-native-paper';
-import { LogOut, RefreshCw, Upload, CheckCircle2, Circle, X, Trash2 } from 'lucide-react-native';
+import { LogOut, RefreshCw, Upload, CheckCircle2, Circle, X, Trash2, Check } from 'lucide-react-native';
 import { FlashList } from "@shopify/flash-list";
 import { useGallery } from '../hooks/useGallery';
 import { useUpload } from '../hooks/useUpload';
+import { useSelection } from '../hooks/useSelection';
+import { groupPhotosByDay, ListItem } from '../utils/gallery-utils';
 import { S3Repository } from '../../infra/s3.repository';
 import { PhotoViewer } from '../components/PhotoViewer';
 import type { S3Credentials, Photo } from '../../domain/types';
 import { uint8ArrayToBase64 } from '../../infra/utils';
 
 const FlashListAny = FlashList as any;
-
-type ListItem =
-  | { type: 'header'; title: string; id: string }
-  | { type: 'photo'; photo: Photo };
-
-const groupPhotosByDay = (photos: Photo[]): ListItem[] => {
-  const groups: ListItem[] = [];
-  let lastDate = '';
-
-  photos.forEach(photo => {
-    const date = new Date(photo.creationDate * 1000).toLocaleDateString('fr-FR', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-    });
-    if (date !== lastDate) {
-      groups.push({ type: 'header', title: date, id: date });
-      lastDate = date;
-    }
-    groups.push({ type: 'photo', photo });
-  });
-
-  return groups;
-};
 
 const PhotoItem = React.memo(({
     photo,
@@ -44,7 +22,10 @@ const PhotoItem = React.memo(({
     isSelected,
     onSelect,
     onLongPress,
-    isSelectionMode
+    isSelectionMode,
+    onDragStart,
+    onDragEnter,
+    onDragEnd
 }: {
     photo: Photo,
     creds: S3Credentials,
@@ -53,7 +34,10 @@ const PhotoItem = React.memo(({
     isSelected: boolean,
     onSelect: (id: string, event?: any) => void,
     onLongPress: (id: string) => void,
-    isSelectionMode: boolean
+    isSelectionMode: boolean,
+    onDragStart: (id: string) => void,
+    onDragEnter: (id: string) => void,
+    onDragEnd: () => void
 }) => {
   const [url, setUrl] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -121,8 +105,17 @@ const PhotoItem = React.memo(({
         delayLongPress={500}
         style={[styles.imageContainer, { width: size, height: size }]}
         {...(Platform.OS === 'web' ? {
-            onMouseEnter: () => setIsHovered(true),
+            onMouseEnter: () => {
+                setIsHovered(true);
+                onDragEnter(photo.id);
+            },
             onMouseLeave: () => setIsHovered(false),
+            onMouseDown: (e: any) => {
+                if (e.button === 0) { // Left click
+                    onDragStart(photo.id);
+                }
+            },
+            onMouseUp: () => onDragEnd(),
         } as any : {})}
     >
       <View style={[styles.imageWrapper, isSelected && styles.selectedImageWrapper]}>
@@ -149,7 +142,7 @@ const PhotoItem = React.memo(({
                 }}
             >
                 {isSelected ? (
-                    <CheckCircle2 size={24} color="#fff" fill="#005bbb" />
+                    <Check size={20} color="#fff" strokeWidth={4} />
                 ) : (
                     <Circle size={24} color="rgba(255,255,255,0.9)" strokeWidth={2.5} />
                 )}
@@ -174,11 +167,9 @@ interface Props {
 
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
 
   // Memoize creds to ensure stability for PhotoItem memoization
@@ -186,6 +177,25 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
 
   const { photos, totalCount, loading, refreshing, error, refresh, loadMore, addPhoto, deletePhotos } = useGallery(stableCreds, email);
   const { upload, uploadSingle, uploading, progress, error: uploadError } = useUpload(creds, email);
+  const {
+    selectedIds,
+    handleSelect,
+    clearSelection,
+    toggleSelectionMode,
+    isSelectionMode,
+    isDragging,
+    startDragging,
+    stopDragging,
+    handleDragEnter
+  } = useSelection(photos);
+
+  const handleLongPress = useCallback((id: string) => {
+    toggleSelectionMode(id);
+    if (Platform.OS !== 'web') {
+        // Start dragging mode on mobile after long press
+        startDragging(id);
+    }
+  }, [toggleSelectionMode, startDragging]);
 
   const listData = React.useMemo(() => groupPhotosByDay(photos), [photos]);
 
@@ -196,7 +206,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   };
 
   const handleItemPress = useCallback((id: string, event?: any) => {
-    if (selectedIds.size > 0) {
+    if (isSelectionMode) {
         handleSelect(id, event);
         return;
     }
@@ -209,48 +219,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
     }
 
     setViewerPhotoId(id);
-  }, [selectedIds, photos, lastSelectedId]);
-
-  const handleSelect = useCallback((id: string, event?: any) => {
-    setSelectedIds(prev => {
-        const next = new Set(prev);
-        const isShift = Platform.OS === 'web' && (event?.shiftKey || event?.nativeEvent?.shiftKey);
-
-        if (isShift && lastSelectedId) {
-            // Range selection
-            const currentIndex = photos.findIndex(p => p.id === id);
-            const lastIndex = photos.findIndex(p => p.id === lastSelectedId);
-
-            if (currentIndex !== -1 && lastIndex !== -1) {
-                const start = Math.min(currentIndex, lastIndex);
-                const end = Math.max(currentIndex, lastIndex);
-                for (let i = start; i <= end; i++) {
-                    next.add(photos[i].id);
-                }
-            }
-        } else {
-            if (next.has(id)) {
-                next.delete(id);
-            } else {
-                next.add(id);
-            }
-        }
-        return next;
-    });
-    setLastSelectedId(id);
-  }, [photos, lastSelectedId]);
-
-  const handleLongPress = useCallback((id: string) => {
-    if (selectedIds.size === 0) {
-        setSelectedIds(new Set([id]));
-        setLastSelectedId(id);
-    }
-  }, [selectedIds]);
-
-  const clearSelection = useCallback(() => {
-      setSelectedIds(new Set());
-      setLastSelectedId(null);
-  }, []);
+  }, [isSelectionMode, handleSelect]);
 
   const handleDeleteSelected = () => {
       if (selectedIds.size === 0) return;
@@ -300,6 +269,9 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
             onSelect={(id, event) => handleSelect(id, event)}
             onLongPress={handleLongPress}
             isSelectionMode={selectedIds.size > 0}
+            onDragStart={startDragging}
+            onDragEnter={handleDragEnter}
+            onDragEnd={stopDragging}
         />
     );
   }, [stableCreds, itemSize, handleItemPress, selectedIds, handleSelect, handleLongPress]);
@@ -502,10 +474,15 @@ const styles = StyleSheet.create({
     top: 5,
     left: 5,
     zIndex: 10,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   selectionIndicatorSelected: {
-    backgroundColor: '#fff',
+    backgroundColor: '#005bbb',
   },
   placeholder: {
     flex: 1,

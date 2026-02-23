@@ -1,2 +1,0 @@
-2026/02/23 20:29:29 Server starting on port 8080
-2026/02/23 20:30:45 Error getting S3 credentials for dev@photocloud.local: failed to save user key: failed to save user key to S3: operation error S3: PutObject, context canceled

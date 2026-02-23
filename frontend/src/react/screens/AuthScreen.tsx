@@ -91,7 +91,7 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase }) => {
       const res = await authUseCase.loginWithDev();
       onLogin(res, res.email);
     } catch (err) {
-      setError('Dev login failed. Is DEV_AUTH_ENABLED=true?');
+      setError('Dev login failed');
     } finally {
       setLoading(false);
     }
