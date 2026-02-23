@@ -113,7 +113,11 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
     }
   }, [galleryUseCase, creds, email]);
 
-  const addPhoto = useCallback((photo: Photo) => {
+  const addPhoto = useCallback(async (photo: Photo) => {
+    // Persist to local cache
+    const localRepo = new LocalGalleryRepository();
+    await localRepo.savePhoto(photo);
+
     setTotalCount(prev => prev + 1);
     setPhotos(prev => {
         if (prev.find(p => p.id === photo.id)) return prev;

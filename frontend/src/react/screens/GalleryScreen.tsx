@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions, Platform, TouchableOpacity } from 'react-native';
-import { Appbar, Text, useTheme, FAB, ProgressBar } from 'react-native-paper';
+import { Appbar, Text, useTheme, FAB, ProgressBar, Snackbar } from 'react-native-paper';
 import { LogOut, RefreshCw, Upload } from 'lucide-react-native';
 import { FlashList } from "@shopify/flash-list";
 import { useGallery } from '../hooks/useGallery';
@@ -12,8 +12,12 @@ import { uint8ArrayToBase64 } from '../../infra/utils';
 
 const FlashListAny = FlashList as any;
 
-const PhotoItem = React.memo(({ photo, creds, size, onPress }: { photo: Photo, creds: S3Credentials, size: number, onPress: () => void }) => {
+const PhotoItem = React.memo(({ photo, creds, size, onPress }: { photo: Photo, creds: S3Credentials, size: number, onPress: (id: string) => void }) => {
   const [url, setUrl] = useState<string | null>(null);
+
+  const handlePress = useCallback(() => {
+      onPress(photo.id);
+  }, [photo.id, onPress]);
 
   useEffect(() => {
     let isMounted = true;
@@ -60,7 +64,7 @@ const PhotoItem = React.memo(({ photo, creds, size, onPress }: { photo: Photo, c
   }, [photo.id, photo.type, photo.key, photo.uri, creds]);
 
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.imageContainer, { width: size, height: size }]}>
+    <TouchableOpacity onPress={handlePress} style={[styles.imageContainer, { width: size, height: size }]}>
       {url ? (
         <Image source={{ uri: url }} style={styles.image} resizeMode="cover" />
       ) : (
@@ -86,7 +90,8 @@ interface Props {
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
   const { width } = useWindowDimensions();
-  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
 
   // Memoize creds to ensure stability for PhotoItem memoization
   const stableCreds = React.useMemo(() => creds, [creds.access, creds.secret, creds.bucket, creds.endpoint]);
@@ -100,6 +105,10 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
     });
   };
 
+  const handleItemPress = useCallback((id: string) => {
+    setViewerPhotoId(id);
+  }, []);
+
   const handleEditSave = async (photo: Photo, newUri: string) => {
     const newPhoto: Photo = {
         id: `edit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -110,11 +119,21 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
         width: 0,
         height: 0,
     };
-    addPhoto(newPhoto);
+    await addPhoto(newPhoto);
+    setSnackbarVisible(true);
   };
 
   const numColumns = Math.max(3, Math.floor(width / 180));
   const itemSize = width / numColumns;
+
+  const renderItem = useCallback(({ item }: any) => (
+    <PhotoItem
+        photo={item}
+        creds={stableCreds}
+        size={itemSize}
+        onPress={handleItemPress}
+    />
+  ), [stableCreds, itemSize, handleItemPress]);
 
   return (
     <View style={styles.container}>
@@ -134,7 +153,11 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
       </Appbar.Header>
 
       {uploading && progress && (
-          <ProgressBar progress={progress.current / progress.total} color={theme.colors.primary} />
+          <ProgressBar
+            progress={progress.current / progress.total}
+            color={theme.colors.primary}
+            style={{ height: 4 }}
+          />
       )}
 
       {(error || uploadError) && (
@@ -162,14 +185,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
 
           <FlashListAny
             data={photos}
-            renderItem={({ item, index }: any) => (
-                <PhotoItem
-                    photo={item}
-                    creds={stableCreds}
-                    size={itemSize}
-                    onPress={() => setViewerIndex(index)}
-                />
-            )}
+            renderItem={renderItem}
             keyExtractor={(item: Photo) => item.id}
         numColumns={numColumns}
         key={numColumns} // Force re-render when column count changes
@@ -191,16 +207,27 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
         disabled={uploading}
       />
 
-      {viewerIndex !== null && (
+      {viewerPhotoId !== null && (
           <PhotoViewer
             photos={photos}
-            initialIndex={viewerIndex}
-            visible={viewerIndex !== null}
-            onClose={() => setViewerIndex(null)}
+            initialPhotoId={viewerPhotoId}
+            visible={viewerPhotoId !== null}
+            onClose={() => setViewerPhotoId(null)}
             onEditSave={handleEditSave}
             creds={stableCreds}
           />
       )}
+
+      <Snackbar
+        visible={snackbarVisible}
+        onDismiss={() => setSnackbarVisible(false)}
+        duration={3000}
+        action={{
+            label: 'OK',
+            onPress: () => setSnackbarVisible(false),
+        }}>
+        Photo edited and saved to gallery!
+      </Snackbar>
     </View>
   );
 };

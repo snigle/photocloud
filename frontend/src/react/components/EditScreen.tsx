@@ -30,23 +30,24 @@ export const EditScreen: React.FC<EditScreenProps> = ({ photo, uri, visible, onC
   const handleCropSquare = async () => {
     setProcessing(true);
     try {
-      // Get image dimensions first for a safe crop
-      const { width: imgWidth, height: imgHeight } = await new Promise<{width: number, height: number}>((resolve, reject) => {
-          Image.getSize(uri, (w, h) => resolve({width: w, height: h}), reject);
-      });
+      // Use manipulateAsync with empty actions to get dimensions reliably
+      const info = await ImageManipulator.manipulateAsync(uri, []);
+      const imgWidth = info.width;
+      const imgHeight = info.height;
 
       const size = Math.min(imgWidth, imgHeight);
-      const originX = (imgWidth - size) / 2;
-      const originY = (imgHeight - size) / 2;
+      const originX = Math.floor((imgWidth - size) / 2);
+      const originY = Math.floor((imgHeight - size) / 2);
 
       const result = await ImageManipulator.manipulateAsync(
         uri,
-        [{ crop: { originX, originY, width: size, height: size } }],
+        [{ crop: { originX, originY, width: Math.floor(size), height: Math.floor(size) } }],
         { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
       );
       onSave(result.uri);
     } catch (err) {
         console.error('Failed to crop', err);
+        alert('Failed to crop image');
     } finally {
         setProcessing(false);
     }
@@ -60,10 +61,7 @@ export const EditScreen: React.FC<EditScreenProps> = ({ photo, uri, visible, onC
         actions.push({ rotate: rotation });
       }
 
-      // Note: ImageManipulator doesn't support brightness/contrast natively.
-      // For this POC, we use CSS filters for web preview.
-      // Saving these would require a Canvas-based approach or a more advanced native library.
-
+      // Even if no actions, we run it to ensure we get a new URI / consistent format
       const result = await ImageManipulator.manipulateAsync(
         uri,
         actions,
@@ -73,6 +71,7 @@ export const EditScreen: React.FC<EditScreenProps> = ({ photo, uri, visible, onC
       onSave(result.uri);
     } catch (err) {
       console.error('Failed to save edit', err);
+      alert('Failed to save image');
     } finally {
       setProcessing(false);
     }

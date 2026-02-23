@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Modal, Image, Dimensions, FlatList, ActivityIndicator, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, StyleSheet, Modal, Image, Dimensions, FlatList, ActivityIndicator, Platform, TouchableOpacity } from 'react-native';
 import { Appbar, useTheme } from 'react-native-paper';
-import { X, Edit2 } from 'lucide-react-native';
+import { X, Edit2, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { S3Repository } from '../../infra/s3.repository';
 import { uint8ArrayToBase64 } from '../../infra/utils';
 import { EditScreen } from './EditScreen';
@@ -9,7 +9,7 @@ import type { Photo, S3Credentials } from '../../domain/types';
 
 interface PhotoViewerProps {
   photos: Photo[];
-  initialIndex: number;
+  initialPhotoId: string;
   visible: boolean;
   onClose: () => void;
   onEditSave?: (photo: Photo, newUri: string) => void;
@@ -18,7 +18,7 @@ interface PhotoViewerProps {
 
 const { width, height } = Dimensions.get('window');
 
-const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded }: { photo: Photo, creds: S3Credentials, onUrlLoaded?: (url: string) => void }) => {
+const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded, isActive, isNear }: { photo: Photo, creds: S3Credentials, onUrlLoaded?: (url: string) => void, isActive: boolean, isNear: boolean }) => {
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
   const [fullUrl, setFullUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,6 +33,9 @@ const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded }: { photo: Phot
               return;
           }
 
+          // Only load if near the active window
+          if (!isNear && !isActive) return;
+
           const s3Repo = new S3Repository(creds);
 
           try {
@@ -46,7 +49,7 @@ const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded }: { photo: Phot
                   setThumbUrl(url);
               }
 
-              // 2. Load 1080p
+              // 2. Load 1080p only if near or active
               setLoading(true);
               const fullKey = S3Repository.get1080pKey(photo.key);
               const fullData = await s3Repo.getFile(creds.bucket, fullKey);
@@ -57,21 +60,23 @@ const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded }: { photo: Phot
                   if (Platform.OS === 'web') currentUrls.push(url);
                   setFullUrl(url);
                   setLoading(false);
-                  if (onUrlLoaded) onUrlLoaded(url);
+                  if (onUrlLoaded && isActive) onUrlLoaded(url);
               }
 
-              // 3. Try original if 1080p is loaded
-              const originalKey = S3Repository.getOriginalKey(photo.key);
-              const originalExists = await s3Repo.exists(creds.bucket, originalKey);
-              if (originalExists && isMounted) {
-                  const originalData = await s3Repo.getFile(creds.bucket, originalKey);
-                  if (isMounted) {
-                      const url = Platform.OS === 'web'
-                        ? URL.createObjectURL(new Blob([originalData], { type: 'image/jpeg' }))
-                        : `data:image/jpeg;base64,${uint8ArrayToBase64(originalData)}`;
-                      if (Platform.OS === 'web') currentUrls.push(url);
-                      setFullUrl(url);
-                      if (onUrlLoaded) onUrlLoaded(url);
+              // 3. Try original ONLY if ACTIVE
+              if (isActive) {
+                  const originalKey = S3Repository.getOriginalKey(photo.key);
+                  const originalExists = await s3Repo.exists(creds.bucket, originalKey);
+                  if (originalExists && isMounted) {
+                      const originalData = await s3Repo.getFile(creds.bucket, originalKey);
+                      if (isMounted) {
+                          const url = Platform.OS === 'web'
+                            ? URL.createObjectURL(new Blob([originalData], { type: 'image/jpeg' }))
+                            : `data:image/jpeg;base64,${uint8ArrayToBase64(originalData)}`;
+                          if (Platform.OS === 'web') currentUrls.push(url);
+                          setFullUrl(url);
+                          if (onUrlLoaded) onUrlLoaded(url);
+                      }
                   }
               }
           } catch (e) {
@@ -88,7 +93,7 @@ const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded }: { photo: Phot
               currentUrls.forEach(url => URL.revokeObjectURL(url));
           }
       };
-  }, [photo.id, photo.type, photo.key, photo.uri, creds]);
+  }, [photo.id, photo.type, photo.key, photo.uri, creds, isActive, isNear]);
 
   return (
     <View style={styles.itemContainer}>
@@ -110,10 +115,12 @@ const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded }: { photo: Phot
   );
 });
 
-export const PhotoViewer: React.FC<PhotoViewerProps> = ({ photos, initialIndex, visible, onClose, onEditSave, creds }) => {
-    const [currentIndex, setCurrentIndex] = useState(initialIndex);
+export const PhotoViewer: React.FC<PhotoViewerProps> = ({ photos, initialPhotoId, visible, onClose, onEditSave, creds }) => {
+    const initialIndex = photos.findIndex(p => p.id === initialPhotoId);
+    const [currentIndex, setCurrentIndex] = useState(initialIndex >= 0 ? initialIndex : 0);
     const [editing, setEditing] = useState(false);
     const [currentFullUrl, setCurrentFullUrl] = useState<string | null>(null);
+    const flatListRef = useRef<FlatList>(null);
     const theme = useTheme();
 
     const onScroll = useCallback((event: any) => {
@@ -122,6 +129,20 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({ photos, initialIndex, 
             setCurrentIndex(index);
         }
     }, [photos.length]);
+
+    const goToPrevious = () => {
+        if (currentIndex > 0) {
+            flatListRef.current?.scrollToIndex({ index: currentIndex - 1 });
+            setCurrentIndex(currentIndex - 1);
+        }
+    };
+
+    const goToNext = () => {
+        if (currentIndex < photos.length - 1) {
+            flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
+            setCurrentIndex(currentIndex + 1);
+        }
+    };
 
     if (!visible) return null;
 
@@ -137,11 +158,14 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({ photos, initialIndex, 
                 </Appbar.Header>
 
                 <FlatList
+                    ref={flatListRef}
                     data={photos}
                     renderItem={({ item, index }) => (
                         <PhotoViewerItem
                             photo={item}
                             creds={creds}
+                            isActive={index === currentIndex}
+                            isNear={Math.abs(index - currentIndex) <= 1}
                             onUrlLoaded={(url) => {
                                 if (index === currentIndex) setCurrentFullUrl(url);
                             }}
@@ -151,7 +175,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({ photos, initialIndex, 
                     horizontal
                     pagingEnabled
                     showsHorizontalScrollIndicator={false}
-                    initialScrollIndex={initialIndex}
+                    initialScrollIndex={initialIndex >= 0 ? initialIndex : 0}
                     getItemLayout={(_, index) => ({
                         length: width,
                         offset: width * index,
@@ -160,7 +184,22 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({ photos, initialIndex, 
                     onScroll={onScroll}
                     scrollEventThrottle={16}
                     style={styles.list}
+                    windowSize={3}
+                    initialNumToRender={1}
+                    maxToRenderPerBatch={1}
                 />
+
+                {currentIndex > 0 && (
+                    <TouchableOpacity style={[styles.navButton, styles.leftButton]} onPress={goToPrevious}>
+                        <ChevronLeft color="#fff" size={32} />
+                    </TouchableOpacity>
+                )}
+
+                {currentIndex < photos.length - 1 && (
+                    <TouchableOpacity style={[styles.navButton, styles.rightButton]} onPress={goToNext}>
+                        <ChevronRight color="#fff" size={32} />
+                    </TouchableOpacity>
+                )}
 
                 {editing && currentFullUrl && (
                     <EditScreen
@@ -214,5 +253,19 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.3)',
         padding: 5,
         borderRadius: 20,
+    },
+    navButton: {
+        position: 'absolute',
+        top: height / 2 - 25,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        padding: 10,
+        borderRadius: 25,
+        zIndex: 20,
+    },
+    leftButton: {
+        left: 10,
+    },
+    rightButton: {
+        right: 10,
     }
 });
