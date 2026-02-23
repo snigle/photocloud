@@ -58,6 +58,7 @@ export interface IS3Repository {
   getFile(bucket: string, key: string): Promise<Uint8Array>;
   getDownloadUrl(bucket: string, key: string): Promise<string>;
   exists(bucket: string, key: string): Promise<boolean>;
+  deleteFile(bucket: string, key: string): Promise<void>;
 }
 
 export interface ILocalGalleryRepository {
@@ -69,4 +70,5 @@ export interface ILocalGalleryRepository {
   countPhotos(): Promise<number>;
   markAsUploaded(localId: string, cloudId: string): Promise<void>;
   getUploadedLocalIds(): Promise<Set<string>>;
+  deleteFromCache(id: string): Promise<void>;
 }

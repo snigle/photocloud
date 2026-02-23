@@ -343,4 +343,22 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
       const rows = await db.getAllAsync('SELECT localId FROM uploaded_assets');
       return new Set<string>(rows.map((r: any) => r.localId as string));
   }
+
+  async deleteFromCache(id: string): Promise<void> {
+      if (Platform.OS === 'web') {
+          const db = await this.indexedDBPromise;
+          if (!db) return;
+          return new Promise((resolve, reject) => {
+              const transaction = db.transaction(['photos'], 'readwrite');
+              const store = transaction.objectStore('photos');
+              const request = store.delete(id);
+              request.onsuccess = () => resolve();
+              request.onerror = (event: any) => reject(event.target.error);
+          });
+      }
+
+      const db = await this.dbPromise;
+      if (!db) return;
+      await db.runAsync('DELETE FROM photos WHERE id = ?', [id]);
+  }
 }

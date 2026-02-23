@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
   PutObjectCommand,
   HeadObjectCommand,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { IS3Repository, S3Credentials, UploadedPhoto } from '../domain/types';
@@ -243,6 +244,14 @@ export class S3Repository implements IS3Repository {
       }
       throw err;
     }
+  }
+
+  async deleteFile(bucket: string, key: string): Promise<void> {
+      const command = new DeleteObjectCommand({
+          Bucket: bucket,
+          Key: key,
+      });
+      await this.s3.send(command);
   }
 
   static get1080pKey(thumbnailKey: string): string {

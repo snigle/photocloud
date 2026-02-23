@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions, Platform, TouchableOpacity } from 'react-native';
-import { Appbar, Text, useTheme, FAB, ProgressBar, Snackbar } from 'react-native-paper';
-import { LogOut, RefreshCw, Upload } from 'lucide-react-native';
+import { Appbar, Text, useTheme, FAB, ProgressBar, Snackbar, Portal, Dialog, Button } from 'react-native-paper';
+import { LogOut, RefreshCw, Upload, CheckCircle2, Circle, X, Trash2 } from 'lucide-react-native';
 import { FlashList } from "@shopify/flash-list";
 import { useGallery } from '../hooks/useGallery';
 import { useUpload } from '../hooks/useUpload';
@@ -12,11 +12,54 @@ import { uint8ArrayToBase64 } from '../../infra/utils';
 
 const FlashListAny = FlashList as any;
 
-const PhotoItem = React.memo(({ photo, creds, size, onPress }: { photo: Photo, creds: S3Credentials, size: number, onPress: (id: string) => void }) => {
-  const [url, setUrl] = useState<string | null>(null);
+type ListItem =
+  | { type: 'header'; title: string; id: string }
+  | { type: 'photo'; photo: Photo };
 
-  const handlePress = useCallback(() => {
-      onPress(photo.id);
+const groupPhotosByDay = (photos: Photo[]): ListItem[] => {
+  const groups: ListItem[] = [];
+  let lastDate = '';
+
+  photos.forEach(photo => {
+    const date = new Date(photo.creationDate * 1000).toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
+    if (date !== lastDate) {
+      groups.push({ type: 'header', title: date, id: date });
+      lastDate = date;
+    }
+    groups.push({ type: 'photo', photo });
+  });
+
+  return groups;
+};
+
+const PhotoItem = React.memo(({
+    photo,
+    creds,
+    size,
+    onPress,
+    isSelected,
+    onSelect,
+    onLongPress,
+    isSelectionMode
+}: {
+    photo: Photo,
+    creds: S3Credentials,
+    size: number,
+    onPress: (id: string, event?: any) => void,
+    isSelected: boolean,
+    onSelect: (id: string) => void,
+    onLongPress: (id: string) => void,
+    isSelectionMode: boolean
+}) => {
+  const [url, setUrl] = useState<string | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handlePress = useCallback((e: any) => {
+      onPress(photo.id, e);
   }, [photo.id, onPress]);
 
   useEffect(() => {
@@ -63,20 +106,57 @@ const PhotoItem = React.memo(({ photo, creds, size, onPress }: { photo: Photo, c
     };
   }, [photo.id, photo.type, (photo as any).key, (photo as any).uri, creds]);
 
+  const handleSelect = useCallback(() => {
+    onSelect(photo.id);
+  }, [photo.id, onSelect]);
+
+  const handleLongPress = useCallback(() => {
+    onLongPress(photo.id);
+  }, [photo.id, onLongPress]);
+
   return (
-    <TouchableOpacity onPress={handlePress} style={[styles.imageContainer, { width: size, height: size }]}>
-      {url ? (
-        <Image source={{ uri: url }} style={styles.image} resizeMode="cover" />
-      ) : (
-        <View style={styles.placeholder}>
-            <ActivityIndicator size="small" />
-        </View>
-      )}
-      {photo.type === 'cloud' && (
-          <View style={styles.cloudBadge}>
-              <Text style={styles.cloudBadgeText}>☁️</Text>
-          </View>
-      )}
+    <TouchableOpacity
+        onPress={handlePress}
+        onLongPress={handleLongPress}
+        delayLongPress={500}
+        style={[styles.imageContainer, { width: size, height: size }]}
+        {...(Platform.OS === 'web' ? {
+            onMouseEnter: () => setIsHovered(true),
+            onMouseLeave: () => setIsHovered(false),
+        } as any : {})}
+    >
+      <View style={[styles.imageWrapper, isSelected && styles.selectedImageWrapper]}>
+        {url ? (
+            <Image source={{ uri: url }} style={[styles.image, isSelected && styles.selectedImage]} resizeMode="cover" />
+        ) : (
+            <View style={styles.placeholder}>
+                <ActivityIndicator size="small" />
+            </View>
+        )}
+
+        {/* Selection Indicator */}
+        {(isSelected || (Platform.OS === 'web' && isHovered) || isSelectionMode) && (
+            <TouchableOpacity
+                style={styles.selectionIndicator}
+                onPress={(e) => {
+                    e.stopPropagation();
+                    handleSelect();
+                }}
+            >
+                {isSelected ? (
+                    <CheckCircle2 size={24} color="#005bbb" fill="#fff" />
+                ) : (
+                    <Circle size={24} color="rgba(255,255,255,0.8)" />
+                )}
+            </TouchableOpacity>
+        )}
+
+        {photo.type === 'cloud' && !isSelected && (
+            <View style={styles.cloudBadge}>
+                <Text style={styles.cloudBadgeText}>☁️</Text>
+            </View>
+        )}
+      </View>
     </TouchableOpacity>
   );
 });
@@ -89,15 +169,20 @@ interface Props {
 
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
 
   // Memoize creds to ensure stability for PhotoItem memoization
   const stableCreds = React.useMemo(() => creds, [creds.access, creds.secret, creds.bucket, creds.endpoint]);
 
-  const { photos, totalCount, loading, refreshing, error, refresh, loadMore, addPhoto } = useGallery(stableCreds, email);
+  const { photos, totalCount, loading, refreshing, error, refresh, loadMore, addPhoto, deletePhotos } = useGallery(stableCreds, email);
   const { upload, uploading, progress, error: uploadError } = useUpload(creds, email);
+
+  const listData = React.useMemo(() => groupPhotosByDay(photos), [photos]);
 
   const handleUpload = async () => {
     await upload((photo) => {
@@ -105,9 +190,73 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
     });
   };
 
-  const handleItemPress = useCallback((id: string) => {
+  const handleItemPress = useCallback((id: string, event?: any) => {
+    if (selectedIds.size > 0) {
+        handleSelect(id, event);
+        return;
+    }
+
+    if (Platform.OS === 'web' && event) {
+        if (event.shiftKey || event.ctrlKey || event.metaKey) {
+            handleSelect(id, event);
+            return;
+        }
+    }
+
     setViewerPhotoId(id);
+  }, [selectedIds, photos, lastSelectedId]);
+
+  const handleSelect = useCallback((id: string, event?: any) => {
+    setSelectedIds(prev => {
+        const next = new Set(prev);
+
+        if (Platform.OS === 'web' && event?.shiftKey && lastSelectedId) {
+            // Range selection
+            const currentIndex = photos.findIndex(p => p.id === id);
+            const lastIndex = photos.findIndex(p => p.id === lastSelectedId);
+
+            if (currentIndex !== -1 && lastIndex !== -1) {
+                const start = Math.min(currentIndex, lastIndex);
+                const end = Math.max(currentIndex, lastIndex);
+                for (let i = start; i <= end; i++) {
+                    next.add(photos[i].id);
+                }
+            }
+        } else {
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+        }
+        return next;
+    });
+    setLastSelectedId(id);
+  }, [photos, lastSelectedId]);
+
+  const handleLongPress = useCallback((id: string) => {
+    if (selectedIds.size === 0) {
+        setSelectedIds(new Set([id]));
+        setLastSelectedId(id);
+    }
+  }, [selectedIds]);
+
+  const clearSelection = useCallback(() => {
+      setSelectedIds(new Set());
+      setLastSelectedId(null);
   }, []);
+
+  const handleDeleteSelected = () => {
+      if (selectedIds.size === 0) return;
+      setDeleteDialogVisible(true);
+  };
+
+  const confirmDelete = async () => {
+      setDeleteDialogVisible(false);
+      const idsToDelete = Array.from(selectedIds);
+      clearSelection();
+      await deletePhotos(idsToDelete);
+  };
 
   const handleEditSave = async (photo: Photo, newUri: string) => {
     const newPhoto: Photo = {
@@ -122,31 +271,52 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const numColumns = Math.max(3, Math.floor(width / 180));
   const itemSize = width / numColumns;
 
-  const renderItem = useCallback(({ item }: any) => (
-    <PhotoItem
-        photo={item}
-        creds={stableCreds}
-        size={itemSize}
-        onPress={handleItemPress}
-    />
-  ), [stableCreds, itemSize, handleItemPress]);
+  const renderItem = useCallback(({ item }: { item: ListItem }) => {
+    if (item.type === 'header') {
+        return (
+            <View style={styles.headerContainer}>
+                <Text style={styles.headerTitle}>{item.title}</Text>
+            </View>
+        );
+    }
+    return (
+        <PhotoItem
+            photo={item.photo}
+            creds={stableCreds}
+            size={itemSize}
+            onPress={handleItemPress}
+            isSelected={selectedIds.has(item.photo.id)}
+            onSelect={(id) => handleSelect(id)}
+            onLongPress={handleLongPress}
+            isSelectionMode={selectedIds.size > 0}
+        />
+    );
+  }, [stableCreds, itemSize, handleItemPress, selectedIds, handleSelect, handleLongPress]);
 
   return (
     <View style={styles.container}>
-      <Appbar.Header elevated>
-        <Appbar.Content
-            title="PhotoCloud"
-            subtitle={uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`}
-        />
-        {uploading && !progress && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
-        <Appbar.Action
-          icon={() => <Upload size={24} color={theme.colors.onSurface} />}
-          onPress={handleUpload}
-          disabled={uploading}
-        />
-        <Appbar.Action icon={() => <RefreshCw size={24} color={theme.colors.onSurface} />} onPress={refresh} />
-        <Appbar.Action icon={() => <LogOut size={24} color={theme.colors.onSurface} />} onPress={onLogout} />
-      </Appbar.Header>
+      {selectedIds.size > 0 ? (
+        <Appbar.Header style={{ backgroundColor: '#e3f2fd' }}>
+            <Appbar.Action icon={() => <X size={24} />} onPress={clearSelection} />
+            <Appbar.Content title={`${selectedIds.size} sélectionné(s)`} />
+            <Appbar.Action icon={() => <Trash2 size={24} />} onPress={handleDeleteSelected} />
+        </Appbar.Header>
+      ) : (
+        <Appbar.Header elevated>
+            <Appbar.Content
+                title="PhotoCloud"
+                subtitle={uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`}
+            />
+            {uploading && !progress && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
+            <Appbar.Action
+            icon={() => <Upload size={24} color={theme.colors.onSurface} />}
+            onPress={handleUpload}
+            disabled={uploading}
+            />
+            <Appbar.Action icon={() => <RefreshCw size={24} color={theme.colors.onSurface} />} onPress={refresh} />
+            <Appbar.Action icon={() => <LogOut size={24} color={theme.colors.onSurface} />} onPress={onLogout} />
+        </Appbar.Header>
+      )}
 
       {uploading && progress && (
           <View><ProgressBar
@@ -180,12 +350,23 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
           )}
 
           <FlashListAny
-            data={photos}
+            data={listData}
             renderItem={renderItem}
-            keyExtractor={(item: Photo) => item.id}
+            keyExtractor={(item: ListItem) => item.id || (item as any).photo.id}
             numColumns={numColumns}
             key={numColumns} // Force re-render when column count changes
             estimatedItemSize={180}
+            getItemType={(item: ListItem) => item.type}
+            overrideItemLayout={(layout: any, item: ListItem) => {
+                if (item.type === 'header') {
+                    layout.size = 50;
+                } else {
+                    layout.size = itemSize;
+                }
+            }}
+            getColumnSpan={(item: ListItem) => {
+                return item.type === 'header' ? numColumns : 1;
+            }}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={refresh} />
             }
@@ -196,13 +377,28 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
           />
       </View>
 
-      <FAB
-        icon={() => <Upload size={24} color={theme.colors.onPrimaryContainer} />}
-        style={styles.fab}
-        onPress={handleUpload}
-        loading={uploading}
-        disabled={uploading}
-      />
+      {selectedIds.size === 0 && (
+          <FAB
+            icon={() => <Upload size={24} color={theme.colors.onPrimaryContainer} />}
+            style={styles.fab}
+            onPress={handleUpload}
+            loading={uploading}
+            disabled={uploading}
+          />
+      )}
+
+      <Portal>
+        <Dialog visible={deleteDialogVisible} onDismiss={() => setDeleteDialogVisible(false)}>
+          <Dialog.Title>Supprimer les photos</Dialog.Title>
+          <Dialog.Content>
+            <Text>Êtes-vous sûr de vouloir supprimer {selectedIds.size} photo(s) ? Cette action est irréversible.</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setDeleteDialogVisible(false)}>Annuler</Button>
+            <Button onPress={confirmDelete} textColor={theme.colors.error}>Supprimer</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
 
       {viewerPhotoId !== null && (
           <PhotoViewer
@@ -255,13 +451,42 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  headerContainer: {
+    padding: 16,
+    paddingBottom: 8,
+    backgroundColor: '#fff',
+    width: '100%',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
   imageContainer: {
     padding: 2,
+  },
+  imageWrapper: {
+    flex: 1,
+    borderRadius: 4,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  selectedImageWrapper: {
+    padding: 10,
+    backgroundColor: '#e3f2fd',
   },
   image: {
     flex: 1,
     backgroundColor: '#f5f5f5',
     borderRadius: 4,
+  },
+  selectedImage: {
+    borderRadius: 2,
+  },
+  selectionIndicator: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    zIndex: 10,
   },
   placeholder: {
     flex: 1,
