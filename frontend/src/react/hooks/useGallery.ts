@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { S3Credentials, Photo } from '../../domain/types';
 import { S3Repository } from '../../infra/s3.repository';
 import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
@@ -19,7 +19,7 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
     return new GalleryUseCase(new S3Repository(creds), new LocalGalleryRepository());
   }, [creds]);
 
-  const photosRef = React.useRef<Photo[]>([]);
+  const photosRef = useRef<Photo[]>([]);
   useEffect(() => {
     photosRef.current = photos;
   }, [photos]);

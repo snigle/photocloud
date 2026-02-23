@@ -30,9 +30,18 @@ export const EditScreen: React.FC<EditScreenProps> = ({ photo, uri, visible, onC
   const handleCropSquare = async () => {
     setProcessing(true);
     try {
+      // Get image dimensions first for a safe crop
+      const { width: imgWidth, height: imgHeight } = await new Promise<{width: number, height: number}>((resolve, reject) => {
+          Image.getSize(uri, (w, h) => resolve({width: w, height: h}), reject);
+      });
+
+      const size = Math.min(imgWidth, imgHeight);
+      const originX = (imgWidth - size) / 2;
+      const originY = (imgHeight - size) / 2;
+
       const result = await ImageManipulator.manipulateAsync(
         uri,
-        [{ crop: { originX: 0, originY: 0, width: 1000, height: 1000 } }], // Simple example crop
+        [{ crop: { originX, originY, width: size, height: size } }],
         { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
       );
       onSave(result.uri);
