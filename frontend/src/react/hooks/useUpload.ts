@@ -41,7 +41,7 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
           if (!asset) break;
 
           try {
-            const uploaded = await uploadUseCase.execute(asset.uri, asset.name, creds, email);
+            const uploaded = await uploadUseCase.execute(asset.uri, asset.name, creds, email, false, (asset as any).id);
             if (uploaded && onUploadSuccess) {
                 onUploadSuccess(uploaded);
             }

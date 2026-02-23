@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions, Platform, TouchableOpacity } from 'react-native';
 import { Appbar, Text, useTheme, FAB, ProgressBar, Snackbar } from 'react-native-paper';
 import { LogOut, RefreshCw, Upload } from 'lucide-react-native';
@@ -40,7 +40,7 @@ const PhotoItem = React.memo(({ photo, creds, size, onPress }: { photo: Photo, c
 
               if (isMounted) {
                   if (Platform.OS === 'web') {
-                      const blob = new Blob([data], { type: 'image/jpeg' });
+                      const blob = new Blob([data as any], { type: 'image/jpeg' });
                       currentUrl = URL.createObjectURL(blob);
                       setUrl(currentUrl);
                   } else {
@@ -61,7 +61,7 @@ const PhotoItem = React.memo(({ photo, creds, size, onPress }: { photo: Photo, c
             URL.revokeObjectURL(currentUrl);
         }
     };
-  }, [photo.id, photo.type, photo.key, photo.uri, creds]);
+  }, [photo.id, photo.type, (photo as any).key, (photo as any).uri, creds]);
 
   return (
     <TouchableOpacity onPress={handlePress} style={[styles.imageContainer, { width: size, height: size }]}>
@@ -111,13 +111,9 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
 
   const handleEditSave = async (photo: Photo, newUri: string) => {
     const newPhoto: Photo = {
-        id: `edit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        ...photo,
         type: 'local',
         uri: newUri,
-        creationDate: Math.floor(Date.now() / 1000),
-        size: 0,
-        width: 0,
-        height: 0,
     };
     await addPhoto(newPhoto);
     setSnackbarVisible(true);
@@ -166,7 +162,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
         </View>
       )}
 
-      <View style={{ flex: 1 }}>
+      <View style={styles.listContainer}>
           {!loading && photos.length === 0 && !error && (
             <View style={styles.center}>
               {uploading ? (
@@ -187,15 +183,16 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
             data={photos}
             renderItem={renderItem}
             keyExtractor={(item: Photo) => item.id}
-        numColumns={numColumns}
-        key={numColumns} // Force re-render when column count changes
-        estimatedItemSize={180}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refresh} />
-        }
+            numColumns={numColumns}
+            key={numColumns} // Force re-render when column count changes
+            estimatedItemSize={180}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={refresh} />
+            }
             onEndReached={loadMore}
             onEndReachedThreshold={0.5}
             ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 20 }} /> : null}
+            contentContainerStyle={{ flexGrow: 1 }}
           />
       </View>
 
@@ -236,6 +233,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  listContainer: {
+    flex: 1,
+    minHeight: 100, // Ensure it has some height
   },
   center: {
     flex: 1,

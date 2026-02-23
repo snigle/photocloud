@@ -56,19 +56,45 @@ export const EditScreen: React.FC<EditScreenProps> = ({ photo, uri, visible, onC
   const handleSave = async () => {
     setProcessing(true);
     try {
+      let finalUri = uri;
+
+      // Apply rotation/crop via ImageManipulator first
       const actions: ImageManipulator.Action[] = [];
       if (rotation !== 0) {
         actions.push({ rotate: rotation });
       }
 
-      // Even if no actions, we run it to ensure we get a new URI / consistent format
-      const result = await ImageManipulator.manipulateAsync(
+      const manipResult = await ImageManipulator.manipulateAsync(
         uri,
         actions,
         { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
       );
+      finalUri = manipResult.uri;
 
-      onSave(result.uri);
+      // On Web, try to apply brightness/contrast via Canvas
+      if (Platform.OS === 'web' && (brightness !== 100 || contrast !== 100)) {
+          try {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              const img = new window.Image();
+              img.src = finalUri;
+              await new Promise((resolve, reject) => {
+                  img.onload = resolve;
+                  img.onerror = reject;
+              });
+              canvas.width = img.width;
+              canvas.height = img.height;
+              if (ctx) {
+                  ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+                  ctx.drawImage(img, 0, 0);
+                  finalUri = canvas.toDataURL('image/jpeg', 0.9);
+              }
+          } catch (e) {
+              console.error('Failed to apply filters via canvas', e);
+          }
+      }
+
+      onSave(finalUri);
     } catch (err) {
       console.error('Failed to save edit', err);
       alert('Failed to save image');
@@ -112,7 +138,7 @@ export const EditScreen: React.FC<EditScreenProps> = ({ photo, uri, visible, onC
               maximumValue={200}
               step={1}
               onValueChange={setBrightness}
-              thumbColor={theme.colors.primary}
+              thumbTintColor={theme.colors.primary}
               minimumTrackTintColor={theme.colors.primary}
             />
           </View>
@@ -125,7 +151,7 @@ export const EditScreen: React.FC<EditScreenProps> = ({ photo, uri, visible, onC
               maximumValue={200}
               step={1}
               onValueChange={setContrast}
-              thumbColor={theme.colors.primary}
+              thumbTintColor={theme.colors.primary}
               minimumTrackTintColor={theme.colors.primary}
             />
           </View>

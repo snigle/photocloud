@@ -40,10 +40,10 @@ const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded, isActive, isNea
 
           try {
               // 1. Load Thumbnail first (blurred)
-              const thumbData = await s3Repo.getFile(creds.bucket, photo.key);
+              const thumbData = await s3Repo.getFile(creds.bucket, (photo as any).key);
               if (isMounted) {
                   const url = Platform.OS === 'web'
-                    ? URL.createObjectURL(new Blob([thumbData], { type: 'image/jpeg' }))
+                    ? URL.createObjectURL(new Blob([thumbData as any], { type: 'image/jpeg' }))
                     : `data:image/jpeg;base64,${uint8ArrayToBase64(thumbData)}`;
                   if (Platform.OS === 'web') currentUrls.push(url);
                   setThumbUrl(url);
@@ -51,11 +51,11 @@ const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded, isActive, isNea
 
               // 2. Load 1080p only if near or active
               setLoading(true);
-              const fullKey = S3Repository.get1080pKey(photo.key);
+              const fullKey = S3Repository.get1080pKey((photo as any).key);
               const fullData = await s3Repo.getFile(creds.bucket, fullKey);
               if (isMounted) {
                   const url = Platform.OS === 'web'
-                    ? URL.createObjectURL(new Blob([fullData], { type: 'image/jpeg' }))
+                    ? URL.createObjectURL(new Blob([fullData as any], { type: 'image/jpeg' }))
                     : `data:image/jpeg;base64,${uint8ArrayToBase64(fullData)}`;
                   if (Platform.OS === 'web') currentUrls.push(url);
                   setFullUrl(url);
@@ -65,13 +65,13 @@ const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded, isActive, isNea
 
               // 3. Try original ONLY if ACTIVE
               if (isActive) {
-                  const originalKey = S3Repository.getOriginalKey(photo.key);
+                  const originalKey = S3Repository.getOriginalKey((photo as any).key);
                   const originalExists = await s3Repo.exists(creds.bucket, originalKey);
                   if (originalExists && isMounted) {
                       const originalData = await s3Repo.getFile(creds.bucket, originalKey);
                       if (isMounted) {
                           const url = Platform.OS === 'web'
-                            ? URL.createObjectURL(new Blob([originalData], { type: 'image/jpeg' }))
+                            ? URL.createObjectURL(new Blob([originalData as any], { type: 'image/jpeg' }))
                             : `data:image/jpeg;base64,${uint8ArrayToBase64(originalData)}`;
                           if (Platform.OS === 'web') currentUrls.push(url);
                           setFullUrl(url);
@@ -93,7 +93,7 @@ const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded, isActive, isNea
               currentUrls.forEach(url => URL.revokeObjectURL(url));
           }
       };
-  }, [photo.id, photo.type, photo.key, photo.uri, creds, isActive, isNear]);
+  }, [photo.id, photo.type, (photo as any).key, (photo as any).uri, creds, isActive, isNear]);
 
   return (
     <View style={styles.itemContainer}>
@@ -116,10 +116,13 @@ const PhotoViewerItem = React.memo(({ photo, creds, onUrlLoaded, isActive, isNea
 });
 
 export const PhotoViewer: React.FC<PhotoViewerProps> = ({ photos, initialPhotoId, visible, onClose, onEditSave, creds }) => {
-    const initialIndex = photos.findIndex(p => p.id === initialPhotoId);
-    const [currentIndex, setCurrentIndex] = useState(initialIndex >= 0 ? initialIndex : 0);
+    const [currentIndex, setCurrentIndex] = useState(() => {
+        const idx = photos.findIndex(p => p.id === initialPhotoId);
+        return idx >= 0 ? idx : 0;
+    });
     const [editing, setEditing] = useState(false);
     const [currentFullUrl, setCurrentFullUrl] = useState<string | null>(null);
+    const [lastSavedId, setLastSavedId] = useState<string | null>(null);
     const flatListRef = useRef<FlatList>(null);
     const theme = useTheme();
 
@@ -129,6 +132,20 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({ photos, initialPhotoId
             setCurrentIndex(index);
         }
     }, [photos.length]);
+
+    useEffect(() => {
+        if (lastSavedId) {
+            const index = photos.findIndex(p => p.id === lastSavedId);
+            if (index >= 0) {
+                // Scroll to the newly added photo
+                setTimeout(() => {
+                    flatListRef.current?.scrollToIndex({ index, animated: true });
+                    setCurrentIndex(index);
+                    setLastSavedId(null);
+                }, 500);
+            }
+        }
+    }, [photos, lastSavedId]);
 
     const goToPrevious = () => {
         if (currentIndex > 0) {
@@ -175,7 +192,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({ photos, initialPhotoId
                     horizontal
                     pagingEnabled
                     showsHorizontalScrollIndicator={false}
-                    initialScrollIndex={initialIndex >= 0 ? initialIndex : 0}
+                    initialScrollIndex={photos.findIndex(p => p.id === initialPhotoId) >= 0 ? photos.findIndex(p => p.id === initialPhotoId) : 0}
                     getItemLayout={(_, index) => ({
                         length: width,
                         offset: width * index,
@@ -209,7 +226,11 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({ photos, initialPhotoId
                         onClose={() => setEditing(false)}
                         onSave={(newUri) => {
                             setEditing(false);
-                            if (onEditSave) onEditSave(photos[currentIndex], newUri);
+                            if (onEditSave) {
+                                const newId = `edit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                                setLastSavedId(newId);
+                                onEditSave({ ...photos[currentIndex], id: newId }, newUri);
+                            }
                         }}
                     />
                 )}
