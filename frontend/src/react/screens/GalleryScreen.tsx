@@ -149,11 +149,11 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
       </Appbar.Header>
 
       {uploading && progress && (
-          <ProgressBar
+          <View><ProgressBar
             progress={progress.current / progress.total}
             color={theme.colors.primary}
             style={{ height: 4 }}
-          />
+          /></View>
       )}
 
       {(error || uploadError) && (
