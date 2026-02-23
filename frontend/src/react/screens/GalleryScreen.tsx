@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions, Platform } from 'react-native';
+import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions, Platform, TouchableOpacity } from 'react-native';
 import { Appbar, Text, useTheme, FAB, ProgressBar } from 'react-native-paper';
 import { LogOut, RefreshCw, Upload } from 'lucide-react-native';
 import { FlashList } from "@shopify/flash-list";
 import { useGallery } from '../hooks/useGallery';
 import { useUpload } from '../hooks/useUpload';
 import { S3Repository } from '../../infra/s3.repository';
+import { PhotoViewer } from '../components/PhotoViewer';
 import type { S3Credentials, Photo } from '../../domain/types';
 import { uint8ArrayToBase64 } from '../../infra/utils';
 
 const FlashListAny = FlashList as any;
 
-const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3Credentials, size: number }) => {
+const PhotoItem = React.memo(({ photo, creds, size, onPress }: { photo: Photo, creds: S3Credentials, size: number, onPress: () => void }) => {
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,7 +60,7 @@ const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3C
   }, [photo.id, photo.type, photo.key, photo.uri, creds]);
 
   return (
-    <View style={[styles.imageContainer, { width: size, height: size }]}>
+    <TouchableOpacity onPress={onPress} style={[styles.imageContainer, { width: size, height: size }]}>
       {url ? (
         <Image source={{ uri: url }} style={styles.image} resizeMode="cover" />
       ) : (
@@ -72,7 +73,7 @@ const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3C
               <Text style={styles.cloudBadgeText}>☁️</Text>
           </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 });
 
@@ -85,6 +86,7 @@ interface Props {
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
   const { width } = useWindowDimensions();
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   // Memoize creds to ensure stability for PhotoItem memoization
   const stableCreds = React.useMemo(() => creds, [creds.access, creds.secret, creds.bucket, creds.endpoint]);
@@ -96,6 +98,19 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
     await upload((photo) => {
         addPhoto(photo);
     });
+  };
+
+  const handleEditSave = async (photo: Photo, newUri: string) => {
+    const newPhoto: Photo = {
+        id: `edit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        type: 'local',
+        uri: newUri,
+        creationDate: Math.floor(Date.now() / 1000),
+        size: 0,
+        width: 0,
+        height: 0,
+    };
+    addPhoto(newPhoto);
   };
 
   const numColumns = Math.max(3, Math.floor(width / 180));
@@ -129,16 +144,32 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
       )}
 
       <View style={{ flex: 1 }}>
-          {!loading && !uploading && photos.length === 0 && !error && (
+          {!loading && photos.length === 0 && !error && (
             <View style={styles.center}>
-              <Text>No photos found.</Text>
-              <Text variant="bodySmall">Local and Cloud photos will appear here.</Text>
+              {uploading ? (
+                  <>
+                      <ActivityIndicator size="large" color={theme.colors.primary} />
+                      <Text style={{ marginTop: 10 }}>Preparing upload...</Text>
+                  </>
+              ) : (
+                  <>
+                      <Text>No photos found.</Text>
+                      <Text variant="bodySmall">Local and Cloud photos will appear here.</Text>
+                  </>
+              )}
             </View>
           )}
 
           <FlashListAny
             data={photos}
-            renderItem={({ item }: any) => <PhotoItem photo={item} creds={stableCreds} size={itemSize} />}
+            renderItem={({ item, index }: any) => (
+                <PhotoItem
+                    photo={item}
+                    creds={stableCreds}
+                    size={itemSize}
+                    onPress={() => setViewerIndex(index)}
+                />
+            )}
             keyExtractor={(item: Photo) => item.id}
         numColumns={numColumns}
         key={numColumns} // Force re-render when column count changes
@@ -159,6 +190,17 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
         loading={uploading}
         disabled={uploading}
       />
+
+      {viewerIndex !== null && (
+          <PhotoViewer
+            photos={photos}
+            initialIndex={viewerIndex}
+            visible={viewerIndex !== null}
+            onClose={() => setViewerIndex(null)}
+            onEditSave={handleEditSave}
+            creds={stableCreds}
+          />
+      )}
     </View>
   );
 };
@@ -186,17 +228,19 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   imageContainer: {
-    padding: 1,
+    padding: 2,
   },
   image: {
     flex: 1,
-    backgroundColor: '#eee',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 4,
   },
   placeholder: {
     flex: 1,
-    backgroundColor: '#eee',
+    backgroundColor: '#f5f5f5',
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 4,
   },
   cloudBadge: {
       position: 'absolute',

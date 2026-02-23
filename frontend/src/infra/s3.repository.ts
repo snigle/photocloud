@@ -245,4 +245,12 @@ export class S3Repository implements IS3Repository {
     }
   }
 
+  static get1080pKey(thumbnailKey: string): string {
+    return thumbnailKey.replace('/thumbnail/', '/1080p/');
+  }
+
+  static getOriginalKey(thumbnailKey: string): string {
+    return thumbnailKey.replace('/thumbnail/', '/original/');
+  }
+
 }
