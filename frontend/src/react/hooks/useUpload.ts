@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
+import exifr from 'exifr';
 import { S3Repository } from '../../infra/s3.repository';
 import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
 import { UploadUseCase } from '../../usecase/upload.usecase';
@@ -41,7 +42,20 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
           if (!asset) break;
 
           try {
-            const creationDate = (asset as any).file?.lastModified ? Math.floor((asset as any).file.lastModified / 1000) : undefined;
+            let creationDate: number | undefined;
+            if (exifr) {
+                try {
+                    const output = await exifr.parse(asset.uri);
+                    if (output && output.DateTimeOriginal) {
+                        creationDate = Math.floor(new Date(output.DateTimeOriginal).getTime() / 1000);
+                    }
+                } catch (e) {
+                    console.log('Failed to parse EXIF', e);
+                }
+            }
+            if (!creationDate && (asset as any).file?.lastModified) {
+                creationDate = Math.floor((asset as any).file.lastModified / 1000);
+            }
             const uploaded = await uploadUseCase.execute(asset.uri, asset.name, creds, email, false, (asset as any).id, creationDate);
             if (uploaded && onUploadSuccess) {
                 onUploadSuccess(uploaded);
@@ -74,7 +88,7 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
     }
   }, [creds, email]);
 
-  const uploadSingle = useCallback(async (uri: string, filename: string, onUploadSuccess?: (photo: Photo) => void) => {
+  const uploadSingle = useCallback(async (uri: string, filename: string, creationDate?: number, onUploadSuccess?: (photo: Photo) => void) => {
     if (!creds || !email) return;
 
     try {
@@ -85,7 +99,7 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
       const localRepo = new LocalGalleryRepository();
       const uploadUseCase = new UploadUseCase(s3Repo, localRepo);
 
-      const uploaded = await uploadUseCase.execute(uri, filename, creds, email, false, undefined, undefined);
+      const uploaded = await uploadUseCase.execute(uri, filename, creds, email, false, undefined, creationDate);
       if (uploaded && onUploadSuccess) {
           onUploadSuccess(uploaded);
       }

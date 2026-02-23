@@ -139,14 +139,17 @@ const PhotoItem = React.memo(({
         {/* Selection Indicator */}
         {(isSelected || (Platform.OS === 'web' && isHovered) || isSelectionMode) && (
             <TouchableOpacity
-                style={styles.selectionIndicator}
+                style={[
+                    styles.selectionIndicator,
+                    isSelected && styles.selectionIndicatorSelected
+                ]}
                 onPress={(e) => {
                     e.stopPropagation();
                     handleSelect(e);
                 }}
             >
                 {isSelected ? (
-                    <CheckCircle2 size={24} color="#005bbb" fill="#fff" />
+                    <CheckCircle2 size={24} color="#fff" fill="#005bbb" />
                 ) : (
                     <Circle size={24} color="rgba(255,255,255,0.9)" strokeWidth={2.5} />
                 )}
@@ -264,7 +267,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const handleEditSave = async (originalPhoto: Photo, newUri: string) => {
     // Persist to S3
     const filename = `edited-${originalPhoto.id}.jpg`;
-    const uploaded = await uploadSingle(newUri, filename, (uploaded) => {
+    const uploaded = await uploadSingle(newUri, filename, originalPhoto.creationDate, (uploaded) => {
         addPhoto(uploaded);
     });
 
@@ -499,6 +502,10 @@ const styles = StyleSheet.create({
     top: 5,
     left: 5,
     zIndex: 10,
+    borderRadius: 12,
+  },
+  selectionIndicatorSelected: {
+    backgroundColor: '#fff',
   },
   placeholder: {
     flex: 1,
