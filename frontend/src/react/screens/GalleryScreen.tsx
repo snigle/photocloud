@@ -134,6 +134,8 @@ const PhotoItem = React.memo(({
             </View>
         )}
 
+        {isSelected && <View style={styles.selectionOverlay} />}
+
         {/* Selection Indicator */}
         {(isSelected || (Platform.OS === 'web' && isHovered) || isSelectionMode) && (
             <TouchableOpacity
@@ -146,7 +148,7 @@ const PhotoItem = React.memo(({
                 {isSelected ? (
                     <CheckCircle2 size={24} color="#005bbb" fill="#fff" />
                 ) : (
-                    <Circle size={24} color="rgba(255,255,255,0.8)" />
+                    <Circle size={24} color="rgba(255,255,255,0.9)" strokeWidth={2.5} />
                 )}
             </TouchableOpacity>
         )}
@@ -209,8 +211,9 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const handleSelect = useCallback((id: string, event?: any) => {
     setSelectedIds(prev => {
         const next = new Set(prev);
+        const isShift = Platform.OS === 'web' && (event?.shiftKey || event?.nativeEvent?.shiftKey);
 
-        if (Platform.OS === 'web' && event?.shiftKey && lastSelectedId) {
+        if (isShift && lastSelectedId) {
             // Range selection
             const currentIndex = photos.findIndex(p => p.id === id);
             const lastIndex = photos.findIndex(p => p.id === lastSelectedId);
@@ -258,12 +261,18 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
       await deletePhotos(idsToDelete);
   };
 
-  const handleEditSave = async (photo: Photo, newUri: string) => {
+  const handleEditSave = async (originalPhoto: Photo, newUri: string) => {
     // Persist to S3
-    const filename = `edited-${photo.id}.jpg`;
-    await uploadSingle(newUri, filename, (uploaded) => {
+    const filename = `edited-${originalPhoto.id}.jpg`;
+    const uploaded = await uploadSingle(newUri, filename, (uploaded) => {
         addPhoto(uploaded);
     });
+
+    if (uploaded) {
+        // Delete original photo to "overwrite"
+        await deletePhotos([originalPhoto.id]);
+    }
+
     setSnackbarVisible(true);
   };
 
@@ -470,8 +479,12 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   selectedImageWrapper: {
-    padding: 10,
     backgroundColor: '#e3f2fd',
+  },
+  selectionOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 91, 187, 0.2)',
+    zIndex: 5,
   },
   image: {
     flex: 1,

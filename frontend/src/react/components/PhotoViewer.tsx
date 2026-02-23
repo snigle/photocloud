@@ -227,9 +227,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({ photos, initialPhotoId
                         onSave={(newUri) => {
                             setEditing(false);
                             if (onEditSave) {
-                                const newId = `edit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                                setLastSavedId(newId);
-                                onEditSave({ ...photos[currentIndex], id: newId }, newUri);
+                                onEditSave(photos[currentIndex], newUri);
                             }
                         }}
                     />

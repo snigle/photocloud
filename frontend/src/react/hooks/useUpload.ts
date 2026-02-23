@@ -41,7 +41,8 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
           if (!asset) break;
 
           try {
-            const uploaded = await uploadUseCase.execute(asset.uri, asset.name, creds, email, false, (asset as any).id);
+            const creationDate = (asset as any).file?.lastModified ? Math.floor((asset as any).file.lastModified / 1000) : undefined;
+            const uploaded = await uploadUseCase.execute(asset.uri, asset.name, creds, email, false, (asset as any).id, creationDate);
             if (uploaded && onUploadSuccess) {
                 onUploadSuccess(uploaded);
             }
@@ -84,7 +85,7 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
       const localRepo = new LocalGalleryRepository();
       const uploadUseCase = new UploadUseCase(s3Repo, localRepo);
 
-      const uploaded = await uploadUseCase.execute(uri, filename, creds, email, false);
+      const uploaded = await uploadUseCase.execute(uri, filename, creds, email, false, undefined, undefined);
       if (uploaded && onUploadSuccess) {
           onUploadSuccess(uploaded);
       }
