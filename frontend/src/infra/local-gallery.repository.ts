@@ -10,12 +10,30 @@ if (Platform.OS !== 'web') {
 
 export class LocalGalleryRepository implements ILocalGalleryRepository {
   private dbPromise: Promise<any> | null = null;
+  private indexedDBPromise: Promise<IDBDatabase> | null = null;
 
   constructor() {
     if (Platform.OS !== 'web') {
         this.dbPromise = SQLite.openDatabaseAsync('gallery.db');
         this.initDb();
+    } else {
+        this.indexedDBPromise = this.initIndexedDB();
     }
+  }
+
+  private async initIndexedDB(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('gallery', 1);
+        request.onupgradeneeded = (event: any) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('photos')) {
+                const store = db.createObjectStore('photos', { keyPath: 'id' });
+                store.createIndex('creationDate', 'creationDate', { unique: false });
+            }
+        };
+        request.onsuccess = (event: any) => resolve(event.target.result);
+        request.onerror = (event: any) => reject(event.target.error);
+    });
   }
 
   private async initDb() {
@@ -80,8 +98,59 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
     }
   }
 
+  async savePhoto(photo: Photo): Promise<void> {
+    if (Platform.OS === 'web') {
+        if (!this.indexedDBPromise) return;
+        const db = await this.indexedDBPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['photos'], 'readwrite');
+            const store = transaction.objectStore('photos');
+            const request = store.put(photo);
+            request.onsuccess = () => resolve();
+            request.onerror = (event: any) => reject(event.target.error);
+        });
+    }
+
+    if (!this.dbPromise) return;
+    const db = await this.dbPromise;
+    try {
+        await db.runAsync(
+            'INSERT OR REPLACE INTO photos (id, type, creationDate, size, width, height, uri, s3_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                photo.id,
+                photo.type,
+                photo.creationDate,
+                photo.size,
+                photo.width,
+                photo.height,
+                (photo as any).uri || null,
+                (photo as any).key || null
+            ]
+        );
+    } catch (e) {
+        console.error('Error saving single photo to SQLite cache:', e);
+    }
+  }
+
   async saveToCache(photos: Photo[]): Promise<void> {
-    if (Platform.OS === 'web' || !this.dbPromise) return;
+    if (Platform.OS === 'web') {
+        if (!this.indexedDBPromise) return;
+        const db = await this.indexedDBPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['photos'], 'readwrite');
+            const store = transaction.objectStore('photos');
+
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = (event: any) => reject(event.target.error);
+
+            store.clear();
+            for (const photo of photos) {
+                store.add(photo);
+            }
+        });
+    }
+
+    if (!this.dbPromise) return;
     const db = await this.dbPromise;
     try {
         await db.withTransactionAsync(async () => {
@@ -113,7 +182,45 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
   }
 
   async loadFromCache(limit: number = 100, offset: number = 0): Promise<Photo[]> {
-    if (Platform.OS === 'web' || !this.dbPromise) return [];
+    if (Platform.OS === 'web') {
+        if (!this.indexedDBPromise) return [];
+        const db = await this.indexedDBPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['photos'], 'readonly');
+            const store = transaction.objectStore('photos');
+            const index = store.index('creationDate');
+            const request = index.openCursor(null, 'prev'); // descending order
+            let count = 0;
+            const results: Photo[] = [];
+            let advanced = false;
+
+            request.onsuccess = (event: any) => {
+                const cursor = event.target.result;
+                if (!cursor) {
+                    resolve(results);
+                    return;
+                }
+
+                if (!advanced && offset > 0) {
+                    advanced = true;
+                    cursor.advance(offset);
+                    return;
+                }
+
+                results.push(cursor.value);
+                count++;
+
+                if (count < limit) {
+                    cursor.continue();
+                } else {
+                    resolve(results);
+                }
+            };
+            request.onerror = (event: any) => reject(event.target.error);
+        });
+    }
+
+    if (!this.dbPromise) return [];
     const db = await this.dbPromise;
     try {
         const rows = await db.getAllAsync(
@@ -138,6 +245,54 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
     } catch (e) {
         console.error('Error loading from SQLite cache:', e);
         return [];
+    }
+  }
+
+  async existsById(id: string): Promise<boolean> {
+    if (Platform.OS === 'web') {
+        if (!this.indexedDBPromise) return false;
+        const db = await this.indexedDBPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['photos'], 'readonly');
+            const store = transaction.objectStore('photos');
+            const request = store.get(id);
+            request.onsuccess = (event: any) => resolve(!!event.target.result);
+            request.onerror = (event: any) => reject(event.target.error);
+        });
+    }
+
+    if (!this.dbPromise) return false;
+    const db = await this.dbPromise;
+    try {
+        const row = await db.getFirstAsync('SELECT id FROM photos WHERE id = ?', [id]);
+        return !!row;
+    } catch (e) {
+        console.error('Error checking photo existence in SQLite:', e);
+        return false;
+    }
+  }
+
+  async countPhotos(): Promise<number> {
+    if (Platform.OS === 'web') {
+        if (!this.indexedDBPromise) return 0;
+        const db = await this.indexedDBPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['photos'], 'readonly');
+            const store = transaction.objectStore('photos');
+            const request = store.count();
+            request.onsuccess = (event: any) => resolve(event.target.result);
+            request.onerror = (event: any) => reject(event.target.error);
+        });
+    }
+
+    if (!this.dbPromise) return 0;
+    const db = await this.dbPromise;
+    try {
+        const row = await db.getFirstAsync('SELECT COUNT(*) as count FROM photos');
+        return row.count;
+    } catch (e) {
+        console.error('Error counting photos in SQLite:', e);
+        return 0;
     }
   }
 }

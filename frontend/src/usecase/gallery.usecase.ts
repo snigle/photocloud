@@ -35,4 +35,8 @@ export class GalleryUseCase {
   async getPhotos(limit: number, offset: number): Promise<Photo[]> {
       return await this.localRepo.loadFromCache(limit, offset);
   }
+
+  async getTotalCount(): Promise<number> {
+      return await this.localRepo.countPhotos();
+  }
 }

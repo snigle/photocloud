@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, Dimensions } from 'react-native';
-import { Appbar, Text, useTheme, FAB } from 'react-native-paper';
+import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions, Platform } from 'react-native';
+import { Appbar, Text, useTheme, FAB, ProgressBar } from 'react-native-paper';
 import { LogOut, RefreshCw, Upload } from 'lucide-react-native';
 import { FlashList } from "@shopify/flash-list";
 import { useGallery } from '../hooks/useGallery';
@@ -9,32 +9,39 @@ import { S3Repository } from '../../infra/s3.repository';
 import type { S3Credentials, Photo } from '../../domain/types';
 import { uint8ArrayToBase64 } from '../../infra/utils';
 
-const { width } = Dimensions.get('window');
-const COLUMN_COUNT = 3;
-const ITEM_SIZE = width / COLUMN_COUNT;
 const FlashListAny = FlashList as any;
 
-const PhotoItem = React.memo(({ photo, creds }: { photo: Photo, creds: S3Credentials }) => {
-  const [url, setUrl] = useState<string | null>(photo.type === 'local' ? photo.uri : null);
+const PhotoItem = React.memo(({ photo, creds, size }: { photo: Photo, creds: S3Credentials, size: number }) => {
+  const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    if (photo.type === 'cloud' && !url) {
+    let currentUrl: string | null = null;
+
+    if (photo.type === 'local') {
+      setUrl(photo.uri);
+      return;
+    }
+
+    setUrl(null); // Reset URL when photo changes
+
+    if (photo.type === 'cloud') {
       const s3Repo = new S3Repository(creds);
 
       const load = async () => {
           try {
-              const thumbKey = photo.key.replace('/original/', '/thumbnail/');
-              let data: Uint8Array;
-              try {
-                  data = await s3Repo.getFile(creds.bucket, thumbKey);
-              } catch (e) {
-                  data = await s3Repo.getFile(creds.bucket, photo.key);
-              }
+              // SSE-C objects cannot be displayed via simple presigned URLs in browser <img> tags
+              const data = await s3Repo.getFile(creds.bucket, photo.key);
 
               if (isMounted) {
-                  const base64 = uint8ArrayToBase64(data);
-                  setUrl(`data:image/jpeg;base64,${base64}`);
+                  if (Platform.OS === 'web') {
+                      const blob = new Blob([data], { type: 'image/jpeg' });
+                      currentUrl = URL.createObjectURL(blob);
+                      setUrl(currentUrl);
+                  } else {
+                      const base64 = uint8ArrayToBase64(data);
+                      setUrl(`data:image/jpeg;base64,${base64}`);
+                  }
               }
           } catch (err) {
               console.error('Failed to load cloud image', err);
@@ -43,13 +50,18 @@ const PhotoItem = React.memo(({ photo, creds }: { photo: Photo, creds: S3Credent
 
       load();
     }
-    return () => { isMounted = false; };
-  }, [photo, creds]);
+    return () => {
+        isMounted = false;
+        if (currentUrl && Platform.OS === 'web') {
+            URL.revokeObjectURL(currentUrl);
+        }
+    };
+  }, [photo.id, photo.type, photo.key, photo.uri, creds]);
 
   return (
-    <View style={styles.imageContainer}>
+    <View style={[styles.imageContainer, { width: size, height: size }]}>
       {url ? (
-        <Image source={{ uri: url }} style={styles.image} />
+        <Image source={{ uri: url }} style={styles.image} resizeMode="cover" />
       ) : (
         <View style={styles.placeholder}>
             <ActivityIndicator size="small" />
@@ -72,21 +84,31 @@ interface Props {
 
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const theme = useTheme();
-  const { photos, loading, refreshing, error, refresh, loadMore } = useGallery(creds, email);
-  const { upload, uploading, error: uploadError } = useUpload(creds, email);
+  const { width } = useWindowDimensions();
+
+  // Memoize creds to ensure stability for PhotoItem memoization
+  const stableCreds = React.useMemo(() => creds, [creds.access, creds.secret, creds.bucket, creds.endpoint]);
+
+  const { photos, totalCount, loading, refreshing, error, refresh, loadMore, addPhoto } = useGallery(stableCreds, email);
+  const { upload, uploading, progress, error: uploadError } = useUpload(creds, email);
 
   const handleUpload = async () => {
-    const success = await upload();
-    if (success) {
-      refresh();
-    }
+    await upload((photo) => {
+        addPhoto(photo);
+    });
   };
+
+  const numColumns = Math.max(3, Math.floor(width / 180));
+  const itemSize = width / numColumns;
 
   return (
     <View style={styles.container}>
       <Appbar.Header elevated>
-        <Appbar.Content title="PhotoCloud" subtitle={`${photos.length} photos`} />
-        {uploading && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
+        <Appbar.Content
+            title="PhotoCloud"
+            subtitle={uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`}
+        />
+        {uploading && !progress && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
         <Appbar.Action
           icon={() => <Upload size={24} color={theme.colors.onSurface} />}
           onPress={handleUpload}
@@ -96,32 +118,39 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
         <Appbar.Action icon={() => <LogOut size={24} color={theme.colors.onSurface} />} onPress={onLogout} />
       </Appbar.Header>
 
+      {uploading && progress && (
+          <ProgressBar progress={progress.current / progress.total} color={theme.colors.primary} />
+      )}
+
       {(error || uploadError) && (
         <View style={styles.errorBanner}>
           <Text style={{ color: theme.colors.error }}>{error || uploadError}</Text>
         </View>
       )}
 
-      {!loading && photos.length === 0 && !error && (
-        <View style={styles.center}>
-          <Text>No photos found.</Text>
-          <Text variant="bodySmall">Local and Cloud photos will appear here.</Text>
-        </View>
-      )}
+      <View style={{ flex: 1 }}>
+          {!loading && !uploading && photos.length === 0 && !error && (
+            <View style={styles.center}>
+              <Text>No photos found.</Text>
+              <Text variant="bodySmall">Local and Cloud photos will appear here.</Text>
+            </View>
+          )}
 
-      <FlashListAny
-        data={photos}
-        renderItem={({ item }: any) => <PhotoItem photo={item} creds={creds} />}
-        keyExtractor={(item: Photo) => item.id}
-        numColumns={COLUMN_COUNT}
-        estimatedItemSize={ITEM_SIZE}
+          <FlashListAny
+            data={photos}
+            renderItem={({ item }: any) => <PhotoItem photo={item} creds={stableCreds} size={itemSize} />}
+            keyExtractor={(item: Photo) => item.id}
+        numColumns={numColumns}
+        key={numColumns} // Force re-render when column count changes
+        estimatedItemSize={180}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={refresh} />
         }
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 20 }} /> : null}
-      />
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 20 }} /> : null}
+          />
+      </View>
 
       <FAB
         icon={() => <Upload size={24} color={theme.colors.onPrimaryContainer} />}
@@ -157,8 +186,6 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   imageContainer: {
-    width: ITEM_SIZE,
-    height: ITEM_SIZE,
     padding: 1,
   },
   image: {

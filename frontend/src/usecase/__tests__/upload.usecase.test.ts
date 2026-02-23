@@ -16,8 +16,17 @@ describe('UploadUseCase', () => {
             listPhotos: jest.fn(),
             uploadFile: jest.fn(),
             getFile: jest.fn(),
+            exists: jest.fn(),
         };
-        const useCase = new UploadUseCase(mockS3Repo as any);
+        const mockLocalRepo = {
+            existsById: jest.fn(),
+            listLocalPhotos: jest.fn(),
+            saveToCache: jest.fn(),
+            savePhoto: jest.fn(),
+            loadFromCache: jest.fn(),
+            countPhotos: jest.fn(),
+        };
+        const useCase = new UploadUseCase(mockS3Repo as any, mockLocalRepo as any);
         expect(useCase).toBeDefined();
     });
 });

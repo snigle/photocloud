@@ -6,6 +6,7 @@ import { GalleryUseCase } from '../../usecase/gallery.usecase';
 
 export const useGallery = (creds: S3Credentials | null, email: string | null) => {
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,16 +23,33 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
     if (!galleryUseCase || !creds || !email) return;
     setLoading(true);
     try {
+      const count = await galleryUseCase.getTotalCount();
+      setTotalCount(count);
+
       const initialPhotos = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
       setPhotos(initialPhotos);
-      setHasMore(initialPhotos.length === PAGE_SIZE);
+      setHasMore(initialPhotos.length < count);
 
       // Trigger background sync
       galleryUseCase.sync(creds, email).then(async () => {
           // Refresh list from cache after sync
+          const newCount = await galleryUseCase.getTotalCount();
+          setTotalCount(newCount);
           const refreshed = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
-          setPhotos(refreshed);
-          setHasMore(refreshed.length === PAGE_SIZE);
+
+          setPhotos(prev => {
+              // Merge existing state with refreshed state to avoid losing newly uploaded photos
+              // that might not have been caught by sync yet.
+              const merged = [...refreshed];
+              const refreshedIds = new Set(refreshed.map(p => p.id));
+              for (const p of prev) {
+                  if (!refreshedIds.has(p.id)) {
+                      merged.push(p);
+                  }
+              }
+              return merged.sort((a, b) => b.creationDate - a.creationDate);
+          });
+          setHasMore(refreshed.length < newCount);
       });
     } catch (err: any) {
       setError(err.message || 'Failed to fetch photos');
@@ -42,25 +60,28 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
 
   const loadMore = useCallback(async () => {
     if (!galleryUseCase || loading || !hasMore) return;
+
     try {
       const nextPhotos = await galleryUseCase.getPhotos(PAGE_SIZE, photos.length);
-      if (nextPhotos.length < PAGE_SIZE) {
+      setPhotos(prev => [...prev, ...nextPhotos]);
+      if (nextPhotos.length < PAGE_SIZE || photos.length + nextPhotos.length >= totalCount) {
           setHasMore(false);
       }
-      setPhotos(prev => [...prev, ...nextPhotos]);
     } catch (err) {
       console.error('Failed to load more photos', err);
     }
-  }, [galleryUseCase, loading, hasMore, photos.length]);
+  }, [galleryUseCase, loading, hasMore, photos.length, totalCount]);
 
   const refresh = useCallback(async () => {
     if (!galleryUseCase || !creds || !email) return;
     setRefreshing(true);
     try {
       await galleryUseCase.sync(creds, email);
+      const newCount = await galleryUseCase.getTotalCount();
+      setTotalCount(newCount);
       const refreshed = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
       setPhotos(refreshed);
-      setHasMore(refreshed.length === PAGE_SIZE);
+      setHasMore(refreshed.length < newCount);
     } catch (err: any) {
       setError(err.message || 'Failed to refresh photos');
     } finally {
@@ -68,9 +89,25 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
     }
   }, [galleryUseCase, creds, email]);
 
+  const addPhoto = useCallback((photo: Photo) => {
+    setTotalCount(prev => prev + 1);
+    setPhotos(prev => {
+        if (prev.find(p => p.id === photo.id)) return prev;
+
+        // Fast path: if it's newer than the first photo, just prepend
+        if (prev.length === 0 || photo.creationDate >= prev[0].creationDate) {
+            return [photo, ...prev];
+        }
+
+        // Slow path: insert and sort
+        const newPhotos = [photo, ...prev];
+        return newPhotos.sort((a, b) => b.creationDate - a.creationDate);
+    });
+  }, []);
+
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
 
-  return { photos, loading, refreshing, error, refresh, loadMore, hasMore };
+  return { photos, totalCount, loading, refreshing, error, refresh, loadMore, hasMore, addPhoto };
 };

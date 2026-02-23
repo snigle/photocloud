@@ -1,23 +1,36 @@
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as Crypto from 'expo-crypto';
-import { IS3Repository, S3Credentials } from '../domain/types';
-import { encodeText, decodeText } from '../infra/utils';
+import { IS3Repository, ILocalGalleryRepository, S3Credentials, UploadedPhoto } from '../domain/types';
+import { encodeText, decodeText, md5Hex } from '../infra/utils';
 
 export class UploadUseCase {
-  constructor(private s3Repo: IS3Repository) {}
+  private static indexedYears = new Set<string>();
+
+  constructor(
+    private s3Repo: IS3Repository,
+    private localRepo: ILocalGalleryRepository
+  ) {}
 
   async execute(
     uri: string,
     filename: string,
     creds: S3Credentials,
-    email: string
-  ): Promise<void> {
-    const timestamp = Math.floor(Date.now() / 1000);
-    const photoId = `${timestamp}-${Crypto.randomUUID ? Crypto.randomUUID() : Math.random().toString(36).substring(2, 15)}`;
-    const year = new Date().getFullYear().toString();
-
+    email: string,
+    shouldUploadOriginal: boolean = false
+  ): Promise<UploadedPhoto | null> {
     // 1. Process images
     const originalData = await this.uriToUint8Array(uri);
+
+    const hash = md5Hex(originalData);
+
+    // Check if already exists in local cache (synced with cloud)
+    if (await this.localRepo.existsById(hash)) {
+        console.log(`Photo ${filename} already exists (hash: ${hash}), skipping upload.`);
+        return null;
+    }
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const photoId = `${timestamp}-${hash}`;
+    const year = new Date().getFullYear().toString();
 
     const reducedImage = await ImageManipulator.manipulateAsync(
       uri,
@@ -37,13 +50,7 @@ export class UploadUseCase {
     // We no longer manually encrypt here because we use S3 SSE-C in the repository
     const basePrefix = `users/${email}/${year}`;
 
-    await Promise.all([
-        this.s3Repo.uploadFile(
-          creds.bucket,
-          `${basePrefix}/original/${photoId}.enc`,
-          originalData,
-          'application/octet-stream'
-        ),
+    const uploads = [
         this.s3Repo.uploadFile(
           creds.bucket,
           `${basePrefix}/1080p/${photoId}.enc`,
@@ -56,7 +63,20 @@ export class UploadUseCase {
           thumbnailData,
           'application/octet-stream'
         )
-    ]);
+    ];
+
+    if (shouldUploadOriginal) {
+        uploads.push(
+            this.s3Repo.uploadFile(
+                creds.bucket,
+                `${basePrefix}/original/${photoId}.enc`,
+                originalData,
+                'application/octet-stream'
+            )
+        );
+    }
+
+    await Promise.all(uploads);
 
     // Metadata
     const metadata = {
@@ -73,6 +93,19 @@ export class UploadUseCase {
 
     // Index
     await this.updateIndex(creds, email, year);
+
+    const uploadedPhoto: UploadedPhoto = {
+        id: hash,
+        key: `${basePrefix}/thumbnail/${photoId}.enc`,
+        creationDate: timestamp,
+        size: thumbnailData.length,
+        width: 0,
+        height: 0,
+        type: 'cloud'
+    };
+
+    await this.localRepo.savePhoto(uploadedPhoto);
+    return uploadedPhoto;
   }
 
   private async uriToUint8Array(uri: string): Promise<Uint8Array> {
@@ -82,6 +115,8 @@ export class UploadUseCase {
   }
 
   private async updateIndex(creds: S3Credentials, email: string, year: string): Promise<void> {
+    if (UploadUseCase.indexedYears.has(`${email}-${year}`)) return;
+
     const indexKey = `users/${email}/index.json`;
     let index: { years: string[] } = { years: [] };
 
@@ -104,5 +139,6 @@ export class UploadUseCase {
             'application/json'
         );
     }
+    UploadUseCase.indexedYears.add(`${email}-${year}`);
   }
 }

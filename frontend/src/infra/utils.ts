@@ -23,13 +23,17 @@ export function uint8ArrayToBase64(bytes: Uint8Array): string {
 }
 
 export function md5(data: Uint8Array): Uint8Array {
-  const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-  const hashHex = SparkMD5.ArrayBuffer.hash(buffer as any);
+  const hashHex = md5Hex(data);
   const result = new Uint8Array(hashHex.length / 2);
   for (let i = 0; i < hashHex.length; i += 2) {
     result[i / 2] = parseInt(hashHex.substring(i, i + 2), 16);
   }
   return result;
+}
+
+export function md5Hex(data: Uint8Array): string {
+  const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  return SparkMD5.ArrayBuffer.hash(buffer as any);
 }
 
 export function base64ToUint8Array(base64: string): Uint8Array {

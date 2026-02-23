@@ -26,7 +26,10 @@ describe('GalleryUseCase', () => {
     mockLocalRepo = {
       listLocalPhotos: jest.fn(),
       saveToCache: jest.fn(),
+      savePhoto: jest.fn(),
       loadFromCache: jest.fn(),
+      existsById: jest.fn(),
+      countPhotos: jest.fn(),
     };
     galleryUseCase = new GalleryUseCase(mockS3Repo, mockLocalRepo);
   });
