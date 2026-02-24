@@ -113,26 +113,30 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
 
     setTotalCount(prev => prev + 1);
     setPhotos(prev => {
-        if (prev.find(p => p.id === photo.id)) return prev;
+        if (prev.find(p => p && p.id === photo.id)) return prev;
 
         // Fast path: if it's newer than the first photo, just prepend
-        if (prev.length === 0 || photo.creationDate >= prev[0].creationDate) {
+        if (prev.length === 0 || (prev[0] && photo.creationDate >= prev[0].creationDate)) {
             return [photo, ...prev];
         }
 
         // Slow path: insert and sort
         const newPhotos = [photo, ...prev];
-        return newPhotos.sort((a, b) => b.creationDate - a.creationDate);
+        return newPhotos.sort((a, b) => {
+            if (!a) return 1;
+            if (!b) return -1;
+            return b.creationDate - a.creationDate;
+        });
     });
   }, []);
 
   const deletePhotos = useCallback(async (ids: string[]) => {
       if (!galleryUseCase || !creds) return;
 
-      const photosToDelete = photosRef.current.filter(p => ids.includes(p.id));
+      const photosToDelete = photosRef.current.filter(p => p && ids.includes(p.id)) as Photo[];
 
       // Update UI optimistically
-      setPhotos(prev => prev.filter(p => !ids.includes(p.id)));
+      setPhotos(prev => prev.filter(p => !p || !ids.includes(p.id)));
       setTotalCount(prev => Math.max(0, prev - ids.length));
 
       try {
