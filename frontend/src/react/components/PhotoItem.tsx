@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, ActivityIndicator, Image, Platform, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
 import { Circle, Check } from 'lucide-react-native';
 import { S3Repository } from '../../infra/s3.repository';
 import type { S3Credentials, Photo } from '../../domain/types';
 import { uint8ArrayToBase64 } from '../../infra/utils';
+import { ThumbnailCache } from '../../infra/thumbnail-cache';
 
 export const PhotoItem = React.memo(({
     photo,
@@ -19,7 +20,7 @@ export const PhotoItem = React.memo(({
     onDragEnter,
     onDragEnd
 }: {
-    photo: Photo,
+    photo: Photo | null,
     creds: S3Credentials,
     size: number,
     onPress: (id: string, event?: any) => void,
@@ -33,21 +34,40 @@ export const PhotoItem = React.memo(({
 }) => {
   const [url, setUrl] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const dragTimerRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+        if (dragTimerRef.current) clearTimeout(dragTimerRef.current);
+    };
+  }, []);
 
   const handlePress = useCallback((e: any) => {
+      if (!photo) return;
       onPress(photo.id, e);
-  }, [photo.id, onPress]);
+  }, [photo?.id, onPress]);
 
   useEffect(() => {
     let isMounted = true;
-    let currentUrl: string | null = null;
+
+    if (!photo) {
+        setUrl(null);
+        return;
+    }
 
     if (photo.type === 'local') {
       setUrl(photo.uri);
       return;
     }
 
-    setUrl(null); // Reset URL when photo changes
+    // Check cache first
+    const cached = ThumbnailCache.get(photo.key);
+    if (cached?.displayUrl) {
+        setUrl(cached.displayUrl);
+        return;
+    }
+
+    setUrl(null); // Reset URL when photo changes and not in cache
 
     if (photo.type === 'cloud') {
       const s3Repo = new S3Repository(creds);
@@ -58,37 +78,52 @@ export const PhotoItem = React.memo(({
               const data = await s3Repo.getFile(creds.bucket, photo.key);
 
               if (isMounted) {
+                  let displayUrl: string;
                   if (Platform.OS === 'web') {
                       const blob = new Blob([data as any], { type: 'image/jpeg' });
-                      currentUrl = URL.createObjectURL(blob);
-                      setUrl(currentUrl);
+                      displayUrl = URL.createObjectURL(blob);
                   } else {
                       const base64 = uint8ArrayToBase64(data);
-                      setUrl(`data:image/jpeg;base64,${base64}`);
+                      displayUrl = `data:image/jpeg;base64,${base64}`;
                   }
+
+                  // Update cache with displayUrl
+                  ThumbnailCache.set(photo.key, { data, displayUrl });
+                  setUrl(displayUrl);
               }
           } catch (err) {
               console.error('Failed to load cloud image', err);
           }
       };
 
-      load();
+      const timer = setTimeout(load, 200);
+      return () => {
+          isMounted = false;
+          clearTimeout(timer);
+      };
     }
     return () => {
         isMounted = false;
-        if (currentUrl && Platform.OS === 'web') {
-            URL.revokeObjectURL(currentUrl);
-        }
     };
-  }, [photo.id, photo.type, (photo as any).key, (photo as any).uri, creds]);
+  }, [photo?.id, photo?.type, (photo as any)?.key, (photo as any)?.uri, creds]);
 
   const handleSelect = useCallback((e: any) => {
+    if (!photo) return;
     onSelect(photo.id, e);
-  }, [photo.id, onSelect]);
+  }, [photo?.id, onSelect]);
 
   const handleLongPress = useCallback(() => {
+    if (!photo) return;
     onLongPress(photo.id);
-  }, [photo.id, onLongPress]);
+  }, [photo?.id, onLongPress]);
+
+  if (!photo) {
+    return (
+        <View style={[styles.imageContainer, { width: size, height: size }]}>
+            <View style={styles.placeholder} />
+        </View>
+    );
+  }
 
   return (
     <TouchableOpacity
@@ -101,13 +136,29 @@ export const PhotoItem = React.memo(({
                 setIsHovered(true);
                 onDragEnter(photo.id);
             },
-            onMouseLeave: () => setIsHovered(false),
-            onMouseDown: (e: any) => {
-                if (e.button === 0) { // Left click
-                    onDragStart(photo.id);
+            onMouseLeave: () => {
+                setIsHovered(false);
+                if (dragTimerRef.current) {
+                    clearTimeout(dragTimerRef.current);
+                    dragTimerRef.current = null;
                 }
             },
-            onMouseUp: () => onDragEnd(),
+            onMouseDown: (e: any) => {
+                if (e.button === 0) { // Left click
+                    if (dragTimerRef.current) clearTimeout(dragTimerRef.current);
+                    dragTimerRef.current = setTimeout(() => {
+                        onDragStart(photo.id);
+                        dragTimerRef.current = null;
+                    }, 200);
+                }
+            },
+            onMouseUp: () => {
+                if (dragTimerRef.current) {
+                    clearTimeout(dragTimerRef.current);
+                    dragTimerRef.current = null;
+                }
+                onDragEnd();
+            },
         } as any : {})}
     >
       <View style={[styles.imageWrapper, isSelected && styles.selectedImageWrapper]}>

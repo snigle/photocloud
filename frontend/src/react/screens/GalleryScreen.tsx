@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, StyleSheet, RefreshControl, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import { Text, useTheme, FAB, ProgressBar, Snackbar, Portal, Dialog, Button } from 'react-native-paper';
 import { Upload } from 'lucide-react-native';
@@ -30,8 +30,17 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   // Memoize creds to ensure stability for PhotoItem memoization
   const stableCreds = useMemo(() => creds, [creds.access, creds.secret, creds.bucket, creds.endpoint]);
 
-  const { photos, totalCount, loading, refreshing, error, refresh, loadMore, addPhoto, deletePhotos } = useGallery(stableCreds, email);
+  const { photos, totalCount, cloudIndex, loading, refreshing, error, refresh, loadMore, addPhoto, deletePhotos } = useGallery(stableCreds, email);
   const { upload, uploadSingle, uploading, progress, error: uploadError } = useUpload(creds, email);
+  const [currentYear, setCurrentYear] = useState<string | null>(null);
+  const [showYearIndicator, setShowYearIndicator] = useState(false);
+  const timeoutRef = React.useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
   const {
     selectedIds,
     handleSelect,
@@ -117,8 +126,8 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
             creds={stableCreds}
             size={itemSize}
             onPress={handleItemPress}
-            isSelected={selectedIds.has(item.photo.id)}
-            onSelect={(id, event) => handleSelect(id, event)}
+            isSelected={item.photo ? selectedIds.has(item.photo.id) : false}
+            onSelect={handleSelect}
             onLongPress={handleLongPress}
             isSelectionMode={isSelectionMode}
             onDragStart={startDragging}
@@ -127,6 +136,56 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
         />
     );
   }, [stableCreds, itemSize, handleItemPress, selectedIds, handleSelect, handleLongPress, isSelectionMode, startDragging, handleDragEnter, stopDragging]);
+
+  const handleScroll = useCallback((event: any) => {
+      const offsetY = event.nativeEvent.contentOffset.y;
+      const contentHeight = event.nativeEvent.contentSize.height;
+      const layoutHeight = event.nativeEvent.layoutMeasurement.height;
+
+      if (contentHeight <= layoutHeight || listData.length === 0) return;
+
+      const scrollPercent = Math.max(0, Math.min(1, offsetY / (contentHeight - layoutHeight)));
+      const approxIndex = Math.floor(scrollPercent * (listData.length - 1));
+      const item = listData[approxIndex];
+
+      let year = '';
+      if (item) {
+          if (item.type === 'header') {
+              // Extract year from localized date string "d mmmm yyyy"
+              const parts = item.title.split(' ');
+              year = parts[parts.length - 1];
+          } else if (item.photo) {
+              year = new Date(item.photo.creationDate * 1000).getFullYear().toString();
+          }
+      }
+
+      // Fallback if item is null (placeholder)
+      if (!year) {
+          const photoIndex = Math.floor(scrollPercent * totalCount);
+          const cloudTotal = cloudIndex.years.reduce((acc, y) => acc + y.count, 0);
+          const numLocal = totalCount - cloudTotal;
+
+          if (photoIndex < numLocal) {
+              year = new Date().getFullYear().toString();
+          } else {
+              let remaining = photoIndex - numLocal;
+              for (const y of cloudIndex.years) {
+                  if (remaining < y.count) {
+                      year = y.year;
+                      break;
+                  }
+                  remaining -= y.count;
+              }
+          }
+      }
+
+      if (year && /^\d{4}$/.test(year)) {
+          setCurrentYear(year);
+          setShowYearIndicator(true);
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          timeoutRef.current = setTimeout(() => setShowYearIndicator(false), 1500);
+      }
+  }, [listData, totalCount, cloudIndex]);
 
   return (
     <View style={styles.container}>
@@ -176,7 +235,10 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
           <FlashListAny
             data={listData}
             renderItem={renderItem}
-            keyExtractor={(item: ListItem) => item.id || (item as any).photo.id}
+            keyExtractor={(item: ListItem) => {
+                if (item.type === 'header') return item.id;
+                return item.photo ? item.photo.id : (item as any).placeholderId;
+            }}
             numColumns={numColumns}
             key={numColumns} // Force re-render when column count changes
             estimatedItemSize={180}
@@ -195,12 +257,19 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={refresh} />
             }
+            onScroll={handleScroll}
             onEndReached={loadMore}
             onEndReachedThreshold={0.5}
             ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 20 }} /> : null}
             contentContainerStyle={{ flexGrow: 1 }}
           />
       </View>
+
+      {showYearIndicator && currentYear && (
+          <View style={styles.yearIndicator}>
+              <Text style={styles.yearIndicatorText}>{currentYear}</Text>
+          </View>
+      )}
 
       {selectedIds.size === 0 && (
           <FAB
@@ -227,7 +296,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
 
       {viewerPhotoId !== null && (
           <PhotoViewer
-            photos={photos}
+            photos={photos.filter(p => p !== null) as Photo[]}
             initialPhotoId={viewerPhotoId}
             visible={viewerPhotoId !== null}
             onClose={() => setViewerPhotoId(null)}
@@ -285,6 +354,21 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  yearIndicator: {
+    position: 'absolute',
+    right: 20,
+    top: '50%',
+    backgroundColor: 'rgba(0, 91, 187, 0.8)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 100,
+  },
+  yearIndicatorText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
 

@@ -5,21 +5,22 @@ import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
 import { GalleryUseCase } from '../../usecase/gallery.usecase';
 
 export const useGallery = (creds: S3Credentials | null, email: string | null) => {
-  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [photos, setPhotos] = useState<(Photo | null)[]>([]);
+  const [cloudIndex, setCloudIndex] = useState<{ years: { year: string, count: number }[] }>({ years: [] });
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
 
-  const PAGE_SIZE = 60; // Multiple of 3 for the grid
+  const PAGE_SIZE = 100;
 
   const galleryUseCase = useMemo(() => {
     if (!creds) return null;
     return new GalleryUseCase(new S3Repository(creds), new LocalGalleryRepository());
   }, [creds]);
 
-  const photosRef = useRef<Photo[]>([]);
+  const photosRef = useRef<(Photo | null)[]>([]);
   useEffect(() => {
     photosRef.current = photos;
   }, [photos]);
@@ -27,53 +28,58 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
   const loadInitial = useCallback(async () => {
     if (!galleryUseCase || !creds || !email) return;
 
-    // If we already have photos, don't show the full loading state to avoid flicker/disappearance
     if (photosRef.current.length === 0) {
         setLoading(true);
     }
 
     try {
-      const count = await galleryUseCase.getTotalCount();
-      setTotalCount(count);
+      // 1. Get quick counts
+      const index = await galleryUseCase.getCloudIndex(creds, email);
+      setCloudIndex(index);
+      const cloudTotal = index.years.reduce((acc, y) => acc + y.count, 0);
 
-      const initialPhotos = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
+      const localRepo = new LocalGalleryRepository();
+      const localPhotos = await localRepo.listLocalPhotos();
+      const uploadedLocalIds = await localRepo.getUploadedLocalIds();
+      const filteredLocal = localPhotos.filter(p => !uploadedLocalIds.has(p.id));
 
-      setPhotos(prev => {
-          if (prev.length === 0) return initialPhotos;
+      const total = cloudTotal + filteredLocal.length;
+      setTotalCount(total);
 
-          // Merge to avoid losing items during re-loads
-          const merged = [...initialPhotos];
-          const initialIds = new Set(initialPhotos.map(p => p.id));
-          for (const p of prev) {
-              if (!initialIds.has(p.id)) {
-                  merged.push(p);
-              }
-          }
-          return merged.sort((a, b) => b.creationDate - a.creationDate);
-      });
+      // 2. Load what we have in cache
+      const cachedPhotos = await galleryUseCase.getPhotos(total, 0);
 
-      setHasMore(initialPhotos.length < count);
+      // Initialize sparse array
+      const sparsePhotos = new Array(total).fill(null);
+      // Put cached photos at the beginning (they are sorted descending)
+      for (let i = 0; i < cachedPhotos.length; i++) {
+          sparsePhotos[i] = cachedPhotos[i];
+      }
+      // Also include non-uploaded local photos (they are newest)
+      const allKnown = [...filteredLocal, ...cachedPhotos].sort((a, b) => b.creationDate - a.creationDate);
+      for (let i = 0; i < allKnown.length; i++) {
+          sparsePhotos[i] = allKnown[i];
+      }
 
-      // Trigger background sync
+      setPhotos(sparsePhotos);
+      setHasMore(allKnown.length < total);
+
+      // 3. Trigger background sync
       galleryUseCase.sync(creds, email).then(async () => {
-          // Refresh list from cache after sync
-          const newCount = await galleryUseCase.getTotalCount();
-          setTotalCount(newCount);
-          const refreshed = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
+          const refreshed = await galleryUseCase.getPhotos(100000, 0); // Get all from cache
+          const localAfter = await localRepo.listLocalPhotos();
+          const uploadedAfter = await localRepo.getUploadedLocalIds();
+          const filteredLocalAfter = localAfter.filter(p => !uploadedAfter.has(p.id));
+
+          const allRefreshed = [...filteredLocalAfter, ...refreshed].sort((a, b) => b.creationDate - a.creationDate);
 
           setPhotos(prev => {
-              // Merge existing state with refreshed state to avoid losing newly uploaded photos
-              // that might not have been caught by sync yet.
-              const merged = [...refreshed];
-              const refreshedIds = new Set(refreshed.map(p => p.id));
-              for (const p of prev) {
-                  if (!refreshedIds.has(p.id)) {
-                      merged.push(p);
-                  }
+              const next = new Array(Math.max(prev.length, allRefreshed.length)).fill(null);
+              for (let i = 0; i < allRefreshed.length; i++) {
+                  next[i] = allRefreshed[i];
               }
-              return merged.sort((a, b) => b.creationDate - a.creationDate);
+              return next;
           });
-          setHasMore(refreshed.length < newCount);
       });
     } catch (err: any) {
       setError(err.message || 'Failed to fetch photos');
@@ -83,35 +89,22 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
   }, [galleryUseCase, creds, email]);
 
   const loadMore = useCallback(async () => {
-    if (!galleryUseCase || loading || !hasMore) return;
-
-    try {
-      const nextPhotos = await galleryUseCase.getPhotos(PAGE_SIZE, photos.length);
-      setPhotos(prev => [...prev, ...nextPhotos]);
-      if (nextPhotos.length < PAGE_SIZE || photos.length + nextPhotos.length >= totalCount) {
-          setHasMore(false);
-      }
-    } catch (err) {
-      console.error('Failed to load more photos', err);
-    }
-  }, [galleryUseCase, loading, hasMore, photos.length, totalCount]);
+      // With the new sparse array approach, loadMore is less critical as we initialize the full size
+      // but we might still want it for truly infinite scrolling if totalCount grows
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!galleryUseCase || !creds || !email) return;
     setRefreshing(true);
     try {
       await galleryUseCase.sync(creds, email);
-      const newCount = await galleryUseCase.getTotalCount();
-      setTotalCount(newCount);
-      const refreshed = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
-      setPhotos(refreshed);
-      setHasMore(refreshed.length < newCount);
+      await loadInitial();
     } catch (err: any) {
       setError(err.message || 'Failed to refresh photos');
     } finally {
       setRefreshing(false);
     }
-  }, [galleryUseCase, creds, email]);
+  }, [galleryUseCase, creds, email, loadInitial]);
 
   const addPhoto = useCallback(async (photo: Photo) => {
     // Persist to local cache
@@ -120,26 +113,30 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
 
     setTotalCount(prev => prev + 1);
     setPhotos(prev => {
-        if (prev.find(p => p.id === photo.id)) return prev;
+        if (prev.find(p => p && p.id === photo.id)) return prev;
 
         // Fast path: if it's newer than the first photo, just prepend
-        if (prev.length === 0 || photo.creationDate >= prev[0].creationDate) {
+        if (prev.length === 0 || (prev[0] && photo.creationDate >= prev[0].creationDate)) {
             return [photo, ...prev];
         }
 
         // Slow path: insert and sort
         const newPhotos = [photo, ...prev];
-        return newPhotos.sort((a, b) => b.creationDate - a.creationDate);
+        return newPhotos.sort((a, b) => {
+            if (!a) return 1;
+            if (!b) return -1;
+            return b.creationDate - a.creationDate;
+        });
     });
   }, []);
 
   const deletePhotos = useCallback(async (ids: string[]) => {
       if (!galleryUseCase || !creds) return;
 
-      const photosToDelete = photosRef.current.filter(p => ids.includes(p.id));
+      const photosToDelete = photosRef.current.filter(p => p && ids.includes(p.id)) as Photo[];
 
       // Update UI optimistically
-      setPhotos(prev => prev.filter(p => !ids.includes(p.id)));
+      setPhotos(prev => prev.filter(p => !p || !ids.includes(p.id)));
       setTotalCount(prev => Math.max(0, prev - ids.length));
 
       try {
@@ -157,5 +154,5 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
     loadInitial();
   }, [loadInitial]);
 
-  return { photos, totalCount, loading, refreshing, error, refresh, loadMore, hasMore, addPhoto, deletePhotos };
+  return { photos, totalCount, cloudIndex, loading, refreshing, error, refresh, loadMore, hasMore, addPhoto, deletePhotos };
 };

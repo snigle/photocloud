@@ -49,6 +49,7 @@ export interface IAuthRepository {
 
 export interface IS3Repository {
   listPhotos(bucket: string, email: string): Promise<UploadedPhoto[]>;
+  getCloudIndex(bucket: string, email: string): Promise<{ years: { year: string, count: number }[] }>;
   uploadFile(
     bucket: string,
     key: string,

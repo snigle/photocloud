@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { Photo } from '../../domain/types';
 
-export const useSelection = (photos: Photo[]) => {
+export const useSelection = (photos: (Photo | null)[]) => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -13,13 +13,14 @@ export const useSelection = (photos: Photo[]) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
             if (isShift && lastSelectedId) {
-                const currentIndex = photos.findIndex(p => p.id === id);
-                const lastIndex = photos.findIndex(p => p.id === lastSelectedId);
+                const currentIndex = photos.findIndex(p => p && p.id === id);
+                const lastIndex = photos.findIndex(p => p && p.id === lastSelectedId);
                 if (currentIndex !== -1 && lastIndex !== -1) {
                     const start = Math.min(currentIndex, lastIndex);
                     const end = Math.max(currentIndex, lastIndex);
                     for (let i = start; i <= end; i++) {
-                        next.add(photos[i].id);
+                        const p = photos[i];
+                        if (p) next.add(p.id);
                     }
                 }
             } else {

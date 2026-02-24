@@ -18,6 +18,7 @@ describe('GalleryUseCase', () => {
   beforeEach(() => {
     mockS3Repo = {
       listPhotos: jest.fn(),
+      getCloudIndex: jest.fn(),
       uploadFile: jest.fn(),
       getFile: jest.fn(),
       getDownloadUrl: jest.fn(),
