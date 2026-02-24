@@ -4,6 +4,7 @@ import { S3Repository } from '../../infra/s3.repository';
 import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
 import { UploadUseCase } from '../../usecase/upload.usecase';
 import type { S3Credentials, Photo } from '../../domain/types';
+import { ExifParserFactory } from 'ts-exif-parser';
 
 export const useUpload = (creds: S3Credentials | null, email: string | null) => {
   const [uploading, setUploading] = useState(false);
@@ -41,7 +42,16 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
           if (!asset) break;
 
           try {
-            const uploaded = await uploadUseCase.execute(asset.uri, asset.name, creds, email, false, (asset as any).id);
+                        let creationDate: number | undefined;
+              if (asset.file) {
+                const bytes = await asset.file.bytes()
+                const result = ExifParserFactory.create(bytes.buffer).parse();
+                creationDate = result.tags?.CreateDate ? new Date(result.tags.CreateDate * 1000).getTime() / 1000 : new Date().getTime() / 1000;
+              }
+            if (!creationDate && (asset as any).file?.lastModified) {
+                creationDate = Math.floor((asset as any).file.lastModified / 1000);
+            }
+            const uploaded = await uploadUseCase.execute(asset.uri, asset.name, creds, email, false, (asset as any).id, creationDate);
             if (uploaded && onUploadSuccess) {
                 onUploadSuccess(uploaded);
             }
@@ -73,5 +83,30 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
     }
   }, [creds, email]);
 
-  return { upload, uploading, progress, error };
+  const uploadSingle = useCallback(async (uri: string, filename: string, creationDate?: number, onUploadSuccess?: (photo: Photo) => void) => {
+    if (!creds || !email) return;
+
+    try {
+      setUploading(true);
+      setError(null);
+
+      const s3Repo = new S3Repository(creds);
+      const localRepo = new LocalGalleryRepository();
+      const uploadUseCase = new UploadUseCase(s3Repo, localRepo);
+
+      const uploaded = await uploadUseCase.execute(uri, filename, creds, email, false, undefined, creationDate);
+      if (uploaded && onUploadSuccess) {
+          onUploadSuccess(uploaded);
+      }
+      return uploaded;
+    } catch (err: any) {
+      console.error('Single upload error:', err);
+      setError(err.message || 'Failed to upload photo');
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  }, [creds, email]);
+
+  return { upload, uploadSingle, uploading, progress, error };
 };

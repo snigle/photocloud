@@ -22,6 +22,7 @@ describe('GalleryUseCase', () => {
       getFile: jest.fn(),
       getDownloadUrl: jest.fn(),
       exists: jest.fn(),
+      deleteFile: jest.fn(),
     };
     mockLocalRepo = {
       listLocalPhotos: jest.fn(),
@@ -32,6 +33,7 @@ describe('GalleryUseCase', () => {
       countPhotos: jest.fn(),
       markAsUploaded: jest.fn(),
       getUploadedLocalIds: jest.fn().mockResolvedValue(new Set()),
+      deleteFromCache: jest.fn(),
     };
     galleryUseCase = new GalleryUseCase(mockS3Repo, mockLocalRepo);
   });
@@ -61,5 +63,26 @@ describe('GalleryUseCase', () => {
 
     expect(photos).toEqual(cachedPhotos);
     expect(mockLocalRepo.loadFromCache).toHaveBeenCalledWith(10, 0);
+  });
+
+  it('should delete cloud photo from S3 and cache', async () => {
+    const photo = { id: 'p1', type: 'cloud', key: 'users/test/2024/thumbnail/p1.enc' } as any;
+
+    await galleryUseCase.deletePhoto(mockCreds, photo);
+
+    expect(mockS3Repo.deleteFile).toHaveBeenCalledTimes(3);
+    expect(mockS3Repo.deleteFile).toHaveBeenCalledWith(mockCreds.bucket, 'users/test/2024/thumbnail/p1.enc');
+    expect(mockS3Repo.deleteFile).toHaveBeenCalledWith(mockCreds.bucket, 'users/test/2024/1080p/p1.enc');
+    expect(mockS3Repo.deleteFile).toHaveBeenCalledWith(mockCreds.bucket, 'users/test/2024/original/p1.enc');
+    expect(mockLocalRepo.deleteFromCache).toHaveBeenCalledWith('p1');
+  });
+
+  it('should delete local photo from cache only', async () => {
+    const photo = { id: 'p2', type: 'local', uri: 'file://p2' } as any;
+
+    await galleryUseCase.deletePhoto(mockCreds, photo);
+
+    expect(mockS3Repo.deleteFile).not.toHaveBeenCalled();
+    expect(mockLocalRepo.deleteFromCache).toHaveBeenCalledWith('p2');
   });
 });

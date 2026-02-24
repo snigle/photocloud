@@ -133,9 +133,29 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
     });
   }, []);
 
+  const deletePhotos = useCallback(async (ids: string[]) => {
+      if (!galleryUseCase || !creds) return;
+
+      const photosToDelete = photosRef.current.filter(p => ids.includes(p.id));
+
+      // Update UI optimistically
+      setPhotos(prev => prev.filter(p => !ids.includes(p.id)));
+      setTotalCount(prev => Math.max(0, prev - ids.length));
+
+      try {
+          for (const photo of photosToDelete) {
+              await galleryUseCase.deletePhoto(creds, photo);
+          }
+      } catch (err: any) {
+          setError(err.message || 'Failed to delete some photos');
+          // Refresh to get consistent state
+          refresh();
+      }
+  }, [galleryUseCase, creds, refresh]);
+
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
 
-  return { photos, totalCount, loading, refreshing, error, refresh, loadMore, hasMore, addPhoto };
+  return { photos, totalCount, loading, refreshing, error, refresh, loadMore, hasMore, addPhoto, deletePhotos };
 };

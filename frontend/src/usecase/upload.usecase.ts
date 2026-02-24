@@ -18,7 +18,8 @@ export class UploadUseCase {
     creds: S3Credentials,
     email: string,
     shouldUploadOriginal: boolean = false,
-    localId?: string
+    localId?: string,
+    creationDate?: number
   ): Promise<UploadedPhoto | null> {
     // 1. Process images
     const originalData = await this.uriToUint8Array(uri);
@@ -31,7 +32,7 @@ export class UploadUseCase {
         return null;
     }
 
-    let timestamp = Math.floor(Date.now() / 1000);
+    let timestamp = creationDate || Math.floor(Date.now() / 1000);
 
     // Try to get actual creation date from MediaLibrary if on native
     if (Platform.OS !== 'web') {

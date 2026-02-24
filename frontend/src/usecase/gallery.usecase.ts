@@ -43,4 +43,25 @@ export class GalleryUseCase {
   async getTotalCount(): Promise<number> {
       return await this.localRepo.countPhotos();
   }
+
+  async deletePhoto(creds: S3Credentials, photo: Photo): Promise<void> {
+    try {
+        if (photo.type === 'cloud') {
+            const thumbnailKey = photo.key;
+            const p1080Key = thumbnailKey.replace('/thumbnail/', '/1080p/');
+            const originalKey = thumbnailKey.replace('/thumbnail/', '/original/');
+
+            // Delete all versions from S3
+            await this.s3Repo.deleteFile(creds.bucket, thumbnailKey);
+            await this.s3Repo.deleteFile(creds.bucket, p1080Key);
+            await this.s3Repo.deleteFile(creds.bucket, originalKey);
+        }
+
+        // Always remove from local cache
+        await this.localRepo.deleteFromCache(photo.id);
+    } catch (e) {
+        console.error('GalleryUseCase deletePhoto error:', e);
+        throw e;
+    }
+  }
 }
