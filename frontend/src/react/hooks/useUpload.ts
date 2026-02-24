@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
-import exifr from 'exifr/dist/lite.umd.js';
+import exifr from 'exifr/dist/full.umd.js';
 import { S3Repository } from '../../infra/s3.repository';
 import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
 import { UploadUseCase } from '../../usecase/upload.usecase';
