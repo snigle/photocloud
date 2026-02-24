@@ -1,163 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, RefreshControl, ActivityIndicator, Image, useWindowDimensions, Platform, TouchableOpacity } from 'react-native';
-import { Appbar, Text, useTheme, FAB, ProgressBar, Snackbar, Portal, Dialog, Button } from 'react-native-paper';
-import { LogOut, RefreshCw, Upload, CheckCircle2, Circle, X, Trash2, Check } from 'lucide-react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, StyleSheet, RefreshControl, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
+import { Text, useTheme, FAB, ProgressBar, Snackbar, Portal, Dialog, Button } from 'react-native-paper';
+import { Upload } from 'lucide-react-native';
 import { FlashList } from "@shopify/flash-list";
 import { useGallery } from '../hooks/useGallery';
 import { useUpload } from '../hooks/useUpload';
 import { useSelection } from '../hooks/useSelection';
 import { groupPhotosByDay, ListItem } from '../utils/gallery-utils';
-import { S3Repository } from '../../infra/s3.repository';
 import { PhotoViewer } from '../components/PhotoViewer';
+import { PhotoItem } from '../components/PhotoItem';
+import { GalleryHeader } from '../components/GalleryHeader';
 import type { S3Credentials, Photo } from '../../domain/types';
-import { uint8ArrayToBase64 } from '../../infra/utils';
 
 const FlashListAny = FlashList as any;
-
-const PhotoItem = React.memo(({
-    photo,
-    creds,
-    size,
-    onPress,
-    isSelected,
-    onSelect,
-    onLongPress,
-    isSelectionMode,
-    onDragStart,
-    onDragEnter,
-    onDragEnd
-}: {
-    photo: Photo,
-    creds: S3Credentials,
-    size: number,
-    onPress: (id: string, event?: any) => void,
-    isSelected: boolean,
-    onSelect: (id: string, event?: any) => void,
-    onLongPress: (id: string) => void,
-    isSelectionMode: boolean,
-    onDragStart: (id: string) => void,
-    onDragEnter: (id: string) => void,
-    onDragEnd: () => void
-}) => {
-  const [url, setUrl] = useState<string | null>(null);
-  const [isHovered, setIsHovered] = useState(false);
-
-  const handlePress = useCallback((e: any) => {
-      onPress(photo.id, e);
-  }, [photo.id, onPress]);
-
-  useEffect(() => {
-    let isMounted = true;
-    let currentUrl: string | null = null;
-
-    if (photo.type === 'local') {
-      setUrl(photo.uri);
-      return;
-    }
-
-    setUrl(null); // Reset URL when photo changes
-
-    if (photo.type === 'cloud') {
-      const s3Repo = new S3Repository(creds);
-
-      const load = async () => {
-          try {
-              // SSE-C objects cannot be displayed via simple presigned URLs in browser <img> tags
-              const data = await s3Repo.getFile(creds.bucket, photo.key);
-
-              if (isMounted) {
-                  if (Platform.OS === 'web') {
-                      const blob = new Blob([data as any], { type: 'image/jpeg' });
-                      currentUrl = URL.createObjectURL(blob);
-                      setUrl(currentUrl);
-                  } else {
-                      const base64 = uint8ArrayToBase64(data);
-                      setUrl(`data:image/jpeg;base64,${base64}`);
-                  }
-              }
-          } catch (err) {
-              console.error('Failed to load cloud image', err);
-          }
-      };
-
-      load();
-    }
-    return () => {
-        isMounted = false;
-        if (currentUrl && Platform.OS === 'web') {
-            URL.revokeObjectURL(currentUrl);
-        }
-    };
-  }, [photo.id, photo.type, (photo as any).key, (photo as any).uri, creds]);
-
-  const handleSelect = useCallback((e: any) => {
-    onSelect(photo.id, e);
-  }, [photo.id, onSelect]);
-
-  const handleLongPress = useCallback(() => {
-    onLongPress(photo.id);
-  }, [photo.id, onLongPress]);
-
-  return (
-    <TouchableOpacity
-        onPress={handlePress}
-        onLongPress={handleLongPress}
-        delayLongPress={500}
-        style={[styles.imageContainer, { width: size, height: size }]}
-        {...(Platform.OS === 'web' ? {
-            onMouseEnter: () => {
-                setIsHovered(true);
-                onDragEnter(photo.id);
-            },
-            onMouseLeave: () => setIsHovered(false),
-            onMouseDown: (e: any) => {
-                if (e.button === 0) { // Left click
-                    onDragStart(photo.id);
-                }
-            },
-            onMouseUp: () => onDragEnd(),
-        } as any : {})}
-    >
-      <View style={[styles.imageWrapper, isSelected && styles.selectedImageWrapper]}>
-        {url ? (
-            <Image source={{ uri: url }} style={[styles.image, isSelected && styles.selectedImage]} resizeMode="cover" />
-        ) : (
-            <View style={styles.placeholder}>
-                <ActivityIndicator size="small" />
-            </View>
-        )}
-
-        {isSelected && <View style={styles.selectionOverlay} />}
-
-        {/* Selection Indicator */}
-        {(isSelected || (Platform.OS === 'web' && isHovered) || isSelectionMode) && (
-            <TouchableOpacity
-                style={[
-                    styles.selectionIndicator,
-                    isSelected && styles.selectionIndicatorSelected
-                ]}
-                onPress={(e) => {
-                    e.stopPropagation();
-                    handleSelect(e);
-                }}
-            >
-                {isSelected ? (
-                    <Check size={20} color="#fff" strokeWidth={4} />
-                ) : (
-                    <Circle size={24} color="rgba(255,255,255,0.9)" strokeWidth={2.5} />
-                )}
-            </TouchableOpacity>
-        )}
-
-        {photo.type === 'cloud' && !isSelected && (
-            <View style={styles.cloudBadge}>
-                <Text style={styles.cloudBadgeText}>☁️</Text>
-            </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-});
 
 interface Props {
   creds: S3Credentials;
@@ -173,7 +28,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
 
   // Memoize creds to ensure stability for PhotoItem memoization
-  const stableCreds = React.useMemo(() => creds, [creds.access, creds.secret, creds.bucket, creds.endpoint]);
+  const stableCreds = useMemo(() => creds, [creds.access, creds.secret, creds.bucket, creds.endpoint]);
 
   const { photos, totalCount, loading, refreshing, error, refresh, loadMore, addPhoto, deletePhotos } = useGallery(stableCreds, email);
   const { upload, uploadSingle, uploading, progress, error: uploadError } = useUpload(creds, email);
@@ -183,7 +38,6 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
     clearSelection,
     toggleSelectionMode,
     isSelectionMode,
-    isDragging,
     startDragging,
     stopDragging,
     handleDragEnter
@@ -197,7 +51,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
     }
   }, [toggleSelectionMode, startDragging]);
 
-  const listData = React.useMemo(() => groupPhotosByDay(photos), [photos]);
+  const listData = useMemo(() => groupPhotosByDay(photos), [photos]);
 
   const handleUpload = async () => {
     await upload((photo) => {
@@ -206,10 +60,8 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
   };
 
   const handleItemPress = useCallback((id: string, event?: any) => {
-    if (isSelectionMode) {
-        handleSelect(id, event);
-        return;
-    }
+    // FIX: Removed the automatic selection toggle when isSelectionMode is true.
+    // Selection is now only handled by the checkbox in PhotoItem or keyboard modifiers on web.
 
     if (Platform.OS === 'web' && event) {
         if (event.shiftKey || event.ctrlKey || event.metaKey) {
@@ -219,7 +71,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
     }
 
     setViewerPhotoId(id);
-  }, [isSelectionMode, handleSelect]);
+  }, [handleSelect]);
 
   const handleDeleteSelected = () => {
       if (selectedIds.size === 0) return;
@@ -268,38 +120,27 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
             isSelected={selectedIds.has(item.photo.id)}
             onSelect={(id, event) => handleSelect(id, event)}
             onLongPress={handleLongPress}
-            isSelectionMode={selectedIds.size > 0}
+            isSelectionMode={isSelectionMode}
             onDragStart={startDragging}
             onDragEnter={handleDragEnter}
             onDragEnd={stopDragging}
         />
     );
-  }, [stableCreds, itemSize, handleItemPress, selectedIds, handleSelect, handleLongPress]);
+  }, [stableCreds, itemSize, handleItemPress, selectedIds, handleSelect, handleLongPress, isSelectionMode, startDragging, handleDragEnter, stopDragging]);
 
   return (
     <View style={styles.container}>
-      {selectedIds.size > 0 ? (
-        <Appbar.Header style={{ backgroundColor: '#e3f2fd' }}>
-            <Appbar.Action icon={() => <X size={24} />} onPress={clearSelection} />
-            <Appbar.Content title={`${selectedIds.size} sélectionné(s)`} />
-            <Appbar.Action icon={() => <Trash2 size={24} />} onPress={handleDeleteSelected} />
-        </Appbar.Header>
-      ) : (
-        <Appbar.Header elevated>
-            <Appbar.Content
-                title="PhotoCloud"
-                subtitle={uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`}
-            />
-            {uploading && !progress && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
-            <Appbar.Action
-            icon={() => <Upload size={24} color={theme.colors.onSurface} />}
-            onPress={handleUpload}
-            disabled={uploading}
-            />
-            <Appbar.Action icon={() => <RefreshCw size={24} color={theme.colors.onSurface} />} onPress={refresh} />
-            <Appbar.Action icon={() => <LogOut size={24} color={theme.colors.onSurface} />} onPress={onLogout} />
-        </Appbar.Header>
-      )}
+      <GalleryHeader
+        selectedCount={selectedIds.size}
+        uploading={uploading}
+        progress={progress}
+        totalCount={totalCount}
+        onClearSelection={clearSelection}
+        onDeleteSelected={handleDeleteSelected}
+        onUpload={handleUpload}
+        onRefresh={refresh}
+        onLogout={onLogout}
+      />
 
       {uploading && progress && (
           <View><ProgressBar
@@ -339,6 +180,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
             numColumns={numColumns}
             key={numColumns} // Force re-render when column count changes
             estimatedItemSize={180}
+            extraData={{ selectedIds, isSelectionMode }}
             getItemType={(item: ListItem) => item.type}
             overrideItemLayout={(layout: any, item: ListItem) => {
                 if (item.type === 'header') {
@@ -444,64 +286,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  imageContainer: {
-    padding: 2,
-  },
-  imageWrapper: {
-    flex: 1,
-    borderRadius: 4,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  selectedImageWrapper: {
-    backgroundColor: '#e3f2fd',
-  },
-  selectionOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 91, 187, 0.2)',
-    zIndex: 5,
-  },
-  image: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 4,
-  },
-  selectedImage: {
-    borderRadius: 2,
-  },
-  selectionIndicator: {
-    position: 'absolute',
-    top: 5,
-    left: 5,
-    zIndex: 10,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-  },
-  selectionIndicatorSelected: {
-    backgroundColor: '#005bbb',
-  },
-  placeholder: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 4,
-  },
-  cloudBadge: {
-      position: 'absolute',
-      top: 5,
-      right: 5,
-      backgroundColor: 'rgba(255,255,255,0.7)',
-      borderRadius: 10,
-      padding: 2,
-  },
-  cloudBadgeText: {
-      fontSize: 10,
-  }
 });
 
 export default GalleryScreen;
