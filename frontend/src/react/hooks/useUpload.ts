@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
-import exifr from 'exifr/dist/full.umd.js';
 import { S3Repository } from '../../infra/s3.repository';
 import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
 import { UploadUseCase } from '../../usecase/upload.usecase';
 import type { S3Credentials, Photo } from '../../domain/types';
+import { ExifParserFactory } from 'ts-exif-parser';
 
 export const useUpload = (creds: S3Credentials | null, email: string | null) => {
   const [uploading, setUploading] = useState(false);
@@ -42,17 +42,12 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
           if (!asset) break;
 
           try {
-            let creationDate: number | undefined;
-            if (exifr) {
-                try {
-                    const output = await exifr.parse(asset.uri);
-                    if (output && output.DateTimeOriginal) {
-                        creationDate = Math.floor(new Date(output.DateTimeOriginal).getTime() / 1000);
-                    }
-                } catch (e) {
-                    console.log('Failed to parse EXIF', e);
-                }
-            }
+                        let creationDate: number | undefined;
+              if (asset.file) {
+                const bytes = await asset.file.bytes()
+                const result = ExifParserFactory.create(bytes.buffer).parse();
+                creationDate = result.tags?.CreateDate ? new Date(result.tags.CreateDate * 1000).getTime() / 1000 : new Date().getTime() / 1000;
+              }
             if (!creationDate && (asset as any).file?.lastModified) {
                 creationDate = Math.floor((asset as any).file.lastModified / 1000);
             }
