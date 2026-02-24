@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, ActivityIndicator, Image, Platform, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
 import { Circle, Check } from 'lucide-react-native';
@@ -34,6 +34,13 @@ export const PhotoItem = React.memo(({
 }) => {
   const [url, setUrl] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const dragTimerRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+        if (dragTimerRef.current) clearTimeout(dragTimerRef.current);
+    };
+  }, []);
 
   const handlePress = useCallback((e: any) => {
       if (!photo) return;
@@ -129,13 +136,29 @@ export const PhotoItem = React.memo(({
                 setIsHovered(true);
                 onDragEnter(photo.id);
             },
-            onMouseLeave: () => setIsHovered(false),
-            onMouseDown: (e: any) => {
-                if (e.button === 0) { // Left click
-                    onDragStart(photo.id);
+            onMouseLeave: () => {
+                setIsHovered(false);
+                if (dragTimerRef.current) {
+                    clearTimeout(dragTimerRef.current);
+                    dragTimerRef.current = null;
                 }
             },
-            onMouseUp: () => onDragEnd(),
+            onMouseDown: (e: any) => {
+                if (e.button === 0) { // Left click
+                    if (dragTimerRef.current) clearTimeout(dragTimerRef.current);
+                    dragTimerRef.current = setTimeout(() => {
+                        onDragStart(photo.id);
+                        dragTimerRef.current = null;
+                    }, 200);
+                }
+            },
+            onMouseUp: () => {
+                if (dragTimerRef.current) {
+                    clearTimeout(dragTimerRef.current);
+                    dragTimerRef.current = null;
+                }
+                onDragEnd();
+            },
         } as any : {})}
     >
       <View style={[styles.imageWrapper, isSelected && styles.selectedImageWrapper]}>

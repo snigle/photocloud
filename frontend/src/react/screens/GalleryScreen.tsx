@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, RefreshControl, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import { Text, useTheme, FAB, ProgressBar, Snackbar, Portal, Dialog, Button } from 'react-native-paper';
 import { Upload } from 'lucide-react-native';
