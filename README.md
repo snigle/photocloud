@@ -74,3 +74,26 @@ Le frontend est organisé en Clean Architecture :
 - `src/infra` : Implémentations des repositories (API, S3).
 - `src/usecase` : Logique métier (Auth, Gallery).
 - `src/react` : Hooks, Screens et Composants UI.
+
+## 6. CI/CD (GitHub Actions)
+
+Le projet inclut des workflows GitHub Actions pour le déploiement automatique.
+
+### Backend (Go)
+Le backend est automatiquement testé et déployé sous forme d'image Docker sur GitHub Container Registry (GHCR).
+- Workflow : `.github/workflows/backend.yml`
+- Image : `ghcr.io/<votre-repo>-backend:<branch>`
+
+### Frontend (Expo)
+Le frontend est automatiquement testé et déployé via Expo EAS Update sur la branche correspondante.
+- Workflow : `.github/workflows/frontend.yml`
+
+#### Configuration Requise
+Pour que le déploiement Expo fonctionne, vous devez ajouter le secret suivant sur GitHub (`Settings > Secrets and variables > Actions`) :
+- `EXPO_TOKEN` : Votre jeton d'accès personnel Expo (généré sur [expo.dev](https://expo.dev/settings/access-tokens)).
+
+Vous devez également avoir initialisé EAS dans le dossier `frontend` :
+```bash
+cd frontend
+eas init --id <votre-project-id>
+```
