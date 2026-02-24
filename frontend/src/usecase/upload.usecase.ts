@@ -3,10 +3,10 @@ import * as MediaLibrary from 'expo-media-library';
 import { Platform } from 'react-native';
 import { IS3Repository, ILocalGalleryRepository, S3Credentials, UploadedPhoto } from '../domain/types';
 import { encodeText, decodeText, md5Hex } from '../infra/utils';
+import { GlobalLock } from '../infra/locks';
 
 export class UploadUseCase {
   private static indexedYears = new Set<string>();
-  private static indexLock: Promise<void> = Promise.resolve();
 
   constructor(
     private s3Repo: IS3Repository,
@@ -139,11 +139,7 @@ export class UploadUseCase {
   }
 
   private async updateIndex(creds: S3Credentials, email: string, year: string): Promise<void> {
-    // Acquire lock
-    await UploadUseCase.indexLock;
-    let resolveLock: () => void;
-    UploadUseCase.indexLock = new Promise(resolve => { resolveLock = resolve; });
-
+    const release = await GlobalLock.acquire(`index-${email}`);
     try {
         const indexKey = `users/${email}/index.json`;
         let index: { years: any[] } = { years: [] };
@@ -183,7 +179,7 @@ export class UploadUseCase {
         );
         UploadUseCase.indexedYears.add(`${email}-${year}`);
     } finally {
-        resolveLock!();
+        release();
     }
   }
 }

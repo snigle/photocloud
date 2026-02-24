@@ -127,7 +127,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
             size={itemSize}
             onPress={handleItemPress}
             isSelected={item.photo ? selectedIds.has(item.photo.id) : false}
-            onSelect={(id, event) => handleSelect(id, event)}
+            onSelect={handleSelect}
             onLongPress={handleLongPress}
             isSelectionMode={isSelectionMode}
             onDragStart={startDragging}

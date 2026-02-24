@@ -1,5 +1,6 @@
 import { IS3Repository, ILocalGalleryRepository, Photo, S3Credentials } from '../domain/types';
 import { decodeText, encodeText } from '../infra/utils';
+import { GlobalLock } from '../infra/locks';
 
 export class GalleryUseCase {
   constructor(
@@ -52,13 +53,8 @@ export class GalleryUseCase {
       return await this.s3Repo.getCloudIndex(creds.bucket, email);
   }
 
-  private static indexLock: Promise<void> = Promise.resolve();
-
   private async updateIndexCount(creds: S3Credentials, email: string, year: string, delta: number): Promise<void> {
-      await GalleryUseCase.indexLock;
-      let resolveLock: () => void;
-      GalleryUseCase.indexLock = new Promise(resolve => { resolveLock = resolve; });
-
+      const release = await GlobalLock.acquire(`index-${email}`);
       try {
           const indexKey = `users/${email}/index.json`;
           const exists = await this.s3Repo.exists(creds.bucket, indexKey);
@@ -85,15 +81,12 @@ export class GalleryUseCase {
       } catch (e) {
           console.error('Failed to update index count', e);
       } finally {
-          resolveLock!();
+          release();
       }
   }
 
   private async reindexCloud(creds: S3Credentials, email: string, cloudPhotos: Photo[]): Promise<void> {
-      await GalleryUseCase.indexLock;
-      let resolveLock: () => void;
-      GalleryUseCase.indexLock = new Promise(resolve => { resolveLock = resolve; });
-
+      const release = await GlobalLock.acquire(`index-${email}`);
       try {
           const countsByYear: Record<string, number> = {};
           for (const p of cloudPhotos) {
@@ -117,7 +110,7 @@ export class GalleryUseCase {
       } catch (e) {
           console.error('Failed to reindex cloud', e);
       } finally {
-          resolveLock!();
+          release();
       }
   }
 

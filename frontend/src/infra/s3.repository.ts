@@ -9,6 +9,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { IS3Repository, S3Credentials, UploadedPhoto } from '../domain/types';
 import { base64ToUint8Array, uint8ArrayToBase64, decodeText, md5 } from './utils';
+import { ThumbnailCache } from './thumbnail-cache';
 
 export class S3Repository implements IS3Repository {
   private s3: S3Client;
@@ -191,6 +192,12 @@ export class S3Repository implements IS3Repository {
   }
 
   async getFile(bucket: string, key: string): Promise<Uint8Array> {
+    const isThumbnail = key.includes('/thumbnail/');
+    if (isThumbnail) {
+        const cached = ThumbnailCache.get(key);
+        if (cached) return cached.data;
+    }
+
     const sse = await this.getSSE();
     const command = new GetObjectCommand({
       Bucket: bucket,
@@ -208,7 +215,11 @@ export class S3Repository implements IS3Repository {
     // Robust transformation: try transformToUint8Array first, then fallback to manual stream consumption
     if (typeof (data.Body as any).transformToUint8Array === 'function') {
         const bytes = await (data.Body as any).transformToUint8Array();
-        return new Uint8Array(bytes);
+        const result = new Uint8Array(bytes);
+        if (isThumbnail) {
+            ThumbnailCache.set(key, { data: result });
+        }
+        return result;
     }
 
     // Fallback for environments where transformToUint8Array is not available (e.g. some browser versions)
@@ -227,12 +238,19 @@ export class S3Repository implements IS3Repository {
             result.set(chunk, offset);
             offset += chunk.length;
         }
+        if (isThumbnail) {
+            ThumbnailCache.set(key, { data: result });
+        }
         return result;
     }
 
     // Last resort: if it's already a Uint8Array or similar
     if (data.Body instanceof Uint8Array) {
-        return data.Body;
+        const result = data.Body as Uint8Array;
+        if (isThumbnail) {
+            ThumbnailCache.set(key, { data: result });
+        }
+        return result;
     }
 
     throw new Error('Unsupported S3 body type');

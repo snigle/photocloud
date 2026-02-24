@@ -5,6 +5,7 @@ import { Circle, Check } from 'lucide-react-native';
 import { S3Repository } from '../../infra/s3.repository';
 import type { S3Credentials, Photo } from '../../domain/types';
 import { uint8ArrayToBase64 } from '../../infra/utils';
+import { ThumbnailCache } from '../../infra/thumbnail-cache';
 
 export const PhotoItem = React.memo(({
     photo,
@@ -41,7 +42,6 @@ export const PhotoItem = React.memo(({
 
   useEffect(() => {
     let isMounted = true;
-    let currentUrl: string | null = null;
 
     if (!photo) {
         setUrl(null);
@@ -53,7 +53,14 @@ export const PhotoItem = React.memo(({
       return;
     }
 
-    setUrl(null); // Reset URL when photo changes
+    // Check cache first
+    const cached = ThumbnailCache.get(photo.key);
+    if (cached?.displayUrl) {
+        setUrl(cached.displayUrl);
+        return;
+    }
+
+    setUrl(null); // Reset URL when photo changes and not in cache
 
     if (photo.type === 'cloud') {
       const s3Repo = new S3Repository(creds);
@@ -64,14 +71,18 @@ export const PhotoItem = React.memo(({
               const data = await s3Repo.getFile(creds.bucket, photo.key);
 
               if (isMounted) {
+                  let displayUrl: string;
                   if (Platform.OS === 'web') {
                       const blob = new Blob([data as any], { type: 'image/jpeg' });
-                      currentUrl = URL.createObjectURL(blob);
-                      setUrl(currentUrl);
+                      displayUrl = URL.createObjectURL(blob);
                   } else {
                       const base64 = uint8ArrayToBase64(data);
-                      setUrl(`data:image/jpeg;base64,${base64}`);
+                      displayUrl = `data:image/jpeg;base64,${base64}`;
                   }
+
+                  // Update cache with displayUrl
+                  ThumbnailCache.set(photo.key, { data, displayUrl });
+                  setUrl(displayUrl);
               }
           } catch (err) {
               console.error('Failed to load cloud image', err);
@@ -82,9 +93,6 @@ export const PhotoItem = React.memo(({
     }
     return () => {
         isMounted = false;
-        if (currentUrl && Platform.OS === 'web') {
-            URL.revokeObjectURL(currentUrl);
-        }
     };
   }, [photo.id, photo.type, (photo as any).key, (photo as any).uri, creds]);
 
