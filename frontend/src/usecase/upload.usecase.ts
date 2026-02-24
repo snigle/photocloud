@@ -6,6 +6,7 @@ import { encodeText, decodeText, md5Hex } from '../infra/utils';
 
 export class UploadUseCase {
   private static indexedYears = new Set<string>();
+  private static indexLock: Promise<void> = Promise.resolve();
 
   constructor(
     private s3Repo: IS3Repository,
@@ -138,12 +139,16 @@ export class UploadUseCase {
   }
 
   private async updateIndex(creds: S3Credentials, email: string, year: string): Promise<void> {
-    if (UploadUseCase.indexedYears.has(`${email}-${year}`)) return;
+    // Acquire lock
+    await UploadUseCase.indexLock;
+    let resolveLock: () => void;
+    UploadUseCase.indexLock = new Promise(resolve => { resolveLock = resolve; });
 
-    const indexKey = `users/${email}/index.json`;
-    let index: { years: string[] } = { years: [] };
+    try {
+        const indexKey = `users/${email}/index.json`;
+        let index: { years: any[] } = { years: [] };
 
-    const exists = await this.s3Repo.exists(creds.bucket, indexKey);
+        const exists = await this.s3Repo.exists(creds.bucket, indexKey);
     if (exists) {
         try {
             const existingIndexData = await this.s3Repo.getFile(creds.bucket, indexKey);
@@ -153,15 +158,32 @@ export class UploadUseCase {
         }
     }
 
-    if (!index.years.includes(year)) {
-        index.years.push(year);
+    // Ensure index.years is in the new format { year: string, count: number }[]
+    index.years = index.years.map(y => {
+        if (typeof y === 'string') return { year: y, count: 0 };
+        return y;
+    });
+
+    let yearEntry = index.years.find(y => y.year === year);
+    if (!yearEntry) {
+        yearEntry = { year, count: 1 };
+        index.years.push(yearEntry);
+    } else {
+        yearEntry.count++;
+    }
+
+    // Sort years descending
+    index.years.sort((a, b) => b.year.localeCompare(a.year));
+
         await this.s3Repo.uploadFile(
             creds.bucket,
             indexKey,
             encodeText(JSON.stringify(index)),
             'application/json'
         );
+        UploadUseCase.indexedYears.add(`${email}-${year}`);
+    } finally {
+        resolveLock!();
     }
-    UploadUseCase.indexedYears.add(`${email}-${year}`);
   }
 }

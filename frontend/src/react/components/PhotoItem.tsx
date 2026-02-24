@@ -19,7 +19,7 @@ export const PhotoItem = React.memo(({
     onDragEnter,
     onDragEnd
 }: {
-    photo: Photo,
+    photo: Photo | null,
     creds: S3Credentials,
     size: number,
     onPress: (id: string, event?: any) => void,
@@ -35,12 +35,18 @@ export const PhotoItem = React.memo(({
   const [isHovered, setIsHovered] = useState(false);
 
   const handlePress = useCallback((e: any) => {
+      if (!photo) return;
       onPress(photo.id, e);
-  }, [photo.id, onPress]);
+  }, [photo?.id, onPress]);
 
   useEffect(() => {
     let isMounted = true;
     let currentUrl: string | null = null;
+
+    if (!photo) {
+        setUrl(null);
+        return;
+    }
 
     if (photo.type === 'local') {
       setUrl(photo.uri);
@@ -83,12 +89,22 @@ export const PhotoItem = React.memo(({
   }, [photo.id, photo.type, (photo as any).key, (photo as any).uri, creds]);
 
   const handleSelect = useCallback((e: any) => {
+    if (!photo) return;
     onSelect(photo.id, e);
-  }, [photo.id, onSelect]);
+  }, [photo?.id, onSelect]);
 
   const handleLongPress = useCallback(() => {
+    if (!photo) return;
     onLongPress(photo.id);
-  }, [photo.id, onLongPress]);
+  }, [photo?.id, onLongPress]);
+
+  if (!photo) {
+    return (
+        <View style={[styles.imageContainer, { width: size, height: size }]}>
+            <View style={styles.placeholder} />
+        </View>
+    );
+  }
 
   return (
     <TouchableOpacity

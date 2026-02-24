@@ -47,23 +47,35 @@ export class S3Repository implements IS3Repository {
     return this.sseParams;
   }
 
+  async getCloudIndex(bucket: string, email: string): Promise<{ years: { year: string, count: number }[] }> {
+    const indexKey = `users/${email}/index.json`;
+    try {
+        const exists = await this.exists(bucket, indexKey);
+        if (!exists) return { years: [] };
+
+        const indexData = await this.getFile(bucket, indexKey);
+        const index = JSON.parse(decodeText(indexData));
+        if (index && Array.isArray(index.years)) {
+            const normalizedYears = index.years.map((y: any) => {
+                if (typeof y === 'string') return { year: y, count: 0 };
+                return y;
+            });
+            return { years: normalizedYears };
+        }
+    } catch (e) {
+        console.error('Failed to get cloud index', e);
+    }
+    return { years: [] };
+  }
+
   async listPhotos(bucket: string, email: string): Promise<UploadedPhoto[]> {
     let allPhotos: UploadedPhoto[] = [];
     const basePrefix = `users/${email}/`;
 
     try {
         // 1. Try to get years from index.json for targeted listing
-        let years: string[] = [];
-        try {
-            const indexKey = `${basePrefix}index.json`;
-            const indexData = await this.getFile(bucket, indexKey);
-            const index = JSON.parse(decodeText(indexData));
-            if (index && Array.isArray(index.years)) {
-                years = index.years.map((y: any) => y.toString());
-            }
-        } catch (e) {
-            console.log('index.json might not exist yet or failed to read', e);
-        }
+        const index = await this.getCloudIndex(bucket, email);
+        const years = index.years.map(y => y.year);
 
         if (years.length > 0) {
             for (const year of years) {
