@@ -89,12 +89,16 @@ export const PhotoItem = React.memo(({
           }
       };
 
-      load();
+      const timer = setTimeout(load, 200);
+      return () => {
+          isMounted = false;
+          clearTimeout(timer);
+      };
     }
     return () => {
         isMounted = false;
     };
-  }, [photo.id, photo.type, (photo as any).key, (photo as any).uri, creds]);
+  }, [photo?.id, photo?.type, (photo as any)?.key, (photo as any)?.uri, creds]);
 
   const handleSelect = useCallback((e: any) => {
     if (!photo) return;
