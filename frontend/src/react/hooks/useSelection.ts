@@ -46,8 +46,15 @@ export const useSelection = (photos: Photo[]) => {
 
     const startDragging = useCallback((id: string) => {
         setIsDragging(true);
-        handleSelect(id);
-    }, [handleSelect]);
+        // Ensure the starting id is selected without toggling it off if it was already selected
+        setSelectedIds(prev => {
+            if (prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.add(id);
+            return next;
+        });
+        setLastSelectedId(id);
+    }, []);
 
     const stopDragging = useCallback(() => {
         setIsDragging(false);
