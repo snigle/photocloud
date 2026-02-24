@@ -17,7 +17,7 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: 'image/*',
-        copyToCacheDirectory: true,
+        copyToCacheDirectory: false,
         multiple: true,
       });
 
