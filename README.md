@@ -82,13 +82,13 @@ Le projet inclut des workflows GitHub Actions pour le déploiement automatique.
 ### Backend (Go)
 Le backend est automatiquement testé et déployé sous forme de binaire statique (`photocloud`) via SSH.
 - Workflow : `.github/workflows/backend.yml`
-- Déploiement : Automatique sur `main`/`master`, manuel sur les autres branches via `Actions > Backend CI/CD > Run workflow`.
+- Déploiement : Automatique sur `main`/`master`/`2026`, manuel sur les autres branches via `Actions > Backend CI/CD > Run workflow`.
 
 #### Configuration SSH (Backend)
 Ajoutez les secrets suivants sur GitHub pour permettre le déploiement :
 - `SSH_HOST` : Adresse IP ou nom de domaine de votre serveur.
 - `SSH_USER` : Utilisateur SSH.
-- `SSH_KEY` : Clé privée SSH (doit avoir accès au serveur).
+- `SSH_PASSWORD` : Mot de passe SSH.
 - `SSH_PATH` : Chemin cible sur le serveur (ex: `/home/user/app`).
 - `SSH_PORT` : (Optionnel) Port SSH, défaut 22.
 
