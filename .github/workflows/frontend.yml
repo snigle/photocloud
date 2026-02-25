@@ -36,8 +36,6 @@ jobs:
         run: yarn test
 
       - name: Publish update
-        if: github.event_name == 'push' && env.HAS_EXPO_TOKEN == 'true'
+        if: github.event_name == 'push' && secrets.EXPO_TOKEN != ''
         working-directory: frontend
-        env:
-          HAS_EXPO_TOKEN: ${{ secrets.EXPO_TOKEN != '' }}
         run: eas update --auto --branch ${{ github.ref_name }}

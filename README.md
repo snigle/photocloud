@@ -80,9 +80,17 @@ Le frontend est organisé en Clean Architecture :
 Le projet inclut des workflows GitHub Actions pour le déploiement automatique.
 
 ### Backend (Go)
-Le backend est automatiquement testé et déployé sous forme d'image Docker sur GitHub Container Registry (GHCR).
+Le backend est automatiquement testé et déployé sous forme de binaire statique (`photocloud`) via SSH.
 - Workflow : `.github/workflows/backend.yml`
-- Image : `ghcr.io/<votre-repo>-backend:<branch>`
+- Déploiement : Automatique sur `main`/`master`, manuel sur les autres branches via `Actions > Backend CI/CD > Run workflow`.
+
+#### Configuration SSH (Backend)
+Ajoutez les secrets suivants sur GitHub pour permettre le déploiement :
+- `SSH_HOST` : Adresse IP ou nom de domaine de votre serveur.
+- `SSH_USER` : Utilisateur SSH.
+- `SSH_KEY` : Clé privée SSH (doit avoir accès au serveur).
+- `SSH_PATH` : Chemin cible sur le serveur (ex: `/home/user/app`).
+- `SSH_PORT` : (Optionnel) Port SSH, défaut 22.
 
 ### Frontend (Expo)
 Le frontend est automatiquement testé et déployé via Expo EAS Update sur la branche correspondante.
