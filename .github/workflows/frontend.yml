@@ -57,7 +57,19 @@ jobs:
             echo "EAS project not initialized or no access. Skipping update."
           fi
 
-      - name: Publish update
-        if: github.event_name == 'push' && env.EXPO_TOKEN != '' && steps.check-config.outputs.configured == 'true'
+      # - name: Publish update
+      #   if: github.event_name == 'push' && env.EXPO_TOKEN != '' && steps.check-config.outputs.configured == 'true'
+      #   working-directory: frontend
+      #   run: eas update --auto --branch ${{ github.ref_name }}
+
+      - name: Build Web
         working-directory: frontend
-        run: eas update --auto --branch ${{ github.ref_name }}
+        env:
+          EXPO_PUBLIC_API_URL: ${{ env.EXPO_PUBLIC_API_URL }}
+        run: npx expo export --platform web
+
+      - name: Deploy Web to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: frontend/dist # Le dossier généré par expo export
+          branch: gh-pages # La branche où le site web sera hébergé

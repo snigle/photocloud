@@ -17,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/ovh/go-ovh/ovh"
+		"github.com/ovh/go-ovh/ovh"
 	"github.com/rs/cors"
 	"github.com/snigle/photocloud/internal/domain"
 	"github.com/snigle/photocloud/internal/infra/auth"
