@@ -41,11 +41,11 @@ jobs:
         id: check-config
         working-directory: frontend
         run: |
-          if grep -q "projectId" app.json; then
+          if npx eas project:info > /dev/null 2>&1; then
             echo "configured=true" >> $GITHUB_OUTPUT
           else
             echo "configured=false" >> $GITHUB_OUTPUT
-            echo "EAS project not initialized. Skipping update."
+            echo "EAS project not initialized or no access. Skipping update."
           fi
 
       - name: Publish update

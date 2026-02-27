@@ -2,7 +2,7 @@ name: Backend CI/CD
 
 on:
   push:
-    branches: [ "**" ]
+    branches: [ "master", "main", "2026" ]
   workflow_dispatch:
 
 jobs:
