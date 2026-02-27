@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_PUBLIC_API_URL: https://photocloud.alwaysdata.net
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
