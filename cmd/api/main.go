@@ -2,21 +2,15 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-webauthn/webauthn/webauthn"
 		"github.com/ovh/go-ovh/ovh"
 	"github.com/rs/cors"
@@ -46,8 +40,6 @@ func main() {
 	projectID := os.Getenv("OVH_PROJECT_ID")
 	region := os.Getenv("OVH_REGION")
 	bucket := os.Getenv("OVH_S3_BUCKET")
-	s3AccessKey := os.Getenv("S3_ACCESS_KEY")
-	s3SecretKey := os.Getenv("S3_SECRET_KEY")
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
 
 	// Email config
@@ -89,30 +81,7 @@ func main() {
 		log.Fatalf("Failed to create OVH client: %v", err)
 	}
 
-	// S3 Client for internal use (admin access to bucket for passkeys/metadata)
-	s3Endpoint := fmt.Sprintf("https://s3.%s.io.cloud.ovh.net", region)
-
-	var cfg aws.Config
-	if s3AccessKey != "" && s3SecretKey != "" {
-		cfg, err = config.LoadDefaultConfig(context.Background(),
-			config.WithRegion(region),
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(s3AccessKey, s3SecretKey, "")),
-		)
-	} else {
-		log.Printf("Warning: S3_ACCESS_KEY and S3_SECRET_KEY not set, falling back to default config")
-		cfg, err = config.LoadDefaultConfig(context.Background(),
-			config.WithRegion(region),
-		)
-	}
-	if err != nil {
-		log.Fatalf("unable to load SDK config, %v", err)
-	}
-
-	s3AdminClient := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(s3Endpoint)
-	})
-
-	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket, s3AdminClient, masterKey)
+	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket, masterKey)
 	getS3CredsUseCase := usecase.NewGetS3CredentialsUseCase(storageRepo, storageRepo)
 
 	googleAuth := auth.NewGoogleAuthenticator(googleClientID)

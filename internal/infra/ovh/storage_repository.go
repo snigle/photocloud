@@ -10,6 +10,8 @@ import (
 	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/ovh/go-ovh/ovh"
 	"github.com/snigle/photocloud/internal/domain"
@@ -20,17 +22,15 @@ type StorageRepository struct {
 	projectID string
 	region    string
 	bucket    string
-	s3Client  *s3.Client
 	masterKey []byte
 }
 
-func NewStorageRepository(client *ovh.Client, projectID string, region string, bucket string, s3Client *s3.Client, masterKey []byte) *StorageRepository {
+func NewStorageRepository(client *ovh.Client, projectID string, region string, bucket string, masterKey []byte) *StorageRepository {
 	return &StorageRepository{
 		client:    client,
 		projectID: projectID,
 		region:    region,
 		bucket:    bucket,
-		s3Client:  s3Client,
 		masterKey: masterKey,
 	}
 }
@@ -154,14 +154,34 @@ type passkeyUserRecord struct {
 	Credentials []domain.PasskeyCredential `json:"credentials"`
 }
 
+func (r *StorageRepository) getS3ClientForUser(ctx context.Context, email string) (*s3.Client, error) {
+	creds, err := r.GetS3Credentials(ctx, email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user credentials: %w", err)
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(creds.Region),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(creds.AccessKey, creds.SecretKey, "")),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user S3 config: %w", err)
+	}
+
+	return s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(creds.Endpoint)
+	}), nil
+}
+
 func (r *StorageRepository) GetUser(ctx context.Context, email string) (domain.PasskeyUser, error) {
-	if r.s3Client == nil {
-		return nil, fmt.Errorf("s3 client not initialized")
+	s3Client, err := r.getS3ClientForUser(ctx, email)
+	if err != nil {
+		return nil, err
 	}
 
 	key := fmt.Sprintf("users/%s/config/passkeys.json", email)
 	algo, sseKey, sseKeyMD5 := r.getSSEParams()
-	output, err := r.s3Client.GetObject(ctx, &s3.GetObjectInput{
+	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket:               aws.String(r.bucket),
 		Key:                  aws.String(key),
 		SSECustomerAlgorithm: aws.String(algo),
@@ -170,7 +190,7 @@ func (r *StorageRepository) GetUser(ctx context.Context, email string) (domain.P
 	})
 	if err != nil {
 		// Fallback for transition: try without SSE-C if it fails
-		outputPlain, errPlain := r.s3Client.GetObject(ctx, &s3.GetObjectInput{
+		outputPlain, errPlain := s3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(r.bucket),
 			Key:    aws.String(key),
 		})
@@ -200,8 +220,9 @@ func (r *StorageRepository) GetUser(ctx context.Context, email string) (domain.P
 }
 
 func (r *StorageRepository) SaveUser(ctx context.Context, email string, user domain.PasskeyUser) error {
-	if r.s3Client == nil {
-		return fmt.Errorf("s3 client not initialized")
+	s3Client, err := r.getS3ClientForUser(ctx, email)
+	if err != nil {
+		return err
 	}
 
 	record := passkeyUserRecord{
@@ -216,7 +237,7 @@ func (r *StorageRepository) SaveUser(ctx context.Context, email string, user dom
 
 	key := fmt.Sprintf("users/%s/config/passkeys.json", email)
 	algo, sseKey, sseKeyMD5 := r.getSSEParams()
-	_, err = r.s3Client.PutObject(ctx, &s3.PutObjectInput{
+	_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:               aws.String(r.bucket),
 		Key:                  aws.String(key),
 		Body:                 bytes.NewReader(data),
@@ -232,13 +253,14 @@ func (r *StorageRepository) SaveUser(ctx context.Context, email string, user dom
 }
 
 func (r *StorageRepository) GetUserKey(ctx context.Context, email string) ([]byte, error) {
-	if r.s3Client == nil {
-		return nil, fmt.Errorf("s3 client not initialized")
+	s3Client, err := r.getS3ClientForUser(ctx, email)
+	if err != nil {
+		return nil, err
 	}
 
 	key := fmt.Sprintf("users/%s/secret.key", email)
 	algo, sseKey, sseKeyMD5 := r.getSSEParams()
-	output, err := r.s3Client.GetObject(ctx, &s3.GetObjectInput{
+	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket:               aws.String(r.bucket),
 		Key:                  aws.String(key),
 		SSECustomerAlgorithm: aws.String(algo),
@@ -254,13 +276,14 @@ func (r *StorageRepository) GetUserKey(ctx context.Context, email string) ([]byt
 }
 
 func (r *StorageRepository) SaveUserKey(ctx context.Context, email string, userKey []byte) error {
-	if r.s3Client == nil {
-		return fmt.Errorf("s3 client not initialized")
+	s3Client, err := r.getS3ClientForUser(ctx, email)
+	if err != nil {
+		return err
 	}
 
 	key := fmt.Sprintf("users/%s/secret.key", email)
 	algo, sseKey, sseKeyMD5 := r.getSSEParams()
-	_, err := r.s3Client.PutObject(ctx, &s3.PutObjectInput{
+	_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:               aws.String(r.bucket),
 		Key:                  aws.String(key),
 		Body:                 bytes.NewReader(userKey),

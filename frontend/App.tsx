@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { PaperProvider, ActivityIndicator, MD3LightTheme } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
@@ -21,17 +21,21 @@ const theme = {
 };
 
 const authRepo = new AuthRepository();
-const authUseCase = new AuthUseCase(authRepo);
 
 export default function App() {
   const { session, loading, login, logout } = useAuth();
+  const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
+  const processedTokens = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       const { queryParams } = Linking.parse(event.url);
-      if (queryParams?.token) {
+      const token = queryParams?.token as string;
+
+      if (token && !processedTokens.current.has(token)) {
+        processedTokens.current.add(token);
         try {
-          const response = await authUseCase.validateMagicLink(queryParams.token as string);
+          const response = await authUseCase.validateMagicLink(token);
           login(response, response.email);
           // Clear URL params to avoid reload loops
           if (typeof window !== 'undefined' && window.history) {
@@ -39,6 +43,7 @@ export default function App() {
           }
         } catch (e) {
           console.error('Failed to validate magic link from URL', e);
+          processedTokens.current.delete(token); // Allow retry on failure
         }
       }
     };
