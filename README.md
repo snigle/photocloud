@@ -74,3 +74,34 @@ Le frontend est organisé en Clean Architecture :
 - `src/infra` : Implémentations des repositories (API, S3).
 - `src/usecase` : Logique métier (Auth, Gallery).
 - `src/react` : Hooks, Screens et Composants UI.
+
+## 6. CI/CD (GitHub Actions)
+
+Le projet inclut des workflows GitHub Actions pour le déploiement automatique.
+
+### Backend (Go)
+Le backend est automatiquement testé et déployé sous forme de binaire statique (`photocloud`) via SSH.
+- Workflow : `.github/workflows/backend.yml`
+- Déploiement : Automatique sur `main`/`master`/`2026`, manuel sur les autres branches via `Actions > Backend CI/CD > Run workflow`.
+
+#### Configuration SSH (Backend)
+Ajoutez les secrets suivants sur GitHub pour permettre le déploiement :
+- `SSH_HOST` : Adresse IP ou nom de domaine de votre serveur.
+- `SSH_USER` : Utilisateur SSH.
+- `SSH_PASSWORD` : Mot de passe SSH.
+- `SSH_PATH` : Chemin cible sur le serveur (ex: `/home/user/app`).
+- `SSH_PORT` : (Optionnel) Port SSH, défaut 22.
+
+### Frontend (Expo)
+Le frontend est automatiquement testé et déployé via Expo EAS Update sur la branche correspondante.
+- Workflow : `.github/workflows/frontend.yml`
+
+#### Configuration Requise
+Pour que le déploiement Expo fonctionne, vous devez ajouter le secret suivant sur GitHub (`Settings > Secrets and variables > Actions`) :
+- `EXPO_TOKEN` : Votre jeton d'accès personnel Expo (généré sur [expo.dev](https://expo.dev/settings/access-tokens)).
+
+Vous devez également avoir initialisé EAS dans le dossier `frontend` :
+```bash
+cd frontend
+eas init --id <votre-project-id>
+```
