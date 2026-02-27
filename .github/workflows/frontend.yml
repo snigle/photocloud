@@ -37,9 +37,17 @@ jobs:
         working-directory: frontend
         run: yarn test
 
+      - name: Debug EAS Info
+        working-directory: frontend
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas project:info
+
       - name: Check project configuration
         id: check-config
         working-directory: frontend
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if npx eas project:info > /dev/null 2>&1; then
             echo "configured=true" >> $GITHUB_OUTPUT
