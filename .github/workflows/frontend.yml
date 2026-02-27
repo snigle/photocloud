@@ -68,6 +68,9 @@ jobs:
           EXPO_PUBLIC_API_URL: ${{ env.EXPO_PUBLIC_API_URL }}
         run: npx expo export --platform web
 
+      - name: Add .nojekyll
+        run: touch frontend/dist/.nojekyll 
+
       - name: Deploy Web to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
