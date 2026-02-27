@@ -42,7 +42,7 @@ jobs:
         working-directory: frontend
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: npx eas project:info
+        run: eas project:info
 
       - name: Check project configuration
         id: check-config
@@ -50,7 +50,7 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          if npx eas project:info > /dev/null 2>&1; then
+          if eas project:info > /dev/null 2>&1; then
             echo "configured=true" >> $GITHUB_OUTPUT
           else
             echo "configured=false" >> $GITHUB_OUTPUT
