@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -24,6 +25,9 @@ import (
 )
 
 func main() {
+	hostFlag := flag.String("host", "", "HTTP server address (e.g. [::]:8100)")
+	flag.Parse()
+
 	// Load configuration from environment
 	endpoint := os.Getenv("OVH_ENDPOINT")
 	appKey := os.Getenv("OVH_APPLICATION_KEY")
@@ -237,6 +241,11 @@ func main() {
 		port = "8080"
 	}
 
+	addr := *hostFlag
+	if addr == "" {
+		addr = ":" + port
+	}
+
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -246,8 +255,8 @@ func main() {
 
 	handler := c.Handler(http.DefaultServeMux)
 
-	log.Printf("Server starting on port %s", port)
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
+	log.Printf("Server starting on %s", addr)
+	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatal(err)
 	}
 }
