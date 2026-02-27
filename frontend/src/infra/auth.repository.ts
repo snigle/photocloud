@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { IAuthRepository, AuthResponse, S3Credentials } from '../domain/types';
 
-const API_URL = 'http://localhost:8080';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
 
 export class AuthRepository implements IAuthRepository {
   async devLogin(): Promise<AuthResponse> {
