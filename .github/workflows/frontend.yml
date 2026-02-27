@@ -37,7 +37,18 @@ jobs:
         working-directory: frontend
         run: yarn test
 
+      - name: Check project configuration
+        id: check-config
+        working-directory: frontend
+        run: |
+          if grep -q "projectId" app.json; then
+            echo "configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "EAS project not initialized. Skipping update."
+          fi
+
       - name: Publish update
-        if: github.event_name == 'push' && env.EXPO_TOKEN != ''
+        if: github.event_name == 'push' && env.EXPO_TOKEN != '' && steps.check-config.outputs.configured == 'true'
         working-directory: frontend
         run: eas update --auto --branch ${{ github.ref_name }}
