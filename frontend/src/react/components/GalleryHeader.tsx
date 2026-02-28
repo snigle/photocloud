@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator } from 'react-native';
 import { Appbar, useTheme } from 'react-native-paper';
-import { LogOut, RefreshCw, Upload, X, Trash2 } from 'lucide-react-native';
+import { LogOut, RefreshCw, Upload, X, Trash2, Menu } from 'lucide-react-native';
 
 interface GalleryHeaderProps {
     selectedCount: number;
@@ -13,6 +13,7 @@ interface GalleryHeaderProps {
     onUpload: () => void;
     onRefresh: () => void;
     onLogout: () => void;
+    onMenu?: () => void;
 }
 
 export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
@@ -40,6 +41,7 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
 
     return (
         <Appbar.Header elevated>
+            {onMenu && <Appbar.Action icon={() => <Menu size={24} color={theme.colors.onSurface} />} onPress={onMenu} />}
             <Appbar.Content
                 title="PhotoCloud"
                 subtitle={uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`}

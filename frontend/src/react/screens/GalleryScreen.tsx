@@ -18,9 +18,10 @@ interface Props {
   creds: S3Credentials;
   email: string;
   onLogout: () => void;
+  onMenu?: () => void;
 }
 
-const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
+const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
   const theme = useTheme();
   const { width } = useWindowDimensions();
   const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
@@ -199,6 +200,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout }) => {
         onUpload={handleUpload}
         onRefresh={refresh}
         onLogout={onLogout}
+        onMenu={onMenu}
       />
 
       {uploading && progress && (

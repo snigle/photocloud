@@ -27,6 +27,17 @@ export interface UploadedPhoto extends BasePhoto {
 
 export type Photo = LocalPhoto | UploadedPhoto;
 
+export interface Folder {
+  id: string;
+  title: string;
+  count: number;
+  lastPhoto?: Photo;
+}
+
+export interface SyncSettings {
+  enabledFolders: string[];
+}
+
 export interface UserSession {
   creds: S3Credentials;
   email: string;
@@ -65,6 +76,8 @@ export interface IS3Repository {
 
 export interface ILocalGalleryRepository {
   listLocalPhotos(): Promise<LocalPhoto[]>;
+  listFolders(): Promise<Folder[]>;
+  getPhotosByFolder(folderId: string, limit?: number): Promise<LocalPhoto[]>;
   saveToCache(photos: Photo[]): Promise<void>;
   savePhoto(photo: Photo): Promise<void>;
   loadFromCache(limit?: number, offset?: number): Promise<Photo[]>;
