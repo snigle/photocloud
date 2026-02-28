@@ -66,7 +66,10 @@ jobs:
         working-directory: frontend
         env:
           EXPO_PUBLIC_API_URL: ${{ env.EXPO_PUBLIC_API_URL }}
-        run: npx expo export --platform web
+          EXPO_PUBLIC_VERSION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          SHORT_SHA=$(echo "${EXPO_PUBLIC_VERSION}" | cut -c1-7)
+          EXPO_PUBLIC_VERSION=${SHORT_SHA} npx expo export --platform web
 
       - name: Add .nojekyll
         run: touch frontend/dist/.nojekyll 

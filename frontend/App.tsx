@@ -29,17 +29,23 @@ export default function App() {
 
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
-      const { queryParams } = Linking.parse(event.url);
+      console.log('Handling deep link URL:', event.url);
+      const { queryParams, path, hostname, scheme } = Linking.parse(event.url);
+      console.log('Parsed URL details:', { scheme, hostname, path, queryParams });
+
       const token = queryParams?.token as string;
 
       if (token && !processedTokens.current.has(token)) {
+        console.log('Validating magic link token:', token.substring(0, 10) + '...');
         processedTokens.current.add(token);
         try {
           const response = await authUseCase.validateMagicLink(token);
+          console.log('Magic link validated successfully for:', response.email);
           login(response, response.email);
           // Clear URL params to avoid reload loops
           if (typeof window !== 'undefined' && window.history) {
-            window.history.replaceState({}, '', '/');
+            const cleanUrl = window.location.pathname + window.location.search.replace(/[?&]token=[^&]+/, '').replace(/^&/, '?');
+            window.history.replaceState({}, '', cleanUrl);
           }
         } catch (e) {
           console.error('Failed to validate magic link from URL', e);
@@ -52,6 +58,7 @@ export default function App() {
 
     // Check if app was opened with a link
     Linking.getInitialURL().then((url) => {
+      console.log('App initial URL:', url);
       if (url) handleDeepLink({ url });
     });
 

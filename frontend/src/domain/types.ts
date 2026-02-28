@@ -45,6 +45,7 @@ export interface IAuthRepository {
   finishPasskeyRegistration(email: string, credential: any): Promise<void>;
   beginPasskeyLogin(email: string): Promise<any>;
   finishPasskeyLogin(email: string, credential: any): Promise<AuthResponse>;
+  getVersion(): Promise<string>;
 }
 
 export interface IS3Repository {

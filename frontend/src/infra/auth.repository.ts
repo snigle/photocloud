@@ -62,4 +62,10 @@ export class AuthRepository implements IAuthRepository {
     if (!response.ok) throw new Error('Failed to finish passkey login');
     return await response.json();
   }
+
+  async getVersion(): Promise<string> {
+    const response = await fetch(`${API_URL}/version`);
+    if (!response.ok) return 'unknown';
+    return await response.text();
+  }
 }

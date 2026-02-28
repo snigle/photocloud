@@ -53,6 +53,10 @@ export class AuthUseCase {
     return await this.authRepo.finishPasskeyLogin(email, credential);
   }
 
+  async getVersion(): Promise<string> {
+    return await this.authRepo.getVersion();
+  }
+
   private prepareOptions(options: any) {
     const newOptions = { ...options };
     if (newOptions.challenge) newOptions.challenge = this.bufferFromBase64(newOptions.challenge);
