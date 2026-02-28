@@ -60,4 +60,4 @@ jobs:
           script: |
             chmod +x ${{ secrets.SSH_PATH }}/photocloud.new
             mv ${{ secrets.SSH_PATH }}/photocloud.new ${{ secrets.SSH_PATH }}/photocloud
-            pkill -f photocloud || true
+            pkill photocloud || true
