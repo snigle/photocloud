@@ -29,11 +29,23 @@ Structure basée sur les Hooks et les Services :
 - `/src/components` : Composants "idiots" (Dumb Components) qui ne font que l'affichage.
 - `/src/screens` : Assemblage des hooks et des composants.
 
-## 4. Règles de Débugging & Logs
+## 4. Workflow de Développement de Feature
+1. **Conception :** Définir les interfaces du domaine avant l'implémentation.
+2. **Implémentation Backend :** Créer le UseCase et ses tests unitaires.
+3. **Implémentation Frontend :** Créer les hooks et les composants.
+4. **Tests E2E :** Chaque nouvel écran ou flux majeur doit avoir un test Playwright dans `frontend/e2e/`. Ces tests doivent inclure des captures d'écran (`page.screenshot()`) pour valider l'UI.
+
+## 5. Stratégie de Test
+- **Tests Unitaires (Go/Jest) :** Logique métier pure, calculs, transformations de données.
+- **Tests d'Intégration :** Vérification des contrats d'interface (ex: Repository vers S3 mocké).
+- **Tests E2E (Playwright) :** Parcours utilisateur complets sur le Web. Obligatoires pour chaque PR impactant l'UI. Les screenshots sont archivés en tant qu'artifacts CI.
+
+## 6. Qualité de Code & "Clean Architecture"
+- Respecter strictement la séparation Domain/UseCase/Infra.
+- Le dossier `domain` ne doit jamais importer de code provenant de `infra` ou `usecase`.
+- Favoriser la composition et l'injection de dépendances pour faciliter le mocking.
+
+## 7. Règles de Débugging & Logs
 - **Erreurs explicites :** En Go, ne jamais ignorer une erreur. En React, utiliser des Error Boundaries.
 - **Logs structurés :** Inclure l'ID de l'utilisateur et l'action en cours dans les logs, mais JAMAIS de secrets (SecretKeys, Tokens).
 - **Stateless :** Le backend doit rester stateless. Tout état nécessaire doit être passé via le JWT ou lu sur S3.
-
-## 5. Standards de Test
-- **Unit Tests :** Obligatoires pour chaque logique de calcul de signature ou de parsing de l'index JSON.
-- **Integration Tests :** Uniquement pour vérifier la connexion réelle au bucket S3 de test.

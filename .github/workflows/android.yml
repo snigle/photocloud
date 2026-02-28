@@ -1,0 +1,48 @@
+name: Android Build
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Build Android APK
+        if: env.EXPO_TOKEN != ''
+        working-directory: frontend
+        run: |
+          eas build --platform android --profile preview --local --non-interactive --output build-android.apk
+
+      - name: Upload APK
+        if: env.EXPO_TOKEN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: photocloud-android-apk
+          path: frontend/build-android.apk
