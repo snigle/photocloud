@@ -2,20 +2,15 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-webauthn/webauthn/webauthn"
 		"github.com/ovh/go-ovh/ovh"
 	"github.com/rs/cors"
@@ -86,19 +81,7 @@ func main() {
 		log.Fatalf("Failed to create OVH client: %v", err)
 	}
 
-	// S3 Client for internal use (admin access to bucket for passkeys/metadata)
-	s3Endpoint := fmt.Sprintf("https://s3.%s.io.cloud.ovh.net", region)
-	cfg, err := config.LoadDefaultConfig(context.Background(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		log.Fatalf("unable to load SDK config, %v", err)
-	}
-	s3AdminClient := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(s3Endpoint)
-	})
-
-	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket, s3AdminClient, masterKey)
+	storageRepo := ovhinfra.NewStorageRepository(ovhClient, projectID, region, bucket, masterKey)
 	getS3CredsUseCase := usecase.NewGetS3CredentialsUseCase(storageRepo, storageRepo)
 
 	googleAuth := auth.NewGoogleAuthenticator(googleClientID)
