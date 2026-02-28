@@ -75,6 +75,7 @@ jobs:
         run: touch frontend/dist/.nojekyll 
 
       - name: Deploy Web to GitHub Pages
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/2026')
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: frontend/dist # Le dossier généré par expo export
