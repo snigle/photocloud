@@ -27,6 +27,8 @@ describe('GalleryUseCase', () => {
     };
     mockLocalRepo = {
       listLocalPhotos: jest.fn(),
+      listFolders: jest.fn(),
+      getPhotosByFolder: jest.fn(),
       saveToCache: jest.fn(),
       savePhoto: jest.fn(),
       loadFromCache: jest.fn(),

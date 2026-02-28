@@ -20,8 +20,8 @@ export default defineConfig({
   ],
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'npx expo export --platform web && npx serve -s dist -l 8081',
-    url: 'http://localhost:8081',
+    command: 'npx expo export --platform web && python3 -m http.server 8081 --directory dist',
+    url: 'http://localhost:8081/index.html',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
