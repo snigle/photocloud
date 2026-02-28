@@ -33,13 +33,16 @@ export default function App() {
       const token = queryParams?.token as string;
 
       if (token && !processedTokens.current.has(token)) {
+        console.log('Validating magic link token:', token.substring(0, 10) + '...');
         processedTokens.current.add(token);
         try {
           const response = await authUseCase.validateMagicLink(token);
+          console.log('Magic link validated successfully for:', response.email);
           login(response, response.email);
           // Clear URL params to avoid reload loops
           if (typeof window !== 'undefined' && window.history) {
-            window.history.replaceState({}, '', '/');
+            const cleanUrl = window.location.pathname + window.location.search.replace(/[?&]token=[^&]+/, '').replace(/^&/, '?');
+            window.history.replaceState({}, '', cleanUrl);
           }
         } catch (e) {
           console.error('Failed to validate magic link from URL', e);

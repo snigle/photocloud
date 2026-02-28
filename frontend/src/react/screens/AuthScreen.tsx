@@ -20,6 +20,11 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase }) => {
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backendVersion, setBackendVersion] = useState<string>('...');
+
+  useEffect(() => {
+    authUseCase.getVersion().then(setBackendVersion).catch(() => setBackendVersion('error'));
+  }, [authUseCase]);
 
   // Google Auth
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -210,6 +215,12 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase }) => {
         </Card>
 
         {loading && <ActivityIndicator animating={true} style={{ marginTop: 20 }} />}
+
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>
+            v-front: {process.env.EXPO_PUBLIC_VERSION || 'dev'} | v-back: {backendVersion}
+          </Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -280,6 +291,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
     color: '#999',
     fontSize: 12,
+  },
+  versionContainer: {
+    marginTop: 30,
+    alignItems: 'center',
+    opacity: 0.5,
+  },
+  versionText: {
+    fontSize: 10,
+    color: '#666',
   },
 });
 

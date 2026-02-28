@@ -17,7 +17,9 @@ jobs:
       - name: Test
         run: go test ./...
       - name: Build Binary
-        run: CGO_ENABLED=0 GOOS=linux go build -o photocloud ./cmd/api/main.go
+        run: |
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.Version=${COMMIT_HASH}" -o photocloud ./cmd/api/main.go
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
         with:

@@ -21,6 +21,8 @@ import (
 	"github.com/snigle/photocloud/internal/usecase"
 )
 
+var Version = "dev"
+
 func main() {
 	hostFlag := flag.String("host", "", "HTTP server address (e.g. [::]:8100)")
 	envFlag := flag.String("env", "", "Path to .env file")
@@ -196,6 +198,10 @@ func main() {
 		sessionData, _ := json.Marshal(session)
 		http.SetCookie(w, &http.Cookie{Name: "webauthn_session", Value: string(sessionData), Path: "/"})
 		json.NewEncoder(w).Encode(options)
+	})
+
+	http.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(Version))
 	})
 
 	http.HandleFunc("/auth/passkey/login/finish", func(w http.ResponseWriter, r *http.Request) {
