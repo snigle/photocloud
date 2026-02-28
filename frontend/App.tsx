@@ -29,7 +29,10 @@ export default function App() {
 
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
-      const { queryParams } = Linking.parse(event.url);
+      console.log('Handling deep link URL:', event.url);
+      const { queryParams, path, hostname, scheme } = Linking.parse(event.url);
+      console.log('Parsed URL details:', { scheme, hostname, path, queryParams });
+
       const token = queryParams?.token as string;
 
       if (token && !processedTokens.current.has(token)) {
@@ -55,6 +58,7 @@ export default function App() {
 
     // Check if app was opened with a link
     Linking.getInitialURL().then((url) => {
+      console.log('App initial URL:', url);
       if (url) handleDeepLink({ url });
     });
 
