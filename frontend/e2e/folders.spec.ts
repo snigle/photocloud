@@ -19,7 +19,8 @@ test.describe('Folders Screen', () => {
           endpoint: 'https://mock-s3.example.com',
           region: 'mock-region',
           bucket: 'mock-bucket',
-          email: 'dev@photocloud.local'
+          email: 'dev@photocloud.local',
+          user_key: 'mock-user-key'
         })
       });
     });
