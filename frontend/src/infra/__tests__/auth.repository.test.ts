@@ -39,6 +39,18 @@ describe('AuthRepository', () => {
     expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/auth/magic-link/request?email=test@example.com`);
   });
 
+  it('should request magic link with redirect url', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true
+    });
+
+    const redirectUrl = 'photocloud://callback';
+    await authRepo.requestMagicLink('test@example.com', redirectUrl);
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${API_URL}/auth/magic-link/request?email=test@example.com&redirect_url=${encodeURIComponent(redirectUrl)}`
+    );
+  });
+
   it('should throw error on failed login', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: false

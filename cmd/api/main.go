@@ -131,6 +131,7 @@ func main() {
 	// 2. Magic Link
 	http.HandleFunc("/auth/magic-link/request", func(w http.ResponseWriter, r *http.Request) {
 		email := r.URL.Query().Get("email")
+		redirectURL := r.URL.Query().Get("redirect_url")
 		token, err := magicLinkAuth.GenerateToken(r.Context(), email)
 		if err != nil {
 			http.Error(w, "Internal error", http.StatusInternalServerError)
@@ -141,7 +142,33 @@ func main() {
 		if frontendURL == "" {
 			frontendURL = "http://localhost:8081" // Expo web default
 		}
-		body := "Click here to login: " + frontendURL + "/?token=" + token
+
+		// Security: Validate redirectURL to prevent open redirect vulnerabilities
+		if redirectURL != "" {
+			isValid := false
+			// Check if it matches exactly or is a subpath of authorized origins
+			allowedOrigins := []string{frontendURL, "photocloud://", "http://localhost:8081", "exp://"}
+			for _, origin := range allowedOrigins {
+				if redirectURL == origin || strings.HasPrefix(redirectURL, origin+"/") || strings.HasPrefix(redirectURL, origin+"?") {
+					isValid = true
+					break
+				}
+			}
+
+			if !isValid {
+				http.Error(w, "Invalid redirect_url", http.StatusBadRequest)
+				return
+			}
+		} else {
+			redirectURL = frontendURL
+		}
+
+		sep := "?"
+		if strings.Contains(redirectURL, "?") {
+			sep = "&"
+		}
+
+		body := "Click here to login: " + redirectURL + sep + "token=" + token
 		err = emailSender.SendEmail(r.Context(), email, "Your Magic Link", body)
 		if err != nil {
 			http.Error(w, "Failed to send email", http.StatusInternalServerError)
