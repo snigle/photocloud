@@ -13,7 +13,6 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/ovh/go-ovh/ovh"
 	"github.com/rs/cors"
-	"github.com/snigle/photocloud/internal/domain"
 	"github.com/snigle/photocloud/internal/infra/auth"
 	"github.com/snigle/photocloud/internal/infra/email"
 	ovhinfra "github.com/snigle/photocloud/internal/infra/ovh"
@@ -103,16 +102,15 @@ func main() {
 	}
 
 	// Handlers
-	http.HandleFunc("/auth/dev", handleDevAuth(devAuth, getS3CredsUseCase))
-	http.HandleFunc("/auth/google", handleGoogleAuth(googleAuth, getS3CredsUseCase))
-	http.HandleFunc("/auth/magic-link/request", handleMagicLinkRequest(magicLinkAuth, emailSender))
-	http.HandleFunc("/auth/magic-link/callback", handleMagicLinkCallback(magicLinkAuth, getS3CredsUseCase))
-	http.HandleFunc("/auth/passkey/register/begin", handlePasskeyRegisterBegin(webAuthn))
-	http.HandleFunc("/auth/passkey/register/finish", handlePasskeyRegisterFinish(webAuthn))
-	http.HandleFunc("/auth/passkey/login/begin", handlePasskeyLoginBegin(webAuthn))
-	http.HandleFunc("/auth/passkey/login/finish", handlePasskeyLoginFinish(webAuthn, getS3CredsUseCase))
-	http.HandleFunc("/version", handleVersion())
-	http.HandleFunc("/credentials", handleCredentials(getS3CredsUseCase))
+	RegisterHandlers(
+		http.DefaultServeMux,
+		devAuth,
+		googleAuth,
+		magicLinkAuth,
+		emailSender,
+		webAuthn,
+		getS3CredsUseCase,
+	)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -137,11 +135,6 @@ func main() {
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatal(err)
 	}
-}
-
-type AuthResponse struct {
-	*domain.S3Credentials
-	Email string `json:"email"`
 }
 
 func loadEnv(filename string) error {
