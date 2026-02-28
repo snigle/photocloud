@@ -23,6 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
+.expo/
+
 # Playwright
 playwright-report/
 test-results/
