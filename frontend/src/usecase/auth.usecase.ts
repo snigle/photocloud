@@ -13,8 +13,8 @@ export class AuthUseCase {
     return await this.authRepo.googleLogin(token);
   }
 
-  async requestMagicLink(email: string): Promise<void> {
-    await this.authRepo.requestMagicLink(email);
+  async requestMagicLink(email: string, redirectUrl?: string): Promise<void> {
+    await this.authRepo.requestMagicLink(email, redirectUrl);
   }
 
   async validateMagicLink(token: string): Promise<AuthResponse> {

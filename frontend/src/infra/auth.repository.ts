@@ -15,8 +15,12 @@ export class AuthRepository implements IAuthRepository {
     return await response.json();
   }
 
-  async requestMagicLink(email: string): Promise<void> {
-    const response = await fetch(`${API_URL}/auth/magic-link/request?email=${email}`);
+  async requestMagicLink(email: string, redirectUrl?: string): Promise<void> {
+    let url = `${API_URL}/auth/magic-link/request?email=${email}`;
+    if (redirectUrl) {
+      url += `&redirect_url=${encodeURIComponent(redirectUrl)}`;
+    }
+    const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to request magic link');
   }
 

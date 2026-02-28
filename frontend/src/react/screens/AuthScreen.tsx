@@ -3,6 +3,7 @@ import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 're
 import { Text, TextInput, Button, Card, Title, Paragraph, ActivityIndicator, Divider, useTheme, HelperText } from 'react-native-paper';
 import { Mail, Chrome, Code, Fingerprint } from 'lucide-react-native';
 import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import * as Google from 'expo-auth-session/providers/google';
 import type { S3Credentials } from '../../domain/types';
 import type { AuthUseCase } from '../../usecase/auth.usecase';
@@ -107,7 +108,8 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase }) => {
     setLoading(true);
     setError(null);
     try {
-      await authUseCase.requestMagicLink(email);
+      const redirectUrl = Linking.createURL('/');
+      await authUseCase.requestMagicLink(email, redirectUrl);
       setMagicLinkSent(true);
     } catch (err) {
       setError('Failed to send magic link');

@@ -30,10 +30,19 @@ export default function App() {
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       console.log('Handling deep link URL:', event.url);
-      const { queryParams, path, hostname, scheme } = Linking.parse(event.url);
+      const parsed = Linking.parse(event.url);
+      const { queryParams, path, hostname, scheme } = parsed;
       console.log('Parsed URL details:', { scheme, hostname, path, queryParams });
 
-      const token = queryParams?.token as string;
+      // Support token in query params or as the last part of the path
+      let token = queryParams?.token as string;
+      if (!token && path) {
+        const pathParts = path.split('/');
+        const lastPart = pathParts[pathParts.length - 1];
+        if (lastPart && lastPart.length > 20) { // Tokens are typically long JWTs
+          token = lastPart;
+        }
+      }
 
       if (token && !processedTokens.current.has(token)) {
         console.log('Validating magic link token:', token.substring(0, 10) + '...');
