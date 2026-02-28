@@ -24,6 +24,9 @@ import (
 var Version = "dev"
 
 func main() {
+	// Disable AWS SDK EC2 IMDS lookup to avoid timeouts on Alwaysdata (non-AWS environment)
+	os.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+
 	hostFlag := flag.String("host", "", "HTTP server address (e.g. [::]:8100)")
 	envFlag := flag.String("env", "", "Path to .env file")
 	flag.Parse()

@@ -170,6 +170,9 @@ func (r *StorageRepository) getS3ClientForUser(ctx context.Context, email string
 
 	return s3.NewFromConfig(cfg, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(creds.Endpoint)
+		o.Region = creds.Region
+		o.Credentials = credentials.NewStaticCredentialsProvider(creds.AccessKey, creds.SecretKey, "")
+		o.UsePathStyle = true
 	}), nil
 }
 
