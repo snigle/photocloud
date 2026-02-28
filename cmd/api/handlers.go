@@ -39,7 +39,6 @@ func RegisterHandlers(
 	mux.HandleFunc("/auth/passkey/login/finish", handlePasskeyLoginFinish(webAuthn, getS3CredsUseCase))
 	mux.HandleFunc("/version", handleVersion())
 	mux.HandleFunc("/credentials", handleCredentials(getS3CredsUseCase))
-	mux.HandleFunc("/login", handleLoginBridge())
 }
 
 func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.GetS3CredentialsUseCase) http.HandlerFunc {
@@ -98,70 +97,25 @@ func handleMagicLinkRequest(magicLinkAuth *auth.MagicLinkAuthenticator, emailSen
 			return
 		}
 
-		// If we're on mobile, we want to use an HTTPS bridge that redirects to the app scheme
-		// This ensures that even if the email client strips the custom scheme, the user can still open the app.
-		// The bridge URL should be our production API URL.
-		apiURL := os.Getenv("API_URL")
-		if apiURL == "" {
-			apiURL = "https://photocloud.alwaysdata.net"
+		// The user confirmed that photocloud.ovh is the frontend URL.
+		// We use it for the login link.
+		frontendURL := os.Getenv("FRONTEND_URL")
+		if frontendURL == "" {
+			frontendURL = "https://photocloud.ovh"
 		}
 
-		bridgeURL := fmt.Sprintf("%s/login?token=%s", apiURL, token)
+		loginURL := fmt.Sprintf("%s/login?token=%s", frontendURL, token)
 		if redirectURL != "" {
-			bridgeURL += fmt.Sprintf("&redirect_url=%s", redirectURL)
+			loginURL += fmt.Sprintf("&redirect_url=%s", redirectURL)
 		}
 
-		body := fmt.Sprintf(email.MagicLinkEmailTemplate, bridgeURL, bridgeURL)
+		body := fmt.Sprintf(email.MagicLinkEmailTemplate, loginURL, loginURL)
 		err = emailSender.SendEmail(r.Context(), emailAddr, "Lien de connexion Photo Cloud", body)
 		if err != nil {
 			http.Error(w, "Failed to send email", http.StatusInternalServerError)
 			return
 		}
 		w.Write([]byte("Email sent"))
-	}
-}
-
-func handleLoginBridge() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		token := r.URL.Query().Get("token")
-		redirectURL := r.URL.Query().Get("redirect_url")
-		if redirectURL == "" {
-			redirectURL = "photocloud://"
-		}
-
-		sep := "?"
-		if strings.Contains(redirectURL, "?") {
-			sep = "&"
-		}
-
-		appLink := fmt.Sprintf("%s%stoken=%s", redirectURL, sep, token)
-
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ouverture de Photo Cloud...</title>
-    <style>
-        body { font-family: sans-serif; text-align: center; padding-top: 50px; }
-        .button { display: inline-block; padding: 10px 20px; background: #6200ee; color: white; text-decoration: none; border-radius: 5px; }
-    </style>
-</head>
-<body>
-    <p>Redirection vers l'application Photo Cloud...</p>
-    <a href="%s" class="button">Ouvrir l'application</a>
-    <script>
-        window.location.href = "%s";
-        setTimeout(function() {
-            // Fallback if the redirect didn't happen (e.g. app not installed)
-            // document.body.innerHTML += '<p style="margin-top:20px; color:red;">Si l\'application ne s\'est pas ouverte, assurez-vous qu\'elle est installée.</p>';
-        }, 2000);
-    </script>
-</body>
-</html>
-`, appLink, appLink)
 	}
 }
 

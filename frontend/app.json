@@ -33,7 +33,7 @@
           "data": [
             {
               "scheme": "https",
-              "host": "photocloud.alwaysdata.net",
+              "host": "photocloud.ovh",
               "pathPrefix": "/login"
             }
           ],
