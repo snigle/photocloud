@@ -29,13 +29,15 @@ jobs:
   deploy:
     needs: test-and-build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/2026' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Download Binary Artifact
         uses: actions/download-artifact@v4
         with:
           name: photocloud-binary
           path: .
+
+      - name: Rename binary for deployment
+        run: mv photocloud photocloud.new
 
       - name: Deploy Binary via SCP
         uses: appleboy/scp-action@v0.1.7
@@ -44,15 +46,18 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          source: "photocloud"
+          source: "photocloud.new"
           target: ${{ secrets.SSH_PATH }}
           overwrite: true
 
-      - name: Make binary executable
+      - name: Atomic replace and restart
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          script: chmod +x ${{ secrets.SSH_PATH }}/photocloud
+          script: |
+            chmod +x ${{ secrets.SSH_PATH }}/photocloud.new
+            mv ${{ secrets.SSH_PATH }}/photocloud.new ${{ secrets.SSH_PATH }}/photocloud
+            pkill -f photocloud || true
