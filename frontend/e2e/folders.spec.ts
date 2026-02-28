@@ -15,22 +15,31 @@ test.describe('Folders Screen', () => {
         body: JSON.stringify({
           access: 'mock-access-key',
           secret: 'mock-secret-key',
-          endpoint: 'https://mock-s3.example.com',
+          endpoint: 'http://localhost:8081/mock-s3', // Use local mock
           region: 'mock-region',
           bucket: 'mock-bucket',
           email: 'dev@photocloud.local',
-          user_key: 'mock-user-key'
+          user_key: 'bW9jay11c2VyLWtleS1tdXN0LWJlLTMyLWJ5dGVzLWxvbmc=' // Base64 mock user key
         })
       });
     });
 
-    // Mock S3 index.json
-    await page.route('**/mock-bucket/users/dev@photocloud.local/index.json', async (route) => {
-       await route.fulfill({
-         status: 200,
-         contentType: 'application/json',
-         body: JSON.stringify({ years: [{ year: '2024', count: 0 }] })
-       });
+    // Mock S3 calls
+    await page.route('**/mock-s3/**', async (route) => {
+        const url = route.request().url();
+        if (url.includes('index.json')) {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ years: [{ year: '2024', count: 0 }] })
+            });
+        } else {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/xml',
+                body: '<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>mock-bucket</Name><Prefix></Prefix><KeyCount>0</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>'
+            });
+        }
     });
 
     await page.goto('/');
@@ -40,15 +49,17 @@ test.describe('Folders Screen', () => {
     await devButton.click();
 
     // Open drawer
-    // In web, the drawer might be accessible via a button or swipe
-    const menuButton = page.getByRole('button').first(); // The menu button we added
+    const menuButton = page.getByLabel('Menu');
+    await expect(menuButton).toBeVisible({ timeout: 15000 });
     await menuButton.click();
 
     // Click on "Dossiers" in drawer
-    await page.getByRole('button', { name: 'Dossiers' }).click();
+    const foldersButton = page.getByRole('button', { name: 'Dossiers' });
+    await expect(foldersButton).toBeVisible({ timeout: 10000 });
+    await foldersButton.click();
 
     // Check if we are in the Dossiers screen
-    await expect(page.getByText('Choisissez les dossiers à synchroniser')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dossiers' })).toBeVisible();
 
     // In e2e test environment (browser), MediaLibrary.getFoldersAsync() will return empty array
     // but the screen should show the empty component

@@ -26,6 +26,7 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
     onUpload,
     onRefresh,
     onLogout,
+    onMenu,
 }) => {
     const theme = useTheme();
 
@@ -41,7 +42,14 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
 
     return (
         <Appbar.Header elevated>
-            {onMenu && <Appbar.Action icon={() => <Menu size={24} color={theme.colors.onSurface} />} onPress={onMenu} />}
+            {onMenu && (
+                <Appbar.Action
+                    icon={() => <Menu size={24} color={theme.colors.onSurface} />}
+                    onPress={onMenu}
+                    accessibilityLabel="Menu"
+                    testID="menu-button"
+                />
+            )}
             <Appbar.Content
                 title="PhotoCloud"
                 subtitle={uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`}

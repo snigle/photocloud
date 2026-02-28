@@ -18,7 +18,7 @@ interface Props {
   creds: S3Credentials;
   email: string;
   onLogout: () => void;
-  onMenu?: () => void;
+  onMenu: () => void;
 }
 
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {

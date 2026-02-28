@@ -15,22 +15,32 @@ test.describe('Photo Cloud App', () => {
         body: JSON.stringify({
           access: 'mock-access-key',
           secret: 'mock-secret-key',
-          endpoint: 'https://mock-s3.example.com',
+          endpoint: 'http://localhost:8081/mock-s3', // Use local mock
           region: 'mock-region',
           bucket: 'mock-bucket',
           email: 'dev@photocloud.local',
-          user_key: 'mock-user-key'
+          user_key: 'bW9jay11c2VyLWtleS1tdXN0LWJlLTMyLWJ5dGVzLWxvbmc=' // Base64 mock user key
         })
       });
     });
 
-    // Mock S3 index.json
-    await page.route('**/mock-bucket/users/dev@photocloud.local/index.json', async (route) => {
-       await route.fulfill({
-         status: 200,
-         contentType: 'application/json',
-         body: JSON.stringify({ years: [{ year: '2024', count: 0 }] })
-       });
+    // Mock S3 calls
+    await page.route('**/mock-s3/**', async (route) => {
+        const url = route.request().url();
+        if (url.includes('index.json')) {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ years: [{ year: '2024', count: 0 }] })
+            });
+        } else {
+            // Default response for other S3 calls (like ListObjectsV2)
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/xml',
+                body: '<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>mock-bucket</Name><Prefix></Prefix><KeyCount>0</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>'
+            });
+        }
     });
 
     await page.goto('/');
