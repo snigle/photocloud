@@ -1,4 +1,4 @@
-const { withGradleProperties, withAppBuildGradle } = require('@expo/config-plugins');
+const { withGradleProperties, withAppBuildGradle, withProjectBuildGradle } = require('@expo/config-plugins');
 
 const withAndroidSDK35 = (config) => {
   return withGradleProperties(config, (config) => {
@@ -24,11 +24,11 @@ const withAndroidSDK35 = (config) => {
 };
 
 const withKotlinCompilerArgs = (config) => {
-  return withAppBuildGradle(config, (config) => {
-    if (config.modResults.contents.includes('kotlinOptions')) {
+  return withProjectBuildGradle(config, (config) => {
+    if (config.modResults.contents.includes('allprojects')) {
       config.modResults.contents = config.modResults.contents.replace(
-        /kotlinOptions\s*{/,
-        'kotlinOptions {\n        freeCompilerArgs += ["-Xskip-metadata-version-check"]'
+        /allprojects\s*{/,
+        'allprojects {\n    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {\n        kotlinOptions {\n            freeCompilerArgs += ["-Xskip-metadata-version-check"]\n        }\n    }'
       );
     }
     return config;
