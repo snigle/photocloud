@@ -13,9 +13,8 @@ test.describe('Folders Screen', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          accessKeyId: 'mock-access-key',
-          secretAccessKey: 'mock-secret-key',
-          sessionToken: 'mock-session-token',
+          access: 'mock-access-key',
+          secret: 'mock-secret-key',
           endpoint: 'https://mock-s3.example.com',
           region: 'mock-region',
           bucket: 'mock-bucket',
