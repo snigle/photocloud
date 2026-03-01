@@ -32,8 +32,6 @@ func RegisterHandlers(
 	masterKey []byte,
 ) {
 	mux.HandleFunc("/auth/dev", handleDevAuth(devAuth, getS3CredsUseCase, masterKey))
-) {
-	mux.HandleFunc("/auth/dev", handleDevAuth(devAuth, getS3CredsUseCase))
 	mux.HandleFunc("/auth/google", handleGoogleAuth(googleAuth, getS3CredsUseCase))
 	mux.HandleFunc("/auth/magic-link/request", handleMagicLinkRequest(magicLinkAuth, emailSender))
 	mux.HandleFunc("/auth/magic-link/callback", handleMagicLinkCallback(magicLinkAuth, getS3CredsUseCase))
@@ -46,7 +44,6 @@ func RegisterHandlers(
 }
 
 func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.GetS3CredentialsUseCase, masterKey []byte) http.HandlerFunc {
-func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.GetS3CredentialsUseCase) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if os.Getenv("DEV_AUTH_ENABLED") != "true" {
 			http.Error(w, "Dev auth disabled", http.StatusForbidden)
@@ -73,7 +70,6 @@ func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.Ge
 			S3Credentials: creds,
 			Email:         userInfo.Email,
 		})
-		returnS3Credentials(w, r, getS3CredsUseCase, userInfo.Email)
 	}
 }
 
@@ -94,7 +90,7 @@ func isAllowedRedirect(redirectURL string) bool {
 	if frontendURL == "" {
 		frontendURL = "http://localhost:8081"
 	}
-	allowedOrigins := []string{frontendURL, "photocloud://", "http://localhost:8081", "exp://"}
+	allowedOrigins := []string{frontendURL, "photocloud://", "http://localhost:8081", "exp://", "https://photocloud.ovh"}
 	for _, origin := range allowedOrigins {
 		if redirectURL == origin || strings.HasPrefix(redirectURL, origin+"/") || strings.HasPrefix(redirectURL, origin+"?") {
 			return true
@@ -118,17 +114,25 @@ func handleMagicLinkRequest(magicLinkAuth *auth.MagicLinkAuthenticator, emailSen
 			return
 		}
 
-		// The user confirmed that photocloud.ovh is the frontend URL.
-		// We use it for the login link.
-		frontendURL := os.Getenv("FRONTEND_URL")
-		if frontendURL == "" {
-			frontendURL = "https://photocloud.ovh"
+		// Use the provided redirectURL if it's whitelisted, otherwise fallback to configured FRONTEND_URL
+		appURL := redirectURL
+		if appURL == "" {
+			appURL = os.Getenv("FRONTEND_URL")
+		}
+		if appURL == "" {
+			appURL = "https://photocloud.ovh"
 		}
 
-		loginURL := fmt.Sprintf("%s/login?token=%s", frontendURL, token)
-		if redirectURL != "" {
-			loginURL += fmt.Sprintf("&redirect_url=%s", redirectURL)
+		// Ensure we don't have a trailing slash before appending the query param
+		appURL = strings.TrimRight(appURL, "/")
+
+		// We append the token directly to the app URL.
+		// For static sites like GH Pages, keeping it in query params (or even hash) at the root level is safest.
+		separator := "?"
+		if strings.Contains(appURL, "?") {
+			separator = "&"
 		}
+		loginURL := fmt.Sprintf("%s%stoken=%s", appURL, separator, token)
 
 		body := fmt.Sprintf(email.MagicLinkEmailTemplate, loginURL, loginURL)
 		err = emailSender.SendEmail(r.Context(), emailAddr, "Lien de connexion Photo Cloud", body)

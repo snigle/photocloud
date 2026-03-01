@@ -38,12 +38,12 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
       setCloudIndex(index);
       const cloudTotal = index.years.reduce((acc, y) => acc + y.count, 0);
 
-      const localRepo = new LocalGalleryRepository();
-      const localPhotos = await localRepo.listLocalPhotos();
-      const uploadedLocalIds = await localRepo.getUploadedLocalIds();
-      const filteredLocal = localPhotos.filter(p => !uploadedLocalIds.has(p.id));
+      // const localRepo = new LocalGalleryRepository();
+      // const localPhotos = await localRepo.listLocalPhotos();
+      // const uploadedLocalIds = await localRepo.getUploadedLocalIds();
+      // const filteredLocal = localPhotos.filter(p => !uploadedLocalIds.has(p.id));
 
-      const total = cloudTotal + filteredLocal.length;
+      const total = cloudTotal; // + filteredLocal.length;
       setTotalCount(total);
 
       // 2. Load what we have in cache
@@ -56,7 +56,7 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
           sparsePhotos[i] = cachedPhotos[i];
       }
       // Also include non-uploaded local photos (they are newest)
-      const allKnown = [...filteredLocal, ...cachedPhotos].sort((a, b) => b.creationDate - a.creationDate);
+      const allKnown = [...cachedPhotos].sort((a, b) => b.creationDate - a.creationDate);
       for (let i = 0; i < allKnown.length; i++) {
           sparsePhotos[i] = allKnown[i];
       }
@@ -67,11 +67,11 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
       // 3. Trigger background sync
       galleryUseCase.sync(creds, email).then(async () => {
           const refreshed = await galleryUseCase.getPhotos(100000, 0); // Get all from cache
-          const localAfter = await localRepo.listLocalPhotos();
-          const uploadedAfter = await localRepo.getUploadedLocalIds();
-          const filteredLocalAfter = localAfter.filter(p => !uploadedAfter.has(p.id));
+          // const localAfter = await localRepo.listLocalPhotos();
+          // const uploadedAfter = await localRepo.getUploadedLocalIds();
+          // const filteredLocalAfter = localAfter.filter(p => !uploadedAfter.has(p.id));
 
-          const allRefreshed = [...filteredLocalAfter, ...refreshed].sort((a, b) => b.creationDate - a.creationDate);
+          const allRefreshed = [...refreshed].sort((a, b) => b.creationDate - a.creationDate);
 
           setPhotos(prev => {
               const next = new Array(Math.max(prev.length, allRefreshed.length)).fill(null);

@@ -73,12 +73,25 @@ jobs:
           SHORT_SHA=$(echo "${EXPO_PUBLIC_VERSION}" | cut -c1-7)
           EXPO_PUBLIC_VERSION=${SHORT_SHA} npx expo export --platform web
 
+          # Fix base path for staging deployment since npx expo export doesn't support --base-url in this version
+          if [[ "${{ github.ref }}" != "refs/heads/main" && "${{ github.ref }}" != "refs/heads/master" && "${{ github.ref }}" != "refs/heads/2026" ]]; then
+            echo "Adjusting assets paths for staging subdirectory..."
+            # Replace absolute paths starting with / with paths starting with /staging/
+            # Be careful not to replace double slashes (protocol)
+            sed -i 's/href="\//href="\/staging\//g' dist/index.html
+            sed -i 's/src="\//src="\/staging\//g' dist/index.html
+          fi
+
       - name: Add .nojekyll
         run: touch frontend/dist/.nojekyll 
 
       - name: Deploy Web to GitHub Pages
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/2026')
+        if: github.event_name == 'push'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: frontend/dist # Le dossier généré par expo export
-          branch: gh-pages # La branche où le site web sera hébergé
+          folder: frontend/dist
+          branch: gh-pages
+          target-folder: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/2026') && '.' || 'staging' }}
+          clean: true
+          clean-exclude: |
+            staging

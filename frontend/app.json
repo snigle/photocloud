@@ -34,7 +34,7 @@
             {
               "scheme": "https",
               "host": "photocloud.ovh",
-              "pathPrefix": "/login"
+              "pathPrefix": "/"
             }
           ],
           "category": [

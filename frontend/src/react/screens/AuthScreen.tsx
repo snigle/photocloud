@@ -13,9 +13,10 @@ WebBrowser.maybeCompleteAuthSession();
 interface Props {
   onLogin: (creds: S3Credentials, email: string) => void;
   authUseCase: AuthUseCase;
+  route?: any;
 }
 
-const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase }) => {
+const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
   const theme = useTheme();
   const [email, setEmail] = useState('');
   const [magicLinkSent, setMagicLinkSent] = useState(false);
@@ -26,6 +27,29 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase }) => {
   useEffect(() => {
     authUseCase.getVersion().then(setBackendVersion).catch(() => setBackendVersion('error'));
   }, [authUseCase]);
+
+  // Handle token from URL via React Navigation
+  useEffect(() => {
+    const token = route?.params?.token;
+    if (token) {
+        console.log('Token detected in route params, validating...');
+        handleMagicLinkValidation(token);
+    }
+  }, [route?.params?.token]);
+
+  const handleMagicLinkValidation = async (token: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+        const res = await authUseCase.validateMagicLink(token);
+        onLogin(res, res.email);
+    } catch (err) {
+        console.error('Magic link validation failed:', err);
+        setError('Lien magique invalide ou expiré');
+    } finally {
+        setLoading(false);
+    }
+  };
 
   // Google Auth
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -108,7 +132,16 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase }) => {
     setLoading(true);
     setError(null);
     try {
-      const redirectUrl = Linking.createURL('/');
+      // Use #/login for better support on static hosting (GH Pages)
+      // Linking.createURL('/') might return different things depending on platform
+      let redirectUrl = Linking.createURL('login');
+      if (Platform.OS === 'web') {
+          // Force hash-based URL for web to avoid 404s on reload
+          const base = window.location.origin + window.location.pathname;
+          redirectUrl = `${base.replace(/\/$/, '')}/#/login`;
+      }
+
+      console.log('Requesting magic link with redirect:', redirectUrl);
       await authUseCase.requestMagicLink(email, redirectUrl);
       setMagicLinkSent(true);
     } catch (err) {
