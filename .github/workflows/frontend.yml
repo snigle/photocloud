@@ -71,7 +71,13 @@ jobs:
           EXPO_PUBLIC_VERSION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           SHORT_SHA=$(echo "${EXPO_PUBLIC_VERSION}" | cut -c1-7)
-          EXPO_PUBLIC_VERSION=${SHORT_SHA} npx expo export --platform web
+          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" || "${{ github.ref }}" == "refs/heads/2026" ]]; then
+            export BASE_URL="/"
+          else
+            export BASE_URL="/staging"
+          fi
+          # We use npx expo export with --base-url to ensure assets are loaded correctly from subdirectories
+          EXPO_PUBLIC_VERSION=${SHORT_SHA} npx expo export --platform web --base-url ${BASE_URL}
 
       - name: Add .nojekyll
         run: touch frontend/dist/.nojekyll 
@@ -84,3 +90,5 @@ jobs:
           branch: gh-pages
           target-folder: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/2026') && '.' || 'staging' }}
           clean: true
+          clean-exclude: |
+            staging
