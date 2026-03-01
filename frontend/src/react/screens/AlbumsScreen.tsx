@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, FlatList, useWindowDimensions, RefreshControl, ActivityIndicator } from 'react-native';
 import { Appbar, useTheme, Text, Button, FAB } from 'react-native-paper';
+import { useFocusEffect } from '@react-navigation/native';
 import { Menu, Plus } from 'lucide-react-native';
 import { useAlbums } from '../hooks/useAlbums';
 import { AlbumItem } from '../components/AlbumItem';
@@ -17,6 +18,12 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
     const { width } = useWindowDimensions();
     const { albums, loading, error, refresh, createAlbum } = useAlbums(creds, email);
     const [isCreating, setIsCreating] = useState(false);
+
+    useFocusEffect(
+        useCallback(() => {
+            refresh();
+        }, [refresh])
+    );
 
     const numColumns = Math.max(2, Math.floor(width / 180));
     const itemSize = width / numColumns;

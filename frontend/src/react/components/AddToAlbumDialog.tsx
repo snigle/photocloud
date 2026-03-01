@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Portal, Dialog, Button, Text, TextInput, List, Divider } from 'react-native-paper';
+import { Portal, Dialog, Button, Text, TextInput, List, Divider, ProgressBar } from 'react-native-paper';
 import { Plus, Check } from 'lucide-react-native';
 import { Album, S3Credentials } from '../../domain/types';
 import { useAlbums } from '../hooks/useAlbums';
@@ -50,6 +50,7 @@ export const AddToAlbumDialog: React.FC<AddToAlbumDialogProps> = ({ visible, onD
         <Portal>
             <Dialog visible={visible} onDismiss={onDismiss}>
                 <Dialog.Title>Ajouter aux albums</Dialog.Title>
+                {processing && <ProgressBar indeterminate color={creds ? undefined : '#005bbb'} />}
                 <Dialog.ScrollArea style={styles.scrollArea}>
                     {loading && albums.length === 0 ? (
                         <ActivityIndicator size="large" style={{ margin: 20 }} />

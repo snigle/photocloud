@@ -35,7 +35,14 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({ album, creds, size, onPres
         const loadThumbnail = async () => {
             setLoading(true);
             try {
-                const data = await s3Repo.getFile(creds.bucket, album.coverPhotoKey!);
+                // Ensure we use the thumbnail key for the cover
+                let coverKey = album.coverPhotoKey!;
+                if (!coverKey.includes('/thumbnail/')) {
+                    // If it's an original/1080p key, try to use the thumbnail one
+                    coverKey = coverKey.replace('/original/', '/thumbnail/').replace('/1080p/', '/thumbnail/');
+                }
+
+                const data = await s3Repo.getFile(creds.bucket, coverKey);
                 const base64 = uint8ArrayToBase64(data);
                 const displayUrl = `data:image/jpeg;base64,${base64}`;
                 ThumbnailCache.set(album.coverPhotoKey!, { data, displayUrl });

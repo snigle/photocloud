@@ -45,7 +45,8 @@ export class AlbumRepository implements IAlbumRepository {
   async saveAlbum(bucket: string, email: string, album: Album): Promise<void> {
     const key = this.getAlbumKey(email, album.id);
     const data = encodeText(JSON.stringify(album));
-    await this.s3Repo.uploadFile(bucket, key, data, 'application/json');
+    // Use application/octet-stream for encrypted data (via SSE-C in s3Repo)
+    await this.s3Repo.uploadFile(bucket, key, data, 'application/octet-stream');
   }
 
   async deleteAlbum(bucket: string, email: string, albumId: string): Promise<void> {
