@@ -77,8 +77,10 @@ jobs:
         run: touch frontend/dist/.nojekyll 
 
       - name: Deploy Web to GitHub Pages
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/2026' || github.ref == 'refs/heads/bug-fixes-and-safety-improvements-2026')
+        if: github.event_name == 'push'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: frontend/dist # Le dossier généré par expo export
-          branch: gh-pages # La branche où le site web sera hébergé
+          folder: frontend/dist
+          branch: gh-pages
+          target-folder: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/2026') && '.' || format('staging/{0}', github.ref_name) }}
+          clean: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/2026') }}
