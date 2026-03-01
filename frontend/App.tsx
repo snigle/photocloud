@@ -10,6 +10,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as BackgroundFetch from 'expo-background-fetch';
 
 import { useAuth } from './src/react/hooks/useAuth';
+import { getBaseDir, getRouteFromPath } from './src/react/utils/routing-utils';
 import AuthScreen from './src/react/screens/AuthScreen';
 import GalleryScreen from './src/react/screens/GalleryScreen';
 import FoldersScreen from './src/react/screens/FoldersScreen';
@@ -34,7 +35,12 @@ const theme = {
 const authRepo = new AuthRepository();
 
 const linking = {
-  prefixes: [Linking.createURL('/'), 'photocloud://', 'https://photocloud.ovh'],
+  prefixes: [
+    Linking.createURL('/'),
+    'photocloud://',
+    'https://photocloud.ovh',
+    ...(Platform.OS === 'web' ? [window.location.origin + getBaseDir()] : [])
+  ],
   config: {
     screens: {
       Auth: 'login',
@@ -62,8 +68,8 @@ const linking = {
   getPathFromState: (state: any, options: any) => {
     const path = getPathFromState(state, options);
     if (Platform.OS === 'web') {
-      // Ensure we always have /#/path
-      return `/#/${path.replace(/^\//, '')}`;
+      // Use relative hash to stay within current subdirectory (e.g. /staging/#/login)
+      return `#/${path.replace(/^\//, '')}`;
     }
     return path;
   },
@@ -72,15 +78,14 @@ const linking = {
 export default function App() {
   const { session, loading, login, logout } = useAuth();
 
-  if (Platform.OS === 'web' && window.location.pathname !== '/') {
-      const hash = window.location.hash;
-      const search = window.location.search;
-      const path = window.location.pathname;
-      const newUrl = `${window.location.origin}/#${path}${search}${hash}`;
+  if (Platform.OS === 'web' && !window.location.hash) {
+      const base = getBaseDir();
+      const route = getRouteFromPath(window.location.pathname, base);
+      const newUrl = window.location.origin + base + '#/' + route + window.location.search;
+
       console.log('App: Redirecting to hash URL:', newUrl);
-      // Use replaceState to change the URL without a full reload,
-      // which allows the NavigationContainer to pick up the new state.
-      window.history.replaceState(null, '', newUrl);
+      window.location.replace(newUrl);
+      return null;
   }
 
   const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
