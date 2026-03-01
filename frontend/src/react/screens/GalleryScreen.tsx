@@ -218,7 +218,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
       )}
 
       <View style={styles.listContainer}>
-          {!loading && photos.length === 0 && !error && (
+          {!loading && !refreshing && photos.length === 0 && !error && (
             <View style={styles.center}>
               {uploading ? (
                   <>

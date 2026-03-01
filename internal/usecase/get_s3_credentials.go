@@ -2,9 +2,8 @@ package usecase
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/base64"
-	"fmt"
+	"log"
 
 	"github.com/snigle/photocloud/internal/domain"
 )
@@ -29,14 +28,8 @@ func (uc *GetS3CredentialsUseCase) Execute(ctx context.Context, email string) (*
 
 	userKey, err := uc.userStorage.GetUserKey(ctx, email)
 	if err != nil {
-		// If key not found (or any error for this POC), generate a new one
-		userKey = make([]byte, 32)
-		if _, err := rand.Read(userKey); err != nil {
-			return nil, fmt.Errorf("failed to generate user key: %w", err)
-		}
-		if err := uc.userStorage.SaveUserKey(ctx, email, userKey); err != nil {
-			return nil, fmt.Errorf("failed to save user key: %w", err)
-		}
+		log.Printf("Error getting user key for %s: %v", email, err)
+		userKey = []byte{} // Use empty key if not found, to avoid regenerating
 	}
 
 	creds.UserKey = base64.StdEncoding.EncodeToString(userKey)
