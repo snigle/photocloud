@@ -61,12 +61,28 @@ const linking = {
   },
   getPathFromState: (state: any, options: any) => {
     const path = getPathFromState(state, options);
-    return Platform.OS === 'web' ? `#${path}` : path;
+    if (Platform.OS === 'web') {
+      // Ensure we always have /#/path
+      return `/#/${path.replace(/^\//, '')}`;
+    }
+    return path;
   },
 };
 
 export default function App() {
   const { session, loading, login, logout } = useAuth();
+
+  if (Platform.OS === 'web' && window.location.pathname !== '/') {
+      const hash = window.location.hash;
+      const search = window.location.search;
+      const path = window.location.pathname;
+      const newUrl = `${window.location.origin}/#${path}${search}${hash}`;
+      console.log('App: Redirecting to hash URL:', newUrl);
+      // Use replaceState to change the URL without a full reload,
+      // which allows the NavigationContainer to pick up the new state.
+      window.history.replaceState(null, '', newUrl);
+  }
+
   const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
   const processedTokens = useRef(new Set<string>());
 
@@ -74,9 +90,9 @@ export default function App() {
     const handleDeepLink = async (url: string) => {
       console.log('App: Handling deep link:', url);
       const parsed = Linking.parse(url);
-      const token = (parsed.queryParams?.token as string) || (parsed.path?.split('/').pop());
+      const token = (parsed.queryParams?.token as string);
 
-      if (token && !processedTokens.current.has(token)) {
+      if (token && token !== 'login' && !processedTokens.current.has(token)) {
           processedTokens.current.add(token);
           console.log('App: Validating token from deep link...');
           try {

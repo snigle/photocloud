@@ -137,8 +137,8 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
       let redirectUrl = Linking.createURL('login');
       if (Platform.OS === 'web') {
           // Force hash-based URL for web to avoid 404s on reload
-          const base = window.location.origin + window.location.pathname;
-          redirectUrl = `${base.replace(/\/$/, '')}/#/login`;
+          // Use origin and ensure we have /#/login to support hash-based routing
+          redirectUrl = window.location.origin + '/#/login';
       }
 
       console.log('Requesting magic link with redirect:', redirectUrl);
