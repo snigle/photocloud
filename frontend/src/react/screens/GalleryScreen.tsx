@@ -218,6 +218,13 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
       )}
 
       <View style={styles.listContainer}>
+          {loading && photos.length === 0 && (
+            <View style={styles.center}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={{ marginTop: 10 }}>Loading your gallery...</Text>
+            </View>
+          )}
+
           {!loading && !refreshing && photos.length === 0 && !error && (
             <View style={styles.center}>
               {uploading ? (
@@ -234,7 +241,8 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
             </View>
           )}
 
-          <FlashListAny
+          {(photos.length > 0 || !loading) && (
+            <FlashListAny
             data={listData}
             renderItem={renderItem}
             keyExtractor={(item: ListItem) => {
@@ -263,8 +271,9 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
             onEndReached={loadMore}
             onEndReachedThreshold={0.5}
             ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 20 }} /> : null}
-            contentContainerStyle={{ flexGrow: 1 }}
-          />
+              contentContainerStyle={{ flexGrow: 1 }}
+            />
+          )}
       </View>
 
       {showYearIndicator && currentYear && (

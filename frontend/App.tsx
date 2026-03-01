@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider, ActivityIndicator, MD3LightTheme } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
@@ -102,37 +103,39 @@ export default function App() {
   }
 
   return (
-    <PaperProvider theme={theme}>
-      <StatusBar style="auto" />
-      <View style={styles.container}>
-        {session ? (
-            <NavigationContainer>
-                <Drawer.Navigator
-                    initialRouteName="Gallery"
-                    screenOptions={{
-                        headerShown: false,
-                        drawerActiveTintColor: theme.colors.primary,
-                    }}
-                >
-                    <Drawer.Screen name="Gallery">
-                        {(props) => (
-                            <GalleryScreen
-                                {...props}
-                                creds={session.creds}
-                                email={session.email}
-                                onLogout={logout}
-                                onMenu={() => (props.navigation as any).openDrawer()}
-                            />
-                        )}
-                    </Drawer.Screen>
-                    <Drawer.Screen name="Dossiers" component={FoldersScreen} />
-                </Drawer.Navigator>
-            </NavigationContainer>
-        ) : (
-          <AuthScreen onLogin={login} authUseCase={authUseCase} />
-        )}
-      </View>
-    </PaperProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+        <PaperProvider theme={theme}>
+        <StatusBar style="auto" />
+        <View style={styles.container}>
+            {session ? (
+                <NavigationContainer>
+                    <Drawer.Navigator
+                        initialRouteName="Gallery"
+                        screenOptions={{
+                            headerShown: false,
+                            drawerActiveTintColor: theme.colors.primary,
+                        }}
+                    >
+                        <Drawer.Screen name="Gallery">
+                            {(props) => (
+                                <GalleryScreen
+                                    {...props}
+                                    creds={session.creds}
+                                    email={session.email}
+                                    onLogout={logout}
+                                    onMenu={() => (props.navigation as any).openDrawer()}
+                                />
+                            )}
+                        </Drawer.Screen>
+                        <Drawer.Screen name="Dossiers" component={FoldersScreen} />
+                    </Drawer.Navigator>
+                </NavigationContainer>
+            ) : (
+            <AuthScreen onLogin={login} authUseCase={authUseCase} />
+            )}
+        </View>
+        </PaperProvider>
+    </GestureHandlerRootView>
   );
 }
 

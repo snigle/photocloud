@@ -14,18 +14,18 @@ export class GalleryUseCase {
    */
   async sync(creds: S3Credentials, email: string): Promise<void> {
     try {
-        // Fetch local photos
-        const local = await this.localRepo.listLocalPhotos();
+        // Fetch local photos - DISABLED for now to fix Android white screen
+        // const local = await this.localRepo.listLocalPhotos();
 
         // Fetch cloud photos
         const cloud = await this.s3Repo.listPhotos(creds.bucket, email);
 
         // De-duplicate local photos that are already uploaded
-        const uploadedLocalIds = await this.localRepo.getUploadedLocalIds();
-        const filteredLocal = local.filter(p => !uploadedLocalIds.has(p.id));
+        // const uploadedLocalIds = await this.localRepo.getUploadedLocalIds();
+        // const filteredLocal = local.filter(p => !uploadedLocalIds.has(p.id));
 
         // Merge and sort
-        const all = [...filteredLocal, ...cloud].sort((a, b) => b.creationDate - a.creationDate);
+        const all = [...cloud].sort((a, b) => b.creationDate - a.creationDate);
 
         // Update cache
         await this.localRepo.saveToCache(all);
