@@ -84,8 +84,8 @@ export default function App() {
       const newUrl = window.location.origin + base + '#/' + route + window.location.search;
 
       console.log('App: Redirecting to hash URL:', newUrl);
-      window.location.replace(newUrl);
-      return null;
+      // Use replaceState to avoid full page reload
+      window.history.replaceState(null, '', newUrl);
   }
 
   const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
