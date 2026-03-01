@@ -32,6 +32,8 @@ func RegisterHandlers(
 	masterKey []byte,
 ) {
 	mux.HandleFunc("/auth/dev", handleDevAuth(devAuth, getS3CredsUseCase, masterKey))
+) {
+	mux.HandleFunc("/auth/dev", handleDevAuth(devAuth, getS3CredsUseCase))
 	mux.HandleFunc("/auth/google", handleGoogleAuth(googleAuth, getS3CredsUseCase))
 	mux.HandleFunc("/auth/magic-link/request", handleMagicLinkRequest(magicLinkAuth, emailSender))
 	mux.HandleFunc("/auth/magic-link/callback", handleMagicLinkCallback(magicLinkAuth, getS3CredsUseCase))
@@ -44,6 +46,7 @@ func RegisterHandlers(
 }
 
 func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.GetS3CredentialsUseCase, masterKey []byte) http.HandlerFunc {
+func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.GetS3CredentialsUseCase) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if os.Getenv("DEV_AUTH_ENABLED") != "true" {
 			http.Error(w, "Dev auth disabled", http.StatusForbidden)
@@ -70,6 +73,7 @@ func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.Ge
 			S3Credentials: creds,
 			Email:         userInfo.Email,
 		})
+		returnS3Credentials(w, r, getS3CredsUseCase, userInfo.Email)
 	}
 }
 
