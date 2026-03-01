@@ -13,7 +13,7 @@ export class SyncSettingsRepository {
     } catch (e) {
       console.error('Failed to load sync settings', e);
     }
-    return { enabledFolders: [] };
+    return { enabledFolders: [], isInitialized: false };
   }
 
   async saveSettings(settings: SyncSettings): Promise<void> {

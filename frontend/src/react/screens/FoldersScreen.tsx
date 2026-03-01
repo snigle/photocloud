@@ -37,13 +37,14 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
     const fetchedFolders = await getFoldersUseCase.execute();
     const settings = await syncSettingsRepo.getSettings();
 
-    // Select main photos folder by default if nothing is selected
-    if (settings.enabledFolders.length === 0 && fetchedFolders.length > 0) {
+    // Select main photos folder by default only if settings have never been initialized
+    if (!settings.isInitialized && fetchedFolders.length > 0) {
         const dcim = fetchedFolders.find(a => a.title.toLowerCase() === 'dcim' || a.title.toLowerCase() === 'camera');
         if (dcim) {
             settings.enabledFolders = [dcim.id];
-            await syncSettingsRepo.saveSettings(settings);
         }
+        settings.isInitialized = true;
+        await syncSettingsRepo.saveSettings(settings);
     }
 
     setFolders(fetchedFolders);

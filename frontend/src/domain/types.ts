@@ -36,6 +36,7 @@ export interface Folder {
 
 export interface SyncSettings {
   enabledFolders: string[];
+  isInitialized: boolean;
 }
 
 export interface UserSession {
