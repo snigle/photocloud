@@ -34,6 +34,16 @@ export interface Folder {
   lastPhoto?: Photo;
 }
 
+export interface Album {
+  id: string;
+  title: string;
+  photoKeys: string[];
+  coverPhotoKey?: string;
+  order: 'date-asc' | 'date-desc' | 'manual';
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface SyncSettings {
   enabledFolders: string[];
 }
@@ -72,6 +82,7 @@ export interface IS3Repository {
   getDownloadUrl(bucket: string, key: string): Promise<string>;
   exists(bucket: string, key: string): Promise<boolean>;
   deleteFile(bucket: string, key: string): Promise<void>;
+  listKeys(bucket: string, prefix: string): Promise<string[]>;
 }
 
 export interface ILocalGalleryRepository {
@@ -86,4 +97,11 @@ export interface ILocalGalleryRepository {
   markAsUploaded(localId: string, cloudId: string): Promise<void>;
   getUploadedLocalIds(): Promise<Set<string>>;
   deleteFromCache(id: string): Promise<void>;
+}
+
+export interface IAlbumRepository {
+  listAlbums(bucket: string, email: string): Promise<Album[]>;
+  getAlbum(bucket: string, email: string, albumId: string): Promise<Album>;
+  saveAlbum(bucket: string, email: string, album: Album): Promise<void>;
+  deleteAlbum(bucket: string, email: string, albumId: string): Promise<void>;
 }

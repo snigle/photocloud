@@ -10,7 +10,8 @@ import { groupPhotosByDay, ListItem } from '../utils/gallery-utils';
 import { PhotoViewer } from '../components/PhotoViewer';
 import { PhotoItem } from '../components/PhotoItem';
 import { GalleryHeader } from '../components/GalleryHeader';
-import type { S3Credentials, Photo } from '../../domain/types';
+import { AddToAlbumDialog } from '../components/AddToAlbumDialog';
+import type { S3Credentials, Photo, UploadedPhoto } from '../../domain/types';
 
 const FlashListAny = FlashList as any;
 
@@ -27,6 +28,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
   const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [addToAlbumVisible, setAddToAlbumVisible] = useState(false);
 
   // Memoize creds to ensure stability for PhotoItem memoization
   const stableCreds = useMemo(() => creds, [creds.access, creds.secret, creds.bucket, creds.endpoint]);
@@ -93,6 +95,10 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
       const idsToDelete = Array.from(selectedIds);
       clearSelection();
       await deletePhotos(idsToDelete);
+  };
+
+  const handleAddToAlbum = () => {
+      setAddToAlbumVisible(true);
   };
 
   const handleEditSave = async (originalPhoto: Photo, newUri: string) => {
@@ -201,6 +207,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
         onRefresh={refresh}
         onLogout={onLogout}
         onMenu={onMenu}
+        onAddToAlbum={handleAddToAlbum}
       />
 
       {uploading && progress && (
@@ -315,6 +322,19 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
             creds={stableCreds}
           />
       )}
+
+      <AddToAlbumDialog
+        visible={addToAlbumVisible}
+        onDismiss={() => {
+            setAddToAlbumVisible(false);
+            clearSelection();
+        }}
+        creds={creds}
+        email={email}
+        photoKeys={photos
+            .filter(p => p && p.type === 'cloud' && selectedIds.has(p.id))
+            .map(p => (p as UploadedPhoto).key)}
+      />
 
       <Snackbar
         visible={snackbarVisible}

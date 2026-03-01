@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator } from 'react-native';
 import { Appbar, useTheme } from 'react-native-paper';
-import { LogOut, RefreshCw, Upload, X, Trash2, Menu } from 'lucide-react-native';
+import { LogOut, RefreshCw, Upload, X, Trash2, Menu, FolderPlus } from 'lucide-react-native';
 
 interface GalleryHeaderProps {
     selectedCount: number;
@@ -14,6 +14,7 @@ interface GalleryHeaderProps {
     onRefresh: () => void;
     onLogout: () => void;
     onMenu?: () => void;
+    onAddToAlbum?: () => void;
 }
 
 export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
@@ -27,6 +28,7 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
     onRefresh,
     onLogout,
     onMenu,
+    onAddToAlbum,
 }) => {
     const theme = useTheme();
 
@@ -35,6 +37,7 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
             <Appbar.Header style={{ backgroundColor: '#e3f2fd' }}>
                 <Appbar.Action icon={() => <X size={24} />} onPress={onClearSelection} />
                 <Appbar.Content title={`${selectedCount} sélectionné(s)`} />
+                {onAddToAlbum && <Appbar.Action icon={() => <FolderPlus size={24} />} onPress={onAddToAlbum} />}
                 <Appbar.Action icon={() => <Trash2 size={24} />} onPress={onDeleteSelected} />
             </Appbar.Header>
         );
