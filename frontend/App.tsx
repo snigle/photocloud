@@ -81,15 +81,11 @@ export default function App() {
   if (Platform.OS === 'web' && !window.location.hash) {
       const base = getBaseDir();
       const route = getRouteFromPath(window.location.pathname, base);
-
-      // If we are on /staging/login, and base is /staging/, we redirect to /staging/#/login
       const newUrl = window.location.origin + base + '#/' + route + window.location.search;
 
       console.log('App: Redirecting to hash URL:', newUrl);
-      // Use replace instead of replaceState to ensure the app reloads with the correct initial state
-      // but only if we're not already there (though we checked hash above)
-      window.location.replace(newUrl);
-      return null;
+      // Use replaceState to avoid full page reload and keep CI stable
+      window.history.replaceState(null, '', newUrl);
   }
 
   const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
