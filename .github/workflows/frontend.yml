@@ -82,5 +82,5 @@ jobs:
         with:
           folder: frontend/dist
           branch: gh-pages
-          target-folder: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/2026') && '.' || format('staging/{0}', github.ref_name) }}
-          clean: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/2026') }}
+          target-folder: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/2026') && '.' || 'staging' }}
+          clean: true
