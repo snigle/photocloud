@@ -7,12 +7,14 @@ export const getBaseDir = () => {
   const pathname = window.location.pathname;
   const parts = pathname.split('/').filter(Boolean);
 
-  // If the last part is a known route, the base is everything before it
-  if (parts.length > 0 && knownRoutes.includes(parts[parts.length - 1])) {
+  // If the last part is a known route, strip it to get the base directory
+  // We use a loop in case there are multiple nested known routes (unlikely but safer)
+  while (parts.length > 0 && knownRoutes.includes(parts[parts.length - 1])) {
     parts.pop();
   }
 
-  const base = parts.length > 0 ? '/' + parts.join('/') + '/' : '/';
+  // Reconstruct base path, ensuring it starts and ends with /
+  const base = '/' + (parts.length > 0 ? parts.join('/') + '/' : '');
   return base;
 };
 
