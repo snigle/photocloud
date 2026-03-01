@@ -76,6 +76,8 @@ jobs:
           # Fix base path for staging deployment since npx expo export doesn't support --base-url in this version
           if [[ "${{ github.ref }}" != "refs/heads/main" && "${{ github.ref }}" != "refs/heads/master" && "${{ github.ref }}" != "refs/heads/2026" ]]; then
             echo "Adjusting assets paths for staging subdirectory..."
+            # Replace absolute paths starting with / with paths starting with /staging/
+            # Be careful not to replace double slashes (protocol)
             sed -i 's/href="\//href="\/staging\//g' dist/index.html
             sed -i 's/src="\//src="\/staging\//g' dist/index.html
           fi

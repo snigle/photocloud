@@ -52,8 +52,17 @@ export default function App() {
       const { queryParams, path, hostname, scheme } = parsed;
       console.log('Parsed URL details:', { scheme, hostname, path, queryParams });
 
-      // Support token in query params or as the last part of the path
+      // Robust token extraction
       let token = queryParams?.token as string;
+
+      if (!token) {
+          // Robust fallback: search for 'token=' in the entire URL string (handles hash-based or mis-parsed URLs)
+          const tokenMatch = event.url.match(/[?&#]token=([^&?#]+)/);
+          if (tokenMatch) {
+              token = tokenMatch[1];
+          }
+      }
+
       if (!token && path) {
         const pathParts = path.split('/');
         const lastPart = pathParts[pathParts.length - 1];
