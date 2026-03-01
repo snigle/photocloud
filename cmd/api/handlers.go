@@ -121,7 +121,7 @@ func handleMagicLinkRequest(magicLinkAuth *auth.MagicLinkAuthenticator, emailSen
 			frontendURL = "https://photocloud.ovh"
 		}
 
-		loginURL := fmt.Sprintf("%s/login?token=%s", frontendURL, token)
+		loginURL := fmt.Sprintf("%s/#/login?token=%s", frontendURL, token)
 		if redirectURL != "" {
 			loginURL += fmt.Sprintf("&redirect_url=%s", redirectURL)
 		}
