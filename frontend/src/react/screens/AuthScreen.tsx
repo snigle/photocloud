@@ -5,6 +5,7 @@ import { Mail, Chrome, Code, Fingerprint } from 'lucide-react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Google from 'expo-auth-session/providers/google';
+import { getBaseDir } from '../utils/routing-utils';
 import type { S3Credentials } from '../../domain/types';
 import type { AuthUseCase } from '../../usecase/auth.usecase';
 
@@ -137,8 +138,8 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
       let redirectUrl = Linking.createURL('login');
       if (Platform.OS === 'web') {
           // Force hash-based URL for web to avoid 404s on reload
-          const base = window.location.origin + window.location.pathname;
-          redirectUrl = `${base.replace(/\/$/, '')}/#/login`;
+          // Use origin + baseDir + #/login
+          redirectUrl = window.location.origin + getBaseDir() + '#/login';
       }
 
       console.log('Requesting magic link with redirect:', redirectUrl);
