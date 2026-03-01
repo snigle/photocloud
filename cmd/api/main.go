@@ -110,6 +110,7 @@ func main() {
 		emailSender,
 		webAuthn,
 		getS3CredsUseCase,
+		masterKey,
 	)
 
 	port := os.Getenv("PORT")

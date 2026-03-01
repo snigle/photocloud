@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -28,6 +29,9 @@ func RegisterHandlers(
 	emailSender domain.EmailSender,
 	webAuthn *auth.PasskeyAuthenticator,
 	getS3CredsUseCase *usecase.GetS3CredentialsUseCase,
+	masterKey []byte,
+) {
+	mux.HandleFunc("/auth/dev", handleDevAuth(devAuth, getS3CredsUseCase, masterKey))
 ) {
 	mux.HandleFunc("/auth/dev", handleDevAuth(devAuth, getS3CredsUseCase))
 	mux.HandleFunc("/auth/google", handleGoogleAuth(googleAuth, getS3CredsUseCase))
@@ -41,6 +45,7 @@ func RegisterHandlers(
 	mux.HandleFunc("/credentials", handleCredentials(getS3CredsUseCase))
 }
 
+func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.GetS3CredentialsUseCase, masterKey []byte) http.HandlerFunc {
 func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.GetS3CredentialsUseCase) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if os.Getenv("DEV_AUTH_ENABLED") != "true" {
@@ -52,6 +57,22 @@ func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.Ge
 			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
+
+		creds, err := getS3CredsUseCase.Execute(r.Context(), userInfo.Email)
+		if err != nil {
+			log.Printf("Error getting S3 credentials for dev: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		// Force the test master key for dev user key to ensure consistent encryption for testing
+		creds.UserKey = base64.StdEncoding.EncodeToString(masterKey)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(AuthResponse{
+			S3Credentials: creds,
+			Email:         userInfo.Email,
+		})
 		returnS3Credentials(w, r, getS3CredsUseCase, userInfo.Email)
 	}
 }

@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
-import { ILocalGalleryRepository, LocalPhoto, Photo } from '../domain/types';
+import { ILocalGalleryRepository, LocalPhoto, Photo, Folder } from '../domain/types';
 
 // We use dynamic imports for native-only libraries to avoid crashes on web
 let SQLite: any;
@@ -102,6 +102,76 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
         return photos;
     } catch (e) {
         console.error('Error listing local photos:', e);
+        return [];
+    }
+  }
+
+  async listFolders(): Promise<Folder[]> {
+    if (Platform.OS === 'web') return [];
+    try {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') return [];
+
+        const mediaLibraryAlbums = await MediaLibrary.getAlbumsAsync();
+        const result: Folder[] = [];
+
+        for (const mlAlbum of mediaLibraryAlbums) {
+            const assets = await MediaLibrary.getAssetsAsync({
+                album: mlAlbum.id,
+                first: 1,
+                mediaType: 'photo',
+                sortBy: [[MediaLibrary.SortBy.creationTime, false]]
+            });
+
+            const lastPhoto: LocalPhoto | undefined = assets.assets[0] ? {
+                id: assets.assets[0].id,
+                uri: assets.assets[0].uri,
+                creationDate: assets.assets[0].creationTime / 1000,
+                size: 0,
+                width: assets.assets[0].width,
+                height: assets.assets[0].height,
+                type: 'local'
+            } : undefined;
+
+            result.push({
+                id: mlAlbum.id,
+                title: mlAlbum.title,
+                count: mlAlbum.assetCount,
+                lastPhoto
+            });
+        }
+
+        return result;
+    } catch (e) {
+        console.error('Error listing folders:', e);
+        return [];
+    }
+  }
+
+  async getPhotosByFolder(folderId: string, limit: number = 500): Promise<LocalPhoto[]> {
+    if (Platform.OS === 'web') return [];
+    try {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') return [];
+
+        const pagedInfo = await MediaLibrary.getAssetsAsync({
+            album: folderId,
+            first: limit,
+            mediaType: 'photo',
+            sortBy: [[MediaLibrary.SortBy.creationTime, false]]
+        });
+
+        return pagedInfo.assets.map(asset => ({
+            id: asset.id,
+            uri: asset.uri,
+            creationDate: asset.creationTime / 1000,
+            size: 0,
+            width: asset.width,
+            height: asset.height,
+            type: 'local' as const,
+        }));
+    } catch (e) {
+        console.error('Error getting photos by folder:', e);
         return [];
     }
   }

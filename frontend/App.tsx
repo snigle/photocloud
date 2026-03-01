@@ -1,13 +1,19 @@
 import React, { useEffect, useRef, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Platform } from 'react-native';
 import { PaperProvider, ActivityIndicator, MD3LightTheme } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
+import { NavigationContainer } from '@react-navigation/native';
+import { createDrawerNavigator } from '@react-navigation/drawer';
+import * as BackgroundFetch from 'expo-background-fetch';
+
 import { useAuth } from './src/react/hooks/useAuth';
 import AuthScreen from './src/react/screens/AuthScreen';
 import GalleryScreen from './src/react/screens/GalleryScreen';
+import FoldersScreen from './src/react/screens/FoldersScreen';
 import { AuthRepository } from './src/infra/auth.repository';
 import { AuthUseCase } from './src/usecase/auth.usecase';
+import { BACKGROUND_SYNC_TASK } from './src/domain/constants';
 
 const theme = {
   ...MD3LightTheme,
@@ -21,11 +27,22 @@ const theme = {
 };
 
 const authRepo = new AuthRepository();
+const Drawer = createDrawerNavigator();
 
 export default function App() {
   const { session, loading, login, logout } = useAuth();
   const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
   const processedTokens = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (session && Platform.OS !== 'web') {
+        BackgroundFetch.registerTaskAsync(BACKGROUND_SYNC_TASK, {
+            minimumInterval: 15 * 60, // 15 minutes
+            stopOnTerminate: false,
+            startOnBoot: true,
+        }).catch(err => console.error('Failed to register background task', err));
+    }
+  }, [session]);
 
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
@@ -89,11 +106,28 @@ export default function App() {
       <StatusBar style="auto" />
       <View style={styles.container}>
         {session ? (
-          <GalleryScreen
-            creds={session.creds}
-            email={session.email}
-            onLogout={logout}
-          />
+            <NavigationContainer>
+                <Drawer.Navigator
+                    initialRouteName="Gallery"
+                    screenOptions={{
+                        headerShown: false,
+                        drawerActiveTintColor: theme.colors.primary,
+                    }}
+                >
+                    <Drawer.Screen name="Gallery">
+                        {(props) => (
+                            <GalleryScreen
+                                {...props}
+                                creds={session.creds}
+                                email={session.email}
+                                onLogout={logout}
+                                onMenu={() => (props.navigation as any).openDrawer()}
+                            />
+                        )}
+                    </Drawer.Screen>
+                    <Drawer.Screen name="Dossiers" component={FoldersScreen} />
+                </Drawer.Navigator>
+            </NavigationContainer>
         ) : (
           <AuthScreen onLogin={login} authUseCase={authUseCase} />
         )}
