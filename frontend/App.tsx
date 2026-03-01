@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider, ActivityIndicator, MD3LightTheme } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, getStateFromPath, getPathFromState } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as BackgroundFetch from 'expo-background-fetch';
@@ -46,11 +46,60 @@ const linking = {
       },
     },
   },
+  getStateFromPath: (path: string, options: any) => {
+    if (Platform.OS === 'web') {
+      const hash = window.location.hash.replace(/^#\/?/, '');
+      const search = window.location.search;
+      // Combine hash path and search params so tokens are parsed
+      let fullPath = hash || 'login';
+      if (search && !fullPath.includes('?')) {
+        fullPath += search;
+      }
+      return getStateFromPath(fullPath, options);
+    }
+    return getStateFromPath(path, options);
+  },
+  getPathFromState: (state: any, options: any) => {
+    const path = getPathFromState(state, options);
+    return Platform.OS === 'web' ? `#${path}` : path;
+  },
 };
 
 export default function App() {
   const { session, loading, login, logout } = useAuth();
   const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
+  const processedTokens = useRef(new Set<string>());
+
+  useEffect(() => {
+    const handleDeepLink = async (url: string) => {
+      console.log('App: Handling deep link:', url);
+      const parsed = Linking.parse(url);
+      const token = (parsed.queryParams?.token as string) || (parsed.path?.split('/').pop());
+
+      if (token && !processedTokens.current.has(token)) {
+          processedTokens.current.add(token);
+          console.log('App: Validating token from deep link...');
+          try {
+              const res = await authUseCase.validateMagicLink(token);
+              login(res, res.email);
+          } catch (err) {
+              console.error('App: Failed to validate magic link from deep link:', err);
+          }
+      }
+    };
+
+    // Initial check for initial URL
+    Linking.getInitialURL().then((url) => {
+        if (url) handleDeepLink(url);
+    });
+
+    // Listen for incoming links
+    const subscription = Linking.addEventListener('url', (event) => {
+        handleDeepLink(event.url);
+    });
+
+    return () => subscription.remove();
+  }, [authUseCase, login]);
 
   useEffect(() => {
     if (session && Platform.OS !== 'web') {

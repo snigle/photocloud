@@ -128,11 +128,24 @@ func handleMagicLinkRequest(magicLinkAuth *auth.MagicLinkAuthenticator, emailSen
 
 		// We append the token directly to the app URL.
 		// For static sites like GH Pages, keeping it in query params (or even hash) at the root level is safest.
-		separator := "?"
-		if strings.Contains(appURL, "?") {
-			separator = "&"
+		var loginURL string
+		if strings.Contains(appURL, "#") {
+			// If there is a hash, we put the token before it to ensure it's a real query param
+			parts := strings.SplitN(appURL, "#", 2)
+			base := parts[0]
+			hash := parts[1]
+			sep := "?"
+			if strings.Contains(base, "?") {
+				sep = "&"
+			}
+			loginURL = fmt.Sprintf("%s%stoken=%s#%s", base, sep, token, hash)
+		} else {
+			sep := "?"
+			if strings.Contains(appURL, "?") {
+				sep = "&"
+			}
+			loginURL = fmt.Sprintf("%s%stoken=%s", appURL, sep, token)
 		}
-		loginURL := fmt.Sprintf("%s%stoken=%s", appURL, separator, token)
 
 		body := fmt.Sprintf(email.MagicLinkEmailTemplate, loginURL, loginURL)
 		err = emailSender.SendEmail(r.Context(), emailAddr, "Lien de connexion Photo Cloud", body)
