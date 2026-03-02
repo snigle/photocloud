@@ -19,11 +19,6 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
     const { albums, loading, error, refresh, createAlbum } = useAlbums(creds, email);
     const [isCreating, setIsCreating] = useState(false);
 
-    useFocusEffect(
-        useCallback(() => {
-            refresh();
-        }, [refresh])
-    );
 
     const numColumns = Math.max(2, Math.floor(width / 180));
     const itemSize = width / numColumns;

@@ -25,7 +25,6 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
     const { getAlbum, removePhotosFromAlbum, loading: albumLoading } = useAlbums(creds, email);
 
     const [album, setAlbum] = useState<Album | null>(initialAlbum || null);
-    const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
     const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
     const [coverUrl, setCoverUrl] = useState<string | null>(null);
     const [loadingCover, setLoadingCover] = useState(false);
@@ -46,36 +45,34 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
         }
     }, [album, loadAlbum]);
 
-    useEffect(() => {
-        if (album) {
-            const reconstructedPhotos: UploadedPhoto[] = album.photoKeys.map(key => {
-                const parts = key.split('/');
-                const filename = parts.pop()!;
-                const namePart = filename.replace('.enc', '').replace('.json', '');
-                const timestampMatch = namePart.match(/^(\d+)-/);
-                const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0;
-                const id = timestampMatch ? namePart.substring(timestampMatch[0].length) : namePart;
+    const photos = useMemo(() => {
+        if (!album) return [];
+        const reconstructedPhotos: UploadedPhoto[] = album.photoKeys.map(key => {
+            const parts = key.split('/');
+            const filename = parts.pop()!;
+            const namePart = filename.replace('.enc', '').replace('.json', '');
+            const timestampMatch = namePart.match(/^(\d+)-/);
+            const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0;
+            const id = timestampMatch ? namePart.substring(timestampMatch[0].length) : namePart;
 
-                return {
-                    id: id,
-                    key: key,
-                    creationDate: timestamp,
-                    size: 0,
-                    width: 0,
-                    height: 0,
-                    type: 'cloud' as const,
-                };
-            });
+            return {
+                id: id,
+                key: key,
+                creationDate: timestamp,
+                size: 0,
+                width: 0,
+                height: 0,
+                type: 'cloud' as const,
+            };
+        });
 
-            // Sort photos based on album order
-            if (album.order === 'date-desc') {
-                reconstructedPhotos.sort((a, b) => b.creationDate - a.creationDate);
-            } else if (album.order === 'date-asc') {
-                reconstructedPhotos.sort((a, b) => a.creationDate - b.creationDate);
-            }
-
-            setPhotos(reconstructedPhotos);
+        // Sort photos based on album order
+        if (album.order === 'date-desc') {
+            reconstructedPhotos.sort((a, b) => b.creationDate - a.creationDate);
+        } else if (album.order === 'date-asc') {
+            reconstructedPhotos.sort((a, b) => a.creationDate - b.creationDate);
         }
+        return reconstructedPhotos;
     }, [album]);
 
     useEffect(() => {
@@ -162,13 +159,11 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
             .filter(p => selectedIds.has(p.id))
             .map(p => p.key);
 
-        const idsToRemove = Array.from(selectedIds);
         clearSelection();
 
         try {
             const updatedAlbum = await removePhotosFromAlbum(album.id, keysToRemove);
             setAlbum(updatedAlbum);
-            setPhotos(prev => prev.filter(p => !idsToRemove.includes(p.id)));
         } catch (err) {
             console.error('Failed to remove photos', err);
         }
