@@ -37,10 +37,10 @@ const authRepo = new AuthRepository();
 
 const linking = {
   prefixes: [
+    ...(Platform.OS === 'web' ? [window.location.origin + getBaseDir() + '#/'] : []),
     Linking.createURL('/'),
     'photocloud://',
     'https://photocloud.ovh',
-    ...(Platform.OS === 'web' ? [window.location.origin + getBaseDir()] : [])
   ],
   config: {
     screens: {
@@ -58,7 +58,9 @@ const linking = {
     if (Platform.OS === 'web') {
       const hash = window.location.hash.replace(/^#\/?/, '') || 'login';
       const search = window.location.search;
-      return getStateFromPath(hash + search, options);
+      // Combine hash path and search params so tokens are parsed
+      const fullPath = hash.includes('?') ? hash : (hash + search);
+      return getStateFromPath(fullPath, options);
     }
     return getStateFromPath(path, options);
   },
@@ -74,6 +76,7 @@ export default function App() {
   if (Platform.OS === 'web' && !window.location.hash) {
       const base = getBaseDir();
       const route = getRouteFromPath(window.location.pathname, base);
+      // Remove any trailing route from the URL path before setting the hash
       window.history.replaceState(null, '', `${window.location.origin}${base}#/${route}${window.location.search}`);
   }
 

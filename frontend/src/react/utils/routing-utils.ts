@@ -1,5 +1,10 @@
 import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
 
+/**
+ * Extracts the base directory of the application on web.
+ * It follows the rule: everything before the last slash of the pathname.
+ */
 export const getBaseDir = () => {
   if (Platform.OS !== 'web') return '/';
   const pathname = window.location.pathname;
@@ -7,7 +12,22 @@ export const getBaseDir = () => {
   return pathname.substring(0, lastSlashIndex + 1);
 };
 
+/**
+ * Extracts the route name from the pathname, relative to the base directory.
+ */
 export const getRouteFromPath = (pathname: string, base: string) => {
-    const route = pathname.substring(base.length);
-    return route || 'login';
+    let route = pathname.substring(base.length).replace(/\/$/, '');
+    if (route === 'index.html' || !route) return 'login';
+    return route;
+};
+
+/**
+ * Creates a full URL for a given route, ensuring hash-based routing on web.
+ * This satisfies the requirement of being relative to the last / before the #.
+ */
+export const createAppURL = (route: string) => {
+  if (Platform.OS !== 'web') {
+    return Linking.createURL(route);
+  }
+  return `${window.location.origin}${getBaseDir()}#/${route}`;
 };
