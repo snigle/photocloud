@@ -56,24 +56,15 @@ const linking = {
   },
   getStateFromPath: (path: string, options: any) => {
     if (Platform.OS === 'web') {
-      const hash = window.location.hash.replace(/^#\/?/, '');
+      const hash = window.location.hash.replace(/^#\/?/, '') || 'login';
       const search = window.location.search;
-      // Combine hash path and search params so tokens are parsed
-      let fullPath = hash || 'login';
-      if (search && !fullPath.includes('?')) {
-        fullPath += search;
-      }
-      return getStateFromPath(fullPath, options);
+      return getStateFromPath(hash + search, options);
     }
     return getStateFromPath(path, options);
   },
   getPathFromState: (state: any, options: any) => {
     const path = getPathFromState(state, options);
-    if (Platform.OS === 'web') {
-      // Use relative hash to stay within current subdirectory (e.g. /staging/#/login)
-      return `#/${path.replace(/^\//, '')}`;
-    }
-    return path;
+    return Platform.OS === 'web' ? `#/${path.replace(/^\//, '')}` : path;
   },
 };
 
@@ -83,11 +74,7 @@ export default function App() {
   if (Platform.OS === 'web' && !window.location.hash) {
       const base = getBaseDir();
       const route = getRouteFromPath(window.location.pathname, base);
-      const newUrl = window.location.origin + base + '#/' + route + window.location.search;
-
-      console.log('App: Redirecting to hash URL:', newUrl);
-      // Use replaceState to avoid full page reload and keep CI stable
-      window.history.replaceState(null, '', newUrl);
+      window.history.replaceState(null, '', `${window.location.origin}${base}#/${route}${window.location.search}`);
   }
 
   const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
