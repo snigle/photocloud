@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useMemo } from 'react';
-import { StyleSheet, View, Platform } from 'react-native';
+import { StyleSheet, View, Platform, Text } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider, ActivityIndicator, MD3LightTheme } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
