@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, Image, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
-import { Appbar, Text, useTheme, IconButton } from 'react-native-paper';
-import { ArrowLeft, MoreVertical } from 'lucide-react-native';
+import { View, StyleSheet, Image, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity, Platform } from 'react-native';
+import { Appbar, Text, useTheme, IconButton, Portal, Dialog, Button } from 'react-native-paper';
+import { ArrowLeft, MoreVertical, X, Trash2 } from 'lucide-react-native';
 import { Album, S3Credentials, Photo, UploadedPhoto } from '../../domain/types';
 import { useAlbums } from '../hooks/useAlbums';
+import { useSelection } from '../hooks/useSelection';
 import { PhotoItem } from '../components/PhotoItem';
 import { PhotoViewer } from '../components/PhotoViewer';
 import { S3Repository } from '../../infra/s3.repository';
@@ -18,16 +19,17 @@ interface AlbumDetailScreenProps {
 }
 
 const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation, creds, email }) => {
-    const { albumId, album: initialAlbum } = route.params;
+    const { albumId, album: initialAlbum } = route.params || {};
     const theme = useTheme();
     const { width } = useWindowDimensions();
-    const { getAlbum, loading: albumLoading } = useAlbums(creds, email);
+    const { getAlbum, removePhotosFromAlbum, loading: albumLoading } = useAlbums(creds, email);
 
     const [album, setAlbum] = useState<Album | null>(initialAlbum || null);
     const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
     const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
     const [coverUrl, setCoverUrl] = useState<string | null>(null);
     const [loadingCover, setLoadingCover] = useState(false);
+    const [removeDialogVisible, setRemoveDialogVisible] = useState(false);
 
     const loadAlbum = useCallback(async () => {
         try {
@@ -118,11 +120,58 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
         return () => { isMounted = false; };
     }, [album, photos, creds]);
 
+    const {
+        selectedIds,
+        handleSelect,
+        clearSelection,
+        toggleSelectionMode,
+        isSelectionMode,
+        startDragging,
+        stopDragging,
+        handleDragEnter
+    } = useSelection(photos);
+
     const numColumns = Math.max(3, Math.floor(width / 120));
     const itemSize = width / numColumns;
 
-    const handlePhotoPress = (id: string) => {
+    const handlePhotoPress = useCallback((id: string, event?: any) => {
+        if (Platform.OS === 'web' && event) {
+            if (event.shiftKey || event.ctrlKey || event.metaKey) {
+                handleSelect(id, event);
+                return;
+            }
+        }
         setViewerPhotoId(id);
+    }, [handleSelect]);
+
+    const handleLongPress = useCallback((id: string) => {
+        toggleSelectionMode(id);
+        if (Platform.OS !== 'web') {
+            startDragging(id);
+        }
+    }, [toggleSelectionMode, startDragging]);
+
+    const handleRemoveSelected = () => {
+        setRemoveDialogVisible(true);
+    };
+
+    const confirmRemove = async () => {
+        if (!album) return;
+        setRemoveDialogVisible(false);
+        const keysToRemove = photos
+            .filter(p => selectedIds.has(p.id))
+            .map(p => p.key);
+
+        const idsToRemove = Array.from(selectedIds);
+        clearSelection();
+
+        try {
+            const updatedAlbum = await removePhotosFromAlbum(album.id, keysToRemove);
+            setAlbum(updatedAlbum);
+            setPhotos(prev => prev.filter(p => !idsToRemove.includes(p.id)));
+        } catch (err) {
+            console.error('Failed to remove photos', err);
+        }
     };
 
     if (!album && albumLoading) {
@@ -163,9 +212,19 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
     return (
         <View style={styles.container}>
             <Appbar.Header elevated mode="center-aligned">
-                <Appbar.BackAction onPress={() => navigation.goBack()} />
-                <Appbar.Content title={album.title} />
-                <Appbar.Action icon={() => <MoreVertical size={24} />} onPress={() => {}} />
+                {isSelectionMode ? (
+                    <>
+                        <Appbar.Action icon={() => <X size={24} />} onPress={clearSelection} />
+                        <Appbar.Content title={`${selectedIds.size} sélectionnée(s)`} />
+                        <Appbar.Action icon={() => <Trash2 size={24} color={theme.colors.error} />} onPress={handleRemoveSelected} />
+                    </>
+                ) : (
+                    <>
+                        <Appbar.BackAction onPress={() => navigation.goBack()} />
+                        <Appbar.Content title={album.title} />
+                        <Appbar.Action icon={() => <MoreVertical size={24} />} onPress={() => {}} />
+                    </>
+                )}
             </Appbar.Header>
 
             <FlatList
@@ -180,13 +239,13 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                         creds={creds}
                         size={itemSize}
                         onPress={handlePhotoPress}
-                        isSelected={false}
-                        onSelect={() => {}}
-                        onLongPress={() => {}}
-                        isSelectionMode={false}
-                        onDragStart={() => {}}
-                        onDragEnter={() => {}}
-                        onDragEnd={() => {}}
+                        isSelected={selectedIds.has(item.id)}
+                        onSelect={handleSelect}
+                        onLongPress={handleLongPress}
+                        isSelectionMode={isSelectionMode}
+                        onDragStart={startDragging}
+                        onDragEnter={handleDragEnter}
+                        onDragEnd={stopDragging}
                     />
                 )}
                 contentContainerStyle={styles.listContent}
@@ -201,6 +260,19 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                     creds={creds}
                 />
             )}
+
+            <Portal>
+                <Dialog visible={removeDialogVisible} onDismiss={() => setRemoveDialogVisible(false)}>
+                    <Dialog.Title>Retirer de l'album</Dialog.Title>
+                    <Dialog.Content>
+                        <Text>Voulez-vous retirer {selectedIds.size} photo(s) de cet album ? Les photos ne seront pas supprimées de votre galerie.</Text>
+                    </Dialog.Content>
+                    <Dialog.Actions>
+                        <Button onPress={() => setRemoveDialogVisible(false)}>Annuler</Button>
+                        <Button onPress={confirmRemove} textColor={theme.colors.error}>Retirer</Button>
+                    </Dialog.Actions>
+                </Dialog>
+            </Portal>
         </View>
     );
 };

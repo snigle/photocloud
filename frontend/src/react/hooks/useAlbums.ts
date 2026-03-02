@@ -4,6 +4,7 @@ import { S3Repository } from '../../infra/s3.repository';
 import { ListAlbumsUseCase } from '../../usecase/list-albums.usecase';
 import { CreateAlbumUseCase } from '../../usecase/create-album.usecase';
 import { AddPhotosToAlbumUseCase } from '../../usecase/add-photos-to-album.usecase';
+import { RemovePhotosFromAlbumUseCase } from '../../usecase/remove-photos-from-album.usecase';
 import { GetAlbumUseCase } from '../../usecase/get-album.usecase';
 import { Album, S3Credentials } from '../../domain/types';
 
@@ -18,6 +19,7 @@ export function useAlbums(creds: S3Credentials, email: string) {
     const listAlbumsUseCase = useMemo(() => new ListAlbumsUseCase(albumRepo), [albumRepo]);
     const createAlbumUseCase = useMemo(() => new CreateAlbumUseCase(albumRepo), [albumRepo]);
     const addPhotosToAlbumUseCase = useMemo(() => new AddPhotosToAlbumUseCase(albumRepo), [albumRepo]);
+    const removePhotosFromAlbumUseCase = useMemo(() => new RemovePhotosFromAlbumUseCase(albumRepo), [albumRepo]);
     const getAlbumUseCase = useMemo(() => new GetAlbumUseCase(albumRepo), [albumRepo]);
 
     const loadAlbums = useCallback(async () => {
@@ -73,6 +75,20 @@ export function useAlbums(creds: S3Credentials, email: string) {
         }
     }, [creds.bucket, email, getAlbumUseCase]);
 
+    const removePhotosFromAlbum = useCallback(async (albumId: string, photoKeys: string[]) => {
+        setLoading(true);
+        try {
+            const updatedAlbum = await removePhotosFromAlbumUseCase.execute(creds.bucket, email, albumId, photoKeys);
+            setAlbums(prev => prev.map(a => a.id === albumId ? updatedAlbum : a));
+            return updatedAlbum;
+        } catch (err: any) {
+            setError(err.message || 'Failed to remove photos from album');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [creds.bucket, email, removePhotosFromAlbumUseCase]);
+
     useEffect(() => {
         loadAlbums();
     }, [loadAlbums]);
@@ -84,6 +100,7 @@ export function useAlbums(creds: S3Credentials, email: string) {
         refresh: loadAlbums,
         createAlbum,
         addPhotosToAlbum,
+        removePhotosFromAlbum,
         getAlbum,
     };
 }
