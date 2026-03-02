@@ -24,6 +24,7 @@ describe('GalleryUseCase', () => {
       getDownloadUrl: jest.fn(),
       exists: jest.fn(),
       deleteFile: jest.fn(),
+      listKeys: jest.fn(),
     };
     mockLocalRepo = {
       listLocalPhotos: jest.fn(),

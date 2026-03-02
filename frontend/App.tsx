@@ -14,6 +14,7 @@ import { getBaseDir, getRouteFromPath } from './src/react/utils/routing-utils';
 import AuthScreen from './src/react/screens/AuthScreen';
 import GalleryScreen from './src/react/screens/GalleryScreen';
 import FoldersScreen from './src/react/screens/FoldersScreen';
+import AlbumsScreen from './src/react/screens/AlbumsScreen';
 import { AuthRepository } from './src/infra/auth.repository';
 import { AuthUseCase } from './src/usecase/auth.usecase';
 import { BACKGROUND_SYNC_TASK } from './src/domain/constants';
@@ -48,6 +49,7 @@ const linking = {
         screens: {
           Gallery: 'gallery',
           Dossiers: 'folders',
+          Albums: 'albums',
         }
       },
     },
@@ -165,6 +167,15 @@ export default function App() {
                                                 email={session.email}
                                                 onLogout={logout}
                                                 onMenu={() => (props.navigation as any).openDrawer()}
+                                            />
+                                        )}
+                                    </Drawer.Screen>
+                                    <Drawer.Screen name="Albums">
+                                        {(props) => (
+                                            <AlbumsScreen
+                                                {...props}
+                                                creds={session.creds}
+                                                email={session.email}
                                             />
                                         )}
                                     </Drawer.Screen>

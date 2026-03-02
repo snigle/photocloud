@@ -284,6 +284,38 @@ export class S3Repository implements IS3Repository {
       await this.s3.send(command);
   }
 
+  async listKeys(bucket: string, prefix: string): Promise<string[]> {
+    let keys: string[] = [];
+    let continuationToken: string | undefined = undefined;
+
+    try {
+        do {
+            const command: ListObjectsV2Command = new ListObjectsV2Command({
+              Bucket: bucket,
+              Prefix: prefix,
+              ContinuationToken: continuationToken,
+            });
+
+            const data = await this.s3.send(command);
+            if (!data.Contents) break;
+
+            const batch = data.Contents
+              .filter(item => {
+                  const key = item.Key || '';
+                  return !key.endsWith('/');
+              })
+              .map(item => item.Key!);
+
+            keys = [...keys, ...batch];
+            continuationToken = data.NextContinuationToken;
+          } while (continuationToken);
+    } catch (e) {
+        console.error(`Error listing keys for prefix ${prefix}:`, e);
+    }
+
+    return keys;
+  }
+
   static get1080pKey(thumbnailKey: string): string {
     return thumbnailKey.replace('/thumbnail/', '/1080p/');
   }
