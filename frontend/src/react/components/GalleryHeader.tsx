@@ -15,6 +15,7 @@ interface GalleryHeaderProps {
     onLogout: () => void;
     onMenu?: () => void;
     onAddToAlbum?: () => void;
+    isStaging?: boolean;
 }
 
 export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
@@ -29,12 +30,13 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
     onLogout,
     onMenu,
     onAddToAlbum,
+    isStaging,
 }) => {
     const theme = useTheme();
 
     if (selectedCount > 0) {
         return (
-            <Appbar.Header style={{ backgroundColor: '#e3f2fd' }}>
+            <Appbar.Header style={{ backgroundColor: isStaging ? '#fff3e0' : '#e3f2fd' }}>
                 <Appbar.Action icon={() => <X size={24} />} onPress={onClearSelection} />
                 <Appbar.Content title={`${selectedCount} sélectionné(s)`} />
                 {onAddToAlbum && <Appbar.Action icon={() => <FolderPlus size={24} />} onPress={onAddToAlbum} />}
@@ -44,7 +46,7 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
     }
 
     return (
-        <Appbar.Header elevated>
+        <Appbar.Header elevated style={{ backgroundColor: isStaging ? '#fff3e0' : undefined }}>
             {onMenu && (
                 <Appbar.Action
                     icon={() => <Menu size={24} color={theme.colors.onSurface} />}

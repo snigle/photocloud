@@ -7,6 +7,7 @@ import { useGallery } from '../hooks/useGallery';
 import { useUpload } from '../hooks/useUpload';
 import { useSelection } from '../hooks/useSelection';
 import { groupPhotosByDay, ListItem } from '../utils/gallery-utils';
+import { getBaseDir, getIsStaging } from '../utils/routing-utils';
 import { PhotoViewer } from '../components/PhotoViewer';
 import { PhotoItem } from '../components/PhotoItem';
 import { GalleryHeader } from '../components/GalleryHeader';
@@ -24,6 +25,7 @@ interface Props {
 
 const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
   const theme = useTheme();
+  const isStaging = getIsStaging();
   const { width } = useWindowDimensions();
   const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -208,6 +210,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
         onLogout={onLogout}
         onMenu={onMenu}
         onAddToAlbum={handleAddToAlbum}
+        isStaging={isStaging}
       />
 
       {uploading && progress && (

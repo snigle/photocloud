@@ -3,6 +3,7 @@ import { View, StyleSheet, FlatList, useWindowDimensions, RefreshControl, Activi
 import { Appbar, Text, useTheme, Button, Portal, Dialog } from 'react-native-paper';
 import { Menu } from 'lucide-react-native';
 import { FolderItem } from '../components/FolderItem';
+import { getIsStaging } from '../utils/routing-utils';
 import { GetFoldersUseCase } from '../../usecase/get-folders.usecase';
 import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
 import { SyncSettingsRepository } from '../../infra/sync-settings.repository';
@@ -15,6 +16,7 @@ interface FoldersScreenProps {
 
 const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
   const theme = useTheme();
+  const isStaging = getIsStaging();
   const { width } = useWindowDimensions();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [enabledFolders, setEnabledFolders] = useState<string[]>([]);
@@ -66,7 +68,7 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Appbar.Header elevated>
+      <Appbar.Header elevated style={{ backgroundColor: isStaging ? '#fff3e0' : undefined }}>
         <Appbar.Action icon={() => <Menu size={24} />} onPress={() => navigation.openDrawer()} />
         <Appbar.Content title="Dossiers" subtitle="Choisissez les dossiers à synchroniser" />
       </Appbar.Header>

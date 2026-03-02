@@ -5,12 +5,12 @@ import { PaperProvider, ActivityIndicator, MD3LightTheme } from 'react-native-pa
 import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
 import { NavigationContainer, getStateFromPath, getPathFromState } from '@react-navigation/native';
-import { createDrawerNavigator } from '@react-navigation/drawer';
+import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as BackgroundFetch from 'expo-background-fetch';
 
 import { useAuth } from './src/react/hooks/useAuth';
-import { getBaseDir, getRouteFromPath } from './src/react/utils/routing-utils';
+import { getBaseDir, getRouteFromPath, getIsStaging } from './src/react/utils/routing-utils';
 import AuthScreen from './src/react/screens/AuthScreen';
 import GalleryScreen from './src/react/screens/GalleryScreen';
 import FoldersScreen from './src/react/screens/FoldersScreen';
@@ -23,11 +23,13 @@ import { BACKGROUND_SYNC_TASK } from './src/domain/constants';
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
 
+const isStaging = getIsStaging();
+
 const theme = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
-    primary: '#005bbb', // OVHcloud Blue
+    primary: isStaging ? '#e65100' : '#005bbb', // Orange for staging, OVHcloud Blue for prod
     secondary: '#001932', // OVHcloud Dark Blue
     background: '#ffffff',
     surface: '#ffffff',
@@ -81,6 +83,13 @@ const linking = {
 
 export default function App() {
   const { session, loading, login, logout } = useAuth();
+  const [backendVersion, setBackendVersion] = React.useState('...');
+
+  const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
+
+  useEffect(() => {
+      authUseCase.getVersion().then(setBackendVersion).catch(() => setBackendVersion('err'));
+  }, [authUseCase]);
 
   if (Platform.OS === 'web' && !window.location.hash) {
       const base = getBaseDir();
@@ -92,7 +101,6 @@ export default function App() {
       window.history.replaceState(null, '', newUrl);
   }
 
-  const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
   const processedTokens = useRef(new Set<string>());
 
   useEffect(() => {
@@ -136,6 +144,25 @@ export default function App() {
     }
   }, [session]);
 
+  const CustomDrawerContent = (props: any) => {
+    return (
+        <View style={{ flex: 1 }}>
+            <DrawerContentScrollView {...props}>
+                <DrawerItemList {...props} />
+            </DrawerContentScrollView>
+            <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#eee', opacity: 0.5 }}>
+                <Text style={{ fontSize: 10 }}>
+                    v-front: {process.env.EXPO_PUBLIC_VERSION || 'dev'}
+                </Text>
+                <Text style={{ fontSize: 10 }}>
+                    v-back: {backendVersion}
+                </Text>
+                {isStaging && <Text style={{ fontSize: 10, color: '#e65100', fontWeight: 'bold' }}>STAGING</Text>}
+            </View>
+        </View>
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -157,9 +184,13 @@ export default function App() {
                             {() => (
                                 <Drawer.Navigator
                                     initialRouteName="Gallery"
+                                    drawerContent={(props) => <CustomDrawerContent {...props} />}
                                     screenOptions={{
                                         headerShown: false,
                                         drawerActiveTintColor: theme.colors.primary,
+                                        headerStyle: {
+                                            backgroundColor: isStaging ? '#fff3e0' : undefined,
+                                        }
                                     }}
                                 >
                                     <Drawer.Screen name="Gallery">

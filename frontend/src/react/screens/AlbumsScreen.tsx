@@ -4,6 +4,7 @@ import { Appbar, useTheme, Text, Button, FAB } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { Menu, Plus } from 'lucide-react-native';
 import { useAlbums } from '../hooks/useAlbums';
+import { getIsStaging } from '../utils/routing-utils';
 import { AlbumItem } from '../components/AlbumItem';
 import { Album, S3Credentials } from '../../domain/types';
 
@@ -15,6 +16,7 @@ interface AlbumsScreenProps {
 
 const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email }) => {
     const theme = useTheme();
+    const isStaging = getIsStaging();
     const { width } = useWindowDimensions();
     const { albums, loading, error, refresh, createAlbum } = useAlbums(creds, email);
     const [isCreating, setIsCreating] = useState(false);
@@ -49,7 +51,7 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
 
     return (
         <View style={styles.container}>
-            <Appbar.Header elevated>
+            <Appbar.Header elevated style={{ backgroundColor: isStaging ? '#fff3e0' : undefined }}>
                 <Appbar.Action icon={() => <Menu size={24} />} onPress={() => navigation.openDrawer()} />
                 <Appbar.Content title="Albums" />
                 <Appbar.Action icon={() => <Plus size={24} />} onPress={handleCreateNewAlbum} disabled={isCreating} />

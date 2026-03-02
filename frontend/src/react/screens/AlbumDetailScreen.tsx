@@ -9,6 +9,7 @@ import { PhotoItem } from '../components/PhotoItem';
 import { PhotoViewer } from '../components/PhotoViewer';
 import { S3Repository } from '../../infra/s3.repository';
 import { uint8ArrayToBase64 } from '../../infra/utils';
+import { getIsStaging } from '../utils/routing-utils';
 import { ThumbnailCache } from '../../infra/thumbnail-cache';
 
 interface AlbumDetailScreenProps {
@@ -21,6 +22,7 @@ interface AlbumDetailScreenProps {
 const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation, creds, email }) => {
     const { albumId, album: initialAlbum } = route.params || {};
     const theme = useTheme();
+    const isStaging = getIsStaging();
     const { width } = useWindowDimensions();
     const { getAlbum, removePhotosFromAlbum, loading: albumLoading } = useAlbums(creds, email);
 
@@ -213,7 +215,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
 
     return (
         <View style={styles.container}>
-            <Appbar.Header elevated mode="center-aligned">
+            <Appbar.Header elevated mode="center-aligned" style={{ backgroundColor: isStaging ? '#fff3e0' : undefined }}>
                 {isSelectionMode ? (
                     <>
                         <Appbar.Action icon={() => <X size={24} />} onPress={clearSelection} />
