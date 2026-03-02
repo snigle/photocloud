@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, StyleSheet, FlatList, useWindowDimensions, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, useWindowDimensions, RefreshControl, ActivityIndicator } from 'react-native';
 import { Appbar, Text, useTheme, Button, Portal, Dialog } from 'react-native-paper';
 import { Menu } from 'lucide-react-native';
 import { FolderItem } from '../components/FolderItem';
@@ -84,12 +84,17 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
             size={itemSize}
           />
         )}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, folders.length === 0 && { flexGrow: 1 }]}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={loadData} />
         }
         ListEmptyComponent={
-            !loading ? (
+            loading && folders.length === 0 ? (
+                <View style={styles.center}>
+                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Text style={{ marginTop: 16 }}>Chargement des dossiers...</Text>
+                </View>
+            ) : !loading && folders.length === 0 ? (
                 <View style={styles.center}>
                     <Text>Aucun dossier trouvé ou permission refusée.</Text>
                     <Button mode="contained" onPress={loadData} style={{ marginTop: 16 }}>

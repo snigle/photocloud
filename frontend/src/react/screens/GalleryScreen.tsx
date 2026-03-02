@@ -225,62 +225,59 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
       )}
 
       <View style={styles.listContainer}>
-          {loading && photos.length === 0 && (
-            <View style={styles.center}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-                <Text style={{ marginTop: 10 }}>Loading your gallery...</Text>
-            </View>
-          )}
-
-          {!loading && !refreshing && photos.length === 0 && !error && (
-            <View style={styles.center}>
-              {uploading ? (
-                  <>
-                      <ActivityIndicator size="large" color={theme.colors.primary} />
-                      <Text style={{ marginTop: 10 }}>Preparing upload...</Text>
-                  </>
-              ) : (
-                  <>
-                      <Text>No photos found.</Text>
-                      <Text variant="bodySmall">Local and Cloud photos will appear here.</Text>
-                  </>
-              )}
-            </View>
-          )}
-
-          {(photos.length > 0 || !loading) && (
-            <FlashListAny
-            data={listData}
-            renderItem={renderItem}
-            keyExtractor={(item: ListItem) => {
-                if (item.type === 'header') return item.id;
-                return item.photo ? item.photo.id : (item as any).placeholderId;
-            }}
-            numColumns={numColumns}
-            key={numColumns} // Force re-render when column count changes
-            estimatedItemSize={180}
-            extraData={{ selectedIds, isSelectionMode }}
-            getItemType={(item: ListItem) => item.type}
-            overrideItemLayout={(layout: any, item: ListItem) => {
-                if (item.type === 'header') {
-                    layout.size = 50;
-                } else {
-                    layout.size = itemSize;
-                }
-            }}
-            getColumnSpan={(item: ListItem) => {
-                return item.type === 'header' ? numColumns : 1;
-            }}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={refresh} />
-            }
-            onScroll={handleScroll}
-            onEndReached={loadMore}
-            onEndReachedThreshold={0.5}
-            ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 20 }} /> : null}
-              contentContainerStyle={{ flexGrow: 1 }}
-            />
-          )}
+        <FlashListAny
+          data={listData}
+          renderItem={renderItem}
+          keyExtractor={(item: ListItem) => {
+              if (item.type === 'header') return item.id;
+              return item.photo ? item.photo.id : (item as any).placeholderId;
+          }}
+          numColumns={numColumns}
+          key={numColumns} // Force re-render when column count changes
+          estimatedItemSize={180}
+          extraData={{ selectedIds, isSelectionMode }}
+          getItemType={(item: ListItem) => item.type}
+          overrideItemLayout={(layout: any, item: ListItem) => {
+              if (item.type === 'header') {
+                  layout.size = 50;
+              } else {
+                  layout.size = itemSize;
+              }
+          }}
+          getColumnSpan={(item: ListItem) => {
+              return item.type === 'header' ? numColumns : 1;
+          }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing || (loading && photos.length === 0)} onRefresh={refresh} />
+          }
+          onScroll={handleScroll}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={loading && photos.length > 0 ? <ActivityIndicator style={{ margin: 20 }} /> : null}
+          ListEmptyComponent={
+            loading && photos.length === 0 ? (
+                <View style={styles.center}>
+                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Text style={{ marginTop: 10 }}>Loading your gallery...</Text>
+                </View>
+            ) : !loading && photos.length === 0 && !error ? (
+                <View style={styles.center}>
+                  {uploading ? (
+                      <>
+                          <ActivityIndicator size="large" color={theme.colors.primary} />
+                          <Text style={{ marginTop: 10 }}>Preparing upload...</Text>
+                      </>
+                  ) : (
+                      <>
+                          <Text>No photos found.</Text>
+                          <Text variant="bodySmall">Local and Cloud photos will appear here.</Text>
+                      </>
+                  )}
+                </View>
+            ) : null
+          }
+          contentContainerStyle={{ flexGrow: 1 }}
+        />
       </View>
 
       {showYearIndicator && currentYear && (

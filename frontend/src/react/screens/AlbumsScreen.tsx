@@ -56,43 +56,41 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
             </Appbar.Header>
 
             <View style={styles.content}>
-                {loading && albums.length === 0 ? (
-                    <View style={styles.center}>
-                        <ActivityIndicator size="large" color={theme.colors.primary} />
-                        <Text style={{ marginTop: 16 }}>Chargement des albums...</Text>
-                    </View>
-                ) : (
-                    <FlatList
-                        data={albums}
-                        keyExtractor={(item) => item.id}
-                        numColumns={numColumns}
-                        key={numColumns}
-                        renderItem={({ item }) => (
-                            <AlbumItem
-                                album={item}
-                                creds={creds}
-                                size={itemSize}
-                                onPress={handleAlbumPress}
-                            />
-                        )}
-                        contentContainerStyle={styles.list}
-                        refreshControl={
-                            <RefreshControl refreshing={loading} onRefresh={refresh} />
-                        }
-                        ListEmptyComponent={
-                            !loading ? (
-                                <View style={styles.center}>
-                                    <Text variant="headlineSmall" style={{ marginBottom: 8 }}>📁</Text>
-                                    <Text>Aucun album trouvé.</Text>
-                                    <Text variant="bodySmall">Créez votre premier album depuis la galerie ou ici même.</Text>
-                                    <Button mode="contained" onPress={handleCreateNewAlbum} style={{ marginTop: 16 }}>
-                                        Créer un album
-                                    </Button>
-                                </View>
-                            ) : null
-                        }
-                    />
-                )}
+                <FlatList
+                    data={albums}
+                    keyExtractor={(item) => item.id}
+                    numColumns={numColumns}
+                    key={numColumns}
+                    renderItem={({ item }) => (
+                        <AlbumItem
+                            album={item}
+                            creds={creds}
+                            size={itemSize}
+                            onPress={handleAlbumPress}
+                        />
+                    )}
+                    contentContainerStyle={[styles.list, albums.length === 0 && { flexGrow: 1 }]}
+                    refreshControl={
+                        <RefreshControl refreshing={loading} onRefresh={refresh} />
+                    }
+                    ListEmptyComponent={
+                        loading && albums.length === 0 ? (
+                            <View style={styles.center}>
+                                <ActivityIndicator size="large" color={theme.colors.primary} />
+                                <Text style={{ marginTop: 16 }}>Chargement des albums...</Text>
+                            </View>
+                        ) : !loading ? (
+                            <View style={styles.center}>
+                                <Text variant="headlineSmall" style={{ marginBottom: 8 }}>📁</Text>
+                                <Text>Aucun album trouvé.</Text>
+                                <Text variant="bodySmall">Créez votre premier album depuis la galerie ou ici même.</Text>
+                                <Button mode="contained" onPress={handleCreateNewAlbum} style={{ marginTop: 16 }}>
+                                    Créer un album
+                                </Button>
+                            </View>
+                        ) : null
+                    }
+                />
             </View>
 
             {error && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, Image, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity, Platform } from 'react-native';
+import { View, StyleSheet, Image, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity, Platform, RefreshControl } from 'react-native';
 import { Appbar, Text, useTheme, IconButton, Portal, Dialog, Button } from 'react-native-paper';
 import { ArrowLeft, MoreVertical, X, Trash2 } from 'lucide-react-native';
 import { Album, S3Credentials, Photo, UploadedPhoto } from '../../domain/types';
@@ -25,6 +25,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
     const { getAlbum, removePhotosFromAlbum, loading: albumLoading } = useAlbums(creds, email);
 
     const [album, setAlbum] = useState<Album | null>(initialAlbum || null);
+    const [refreshing, setRefreshing] = useState(false);
     const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
     const [coverUrl, setCoverUrl] = useState<string | null>(null);
     const [loadingCover, setLoadingCover] = useState(false);
@@ -38,6 +39,12 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
             console.error('Failed to load album', err);
         }
     }, [albumId, getAlbum]);
+
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await loadAlbum();
+        setRefreshing(false);
+    }, [loadAlbum]);
 
     useEffect(() => {
         if (!album) {
@@ -228,6 +235,9 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                 numColumns={numColumns}
                 key={numColumns}
                 ListHeaderComponent={renderHeader}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+                }
                 renderItem={({ item }) => (
                     <PhotoItem
                         photo={item}
