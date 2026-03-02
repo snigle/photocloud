@@ -77,11 +77,13 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={refresh}
-                            progressViewOffset={Platform.OS === 'android' ? 50 : 0}
+                            colors={[theme.colors.primary]}
+                            tintColor={theme.colors.primary}
                         />
                     }
                     alwaysBounceVertical={true}
                     overScrollMode="always"
+                    contentContainerStyle={[styles.list, { flexGrow: 1, minHeight: '100%' }]}
                     ListEmptyComponent={
                         loading && albums.length === 0 ? (
                             <View style={styles.center}>

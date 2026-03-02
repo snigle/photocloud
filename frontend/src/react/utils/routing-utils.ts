@@ -35,6 +35,11 @@ export const getRouteFromPath = (pathname: string, base: string) => {
 };
 
 export const getIsStaging = () => {
-    if (Platform.OS !== 'web') return false;
-    return window.location.pathname.includes('/staging') || window.location.hostname.includes('staging');
+    try {
+        if (Platform.OS !== 'web') return false;
+        if (typeof window === 'undefined') return false;
+        return window.location.pathname.includes('/staging') || window.location.hostname.includes('staging');
+    } catch (e) {
+        return false;
+    }
 };

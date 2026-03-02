@@ -25,6 +25,7 @@ describe('GalleryUseCase', () => {
       exists: jest.fn(),
       deleteFile: jest.fn(),
       listKeys: jest.fn(),
+      listFolders: jest.fn(),
     };
     mockLocalRepo = {
       listLocalPhotos: jest.fn(),

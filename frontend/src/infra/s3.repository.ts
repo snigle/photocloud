@@ -73,50 +73,39 @@ export class S3Repository implements IS3Repository {
             return { years: normalizedYears };
         }
     } catch (e) {
-        console.error('Failed to get cloud index', e);
+        if ((e as any).name !== 'NoSuchKey' && (e as any).$metadata?.httpStatusCode !== 404) {
+            console.error('Failed to get cloud index', e);
+        }
     }
     return { years: [] };
   }
 
   async listPhotos(bucket: string, email: string): Promise<UploadedPhoto[]> {
-    let allPhotos: UploadedPhoto[] = [];
+    const allPhotosMap = new Map<string, UploadedPhoto>();
     const basePrefix = `users/${email}/`;
 
     try {
-        // 1. Try to get years from index.json for targeted listing
-        const index = await this.getCloudIndex(bucket, email);
-        const years = index.years.map(y => y.year);
+        console.log(`S3Repository: Listing all photos recursively for ${email}`);
+        const allFiles = await this.listFolder(bucket, basePrefix);
 
-        if (years.length > 0) {
-            console.log(`S3Repository: listing photos for years: ${years.join(', ')}`);
-            const results = await Promise.all(years.map(year => this.listFolder(bucket, `${basePrefix}${year}/thumbnail/`)));
-            for (const yearPhotos of results) {
-                allPhotos = [...allPhotos, ...yearPhotos];
+        for (const p of allFiles) {
+            const existing = allPhotosMap.get(p.id);
+            // Deduplicate by ID and prefer the key that is a thumbnail
+            if (!existing || p.key.includes('/thumbnail/')) {
+                allPhotosMap.set(p.id, p);
             }
-        }
-
-        // 2. Fallback: If no photos found in targeted folders, search more broadly
-        if (allPhotos.length === 0) {
-            const allFiles = await this.listFolder(bucket, basePrefix);
-            allPhotos = allFiles.filter(p => p.key.includes('/thumbnail/'));
-        }
-
-        // 3. Last resort fallback
-        if (allPhotos.length === 0) {
-            const allFiles = await this.listFolder(bucket, basePrefix);
-            allPhotos = allFiles.filter(p => p.key.endsWith('.enc') && !p.key.endsWith('.json.enc'));
         }
 
     } catch (err) {
         console.error('Error in listPhotos:', err);
-        throw err;
     }
 
-    const uniquePhotos = Array.from(new Map(allPhotos.map(p => [p.id, p])).values());
+    const uniquePhotos = Array.from(allPhotosMap.values());
+    console.log(`S3Repository: Found ${uniquePhotos.length} unique photos`);
     return uniquePhotos;
   }
 
-  private async listFolder(bucket: string, prefix: string): Promise<UploadedPhoto[]> {
+  private async listFolder(bucket: string, prefix: string, delimiter?: string): Promise<UploadedPhoto[]> {
     let folderPhotos: UploadedPhoto[] = [];
     let continuationToken: string | undefined = undefined;
 
@@ -125,6 +114,7 @@ export class S3Repository implements IS3Repository {
             const command: ListObjectsV2Command = new ListObjectsV2Command({
               Bucket: bucket,
               Prefix: prefix,
+              Delimiter: delimiter,
               ContinuationToken: continuationToken,
             });
 
@@ -134,7 +124,7 @@ export class S3Repository implements IS3Repository {
             const items: UploadedPhoto[] = data.Contents
               .filter(item => {
                   const key = item.Key || '';
-                  return !key.endsWith('/');
+                  return !key.endsWith('/') && !key.endsWith('index.json') && key.endsWith('.enc');
               })
               .map(item => {
                 const key = item.Key!;
@@ -292,6 +282,31 @@ export class S3Repository implements IS3Repository {
           Key: key,
       });
       await this.s3.send(command);
+  }
+
+  async listFolders(bucket: string, prefix: string): Promise<string[]> {
+    let folders: string[] = [];
+    let continuationToken: string | undefined = undefined;
+
+    try {
+        do {
+            const command: ListObjectsV2Command = new ListObjectsV2Command({
+              Bucket: bucket,
+              Prefix: prefix,
+              Delimiter: '/',
+              ContinuationToken: continuationToken,
+            });
+            const data = await this.s3.send(command);
+            if (data.CommonPrefixes) {
+                folders = [...folders, ...data.CommonPrefixes.map(p => p.Prefix!)];
+            }
+            continuationToken = data.NextContinuationToken;
+        } while (continuationToken);
+    } catch (e) {
+        console.error(`Error listing folders for prefix ${prefix}:`, e);
+    }
+
+    return folders;
   }
 
   async listKeys(bucket: string, prefix: string): Promise<string[]> {

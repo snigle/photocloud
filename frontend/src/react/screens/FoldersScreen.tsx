@@ -96,11 +96,13 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => loadData(true)}
-            progressViewOffset={Platform.OS === 'android' ? 50 : 0}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
           />
         }
         alwaysBounceVertical={true}
         overScrollMode="always"
+        contentContainerStyle={[styles.list, { flexGrow: 1, minHeight: '100%' }]}
         ListEmptyComponent={
             loading && folders.length === 0 ? (
                 <View style={styles.center}>

@@ -242,7 +242,8 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={handleRefresh}
-                        progressViewOffset={Platform.OS === 'android' ? 50 : 0}
+                        colors={[theme.colors.primary]}
+                        tintColor={theme.colors.primary}
                     />
                 }
                 alwaysBounceVertical={true}

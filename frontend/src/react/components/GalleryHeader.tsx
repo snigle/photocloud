@@ -57,7 +57,7 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
             )}
             <Appbar.Content
                 title="PhotoCloud"
-                subtitle={uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`}
+                subtitle={refreshing ? 'Mise à jour...' : (uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`)}
             />
             {uploading && !progress && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
             <Appbar.Action

@@ -254,11 +254,13 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
             <RefreshControl
                 refreshing={refreshing}
                 onRefresh={refresh}
-                progressViewOffset={Platform.OS === 'android' ? 50 : 0}
+                colors={[theme.colors.primary]}
+                tintColor={theme.colors.primary}
             />
           }
           alwaysBounceVertical={true}
           overScrollMode="always"
+          contentContainerStyle={{ flexGrow: 1, minHeight: '100%' }}
           onScroll={handleScroll}
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}

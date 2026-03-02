@@ -12,6 +12,8 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const isSyncing = useRef(false);
+  const syncPromise = useRef<Promise<void> | null>(null);
 
   const PAGE_SIZE = 100;
 
@@ -25,6 +27,41 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
     photosRef.current = photos;
   }, [photos]);
 
+  const performSync = useCallback(async () => {
+    if (!galleryUseCase || !creds || !email) return;
+    if (syncPromise.current) {
+        console.log('useGallery: Joining existing sync promise');
+        return syncPromise.current;
+    }
+
+    syncPromise.current = (async () => {
+        console.log('useGallery: Starting synchronization');
+        isSyncing.current = true;
+        try {
+            await galleryUseCase.sync(creds, email);
+
+            console.log('useGallery: Sync complete, refreshing UI from local cache');
+            const refreshed = await galleryUseCase.getPhotos(100000, 0);
+            const count = await galleryUseCase.getTotalCount();
+            const sorted = [...refreshed].sort((a, b) => b.creationDate - a.creationDate);
+
+            setPhotos(sorted);
+            setTotalCount(count);
+
+            const updatedIndex = await galleryUseCase.getCloudIndex(creds, email);
+            setCloudIndex(updatedIndex);
+        } catch (err) {
+            console.warn('useGallery: Sync failed', err);
+            throw err;
+        } finally {
+            isSyncing.current = false;
+            syncPromise.current = null;
+        }
+    })();
+
+    return syncPromise.current;
+  }, [galleryUseCase, creds, email]);
+
   const loadInitial = useCallback(async () => {
     if (!galleryUseCase || !creds || !email) return;
 
@@ -33,63 +70,41 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
     }
 
     try {
-      // 1. Get quick counts
+      // 1. Load from cache first
+      const cachedPhotos = await galleryUseCase.getPhotos(100000, 0);
+      const totalInCache = await galleryUseCase.getTotalCount();
+
+      if (cachedPhotos.length > 0) {
+          setPhotos(cachedPhotos);
+          setTotalCount(totalInCache);
+      }
+
+      // 2. Get cloud index
       const index = await galleryUseCase.getCloudIndex(creds, email);
       setCloudIndex(index);
-      const cloudTotal = index.years.reduce((acc, y) => acc + y.count, 0);
 
-      // const localRepo = new LocalGalleryRepository();
-      // const localPhotos = await localRepo.listLocalPhotos();
-      // const uploadedLocalIds = await localRepo.getUploadedLocalIds();
-      // const filteredLocal = localPhotos.filter(p => !uploadedLocalIds.has(p.id));
-
-      const total = cloudTotal; // + filteredLocal.length;
-      setTotalCount(total);
-
-      // 2. Load what we have in cache
-      const cachedPhotos = await galleryUseCase.getPhotos(total, 0);
-
-      // Initialize sparse array
-      const sparsePhotos = new Array(total).fill(null);
-      // Put cached photos at the beginning (they are sorted descending)
-      for (let i = 0; i < cachedPhotos.length; i++) {
-          sparsePhotos[i] = cachedPhotos[i];
-      }
-      // Also include non-uploaded local photos (they are newest)
-      const allKnown = [...cachedPhotos].sort((a, b) => b.creationDate - a.creationDate);
-      for (let i = 0; i < allKnown.length; i++) {
-          sparsePhotos[i] = allKnown[i];
-      }
-
-      setPhotos(sparsePhotos);
-      setHasMore(allKnown.length < total);
-
-      // 3. Background sync is now triggered manually via pull-to-refresh
-      // to ensure instant UI responsiveness and avoid multiple redundant syncs
+      // 3. Trigger sync in background
+      performSync().catch(() => {});
     } catch (err: any) {
       setError(err.message || 'Failed to fetch photos');
     } finally {
       setLoading(false);
     }
-  }, [galleryUseCase, creds, email]);
+  }, [galleryUseCase, creds, email, performSync]);
 
   const loadMore = useCallback(async () => {
-      // With the new sparse array approach, loadMore is less critical as we initialize the full size
-      // but we might still want it for truly infinite scrolling if totalCount grows
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!galleryUseCase || !creds || !email) return;
     setRefreshing(true);
     try {
-      await galleryUseCase.sync(creds, email);
-      await loadInitial();
+      await performSync();
     } catch (err: any) {
       setError(err.message || 'Failed to refresh photos');
     } finally {
       setRefreshing(false);
     }
-  }, [galleryUseCase, creds, email, loadInitial]);
+  }, [performSync]);
 
   const addPhoto = useCallback(async (photo: Photo) => {
     // Persist to local cache

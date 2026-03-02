@@ -29,7 +29,7 @@ export function useAlbums(creds: S3Credentials, email: string) {
 
         setError(null);
         try {
-            const result = await listAlbumsUseCase.execute(creds.bucket, email);
+            const result = await listAlbumsUseCase.execute(creds.bucket, email, isManualRefresh);
             setAlbums(result);
         } catch (err: any) {
             setError(err.message || 'Failed to load albums');

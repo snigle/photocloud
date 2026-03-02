@@ -84,6 +84,7 @@ export interface IS3Repository {
   exists(bucket: string, key: string): Promise<boolean>;
   deleteFile(bucket: string, key: string): Promise<void>;
   listKeys(bucket: string, prefix: string): Promise<string[]>;
+  listFolders(bucket: string, prefix: string): Promise<string[]>;
 }
 
 export interface ILocalGalleryRepository {
