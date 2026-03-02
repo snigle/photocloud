@@ -37,10 +37,10 @@ const authRepo = new AuthRepository();
 
 const linking = {
   prefixes: [
-    ...(Platform.OS === 'web' ? [window.location.origin + getBaseDir() + '#/'] : []),
-    Linking.createURL('/'),
+    ...(Platform.OS === 'web' ? [window.location.origin + getBaseDir() + '#/', window.location.origin + getBaseDir()] : []),
     'photocloud://',
     'https://photocloud.ovh',
+    Linking.createURL('/'),
   ],
   config: {
     screens: {
@@ -56,17 +56,20 @@ const linking = {
   },
   getStateFromPath: (path: string, options: any) => {
     if (Platform.OS === 'web') {
-      const hash = window.location.hash.replace(/^#\/?/, '') || 'login';
+      const hash = window.location.hash.replace(/^#\/?/, '');
       const search = window.location.search;
-      // Combine hash path and search params so tokens are parsed
-      const fullPath = hash.includes('?') ? hash : (hash + search);
-      return getStateFromPath(fullPath, options);
+      // Combine hash and search, defaulting to 'login'
+      const cleanPath = (hash || 'login') + (hash.includes('?') ? '' : search);
+      return getStateFromPath(cleanPath, options);
     }
     return getStateFromPath(path, options);
   },
   getPathFromState: (state: any, options: any) => {
     const path = getPathFromState(state, options);
-    return Platform.OS === 'web' ? `#/${path.replace(/^\//, '')}` : path;
+    if (Platform.OS === 'web') {
+      return getBaseDir() + '#/' + path.replace(/^\//, '');
+    }
+    return path;
   },
 };
 
@@ -76,7 +79,6 @@ export default function App() {
   if (Platform.OS === 'web' && !window.location.hash) {
       const base = getBaseDir();
       const route = getRouteFromPath(window.location.pathname, base);
-      // Remove any trailing route from the URL path before setting the hash
       window.history.replaceState(null, '', `${window.location.origin}${base}#/${route}${window.location.search}`);
   }
 

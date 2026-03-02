@@ -3,7 +3,8 @@ import * as Linking from 'expo-linking';
 
 /**
  * Extracts the base directory of the application on web.
- * It follows the rule: everything before the last slash of the pathname.
+ * It identifies the directory containing the app by finding the last slash in the pathname.
+ * Following the requirement: relative to the last / before the #.
  */
 export const getBaseDir = () => {
   if (Platform.OS !== 'web') return '/';
@@ -23,7 +24,6 @@ export const getRouteFromPath = (pathname: string, base: string) => {
 
 /**
  * Creates a full URL for a given route, ensuring hash-based routing on web.
- * This satisfies the requirement of being relative to the last / before the #.
  */
 export const createAppURL = (route: string) => {
   if (Platform.OS !== 'web') {
