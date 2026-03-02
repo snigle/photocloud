@@ -1,8 +1,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, FlatList, useWindowDimensions, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, FlatList, useWindowDimensions, RefreshControl, ActivityIndicator, Platform } from 'react-native';
 import { Appbar, useTheme, Text, Button, FAB } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { Menu, Plus } from 'lucide-react-native';
+import { Menu, Plus, RefreshCw } from 'lucide-react-native';
 import { useAlbums } from '../hooks/useAlbums';
 import { getIsStaging } from '../utils/routing-utils';
 import { AlbumItem } from '../components/AlbumItem';
@@ -53,7 +53,8 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
         <View style={styles.container}>
             <Appbar.Header elevated style={{ backgroundColor: isStaging ? '#fff3e0' : undefined }}>
                 <Appbar.Action icon={() => <Menu size={24} />} onPress={() => navigation.openDrawer()} />
-                <Appbar.Content title="Albums" />
+                <Appbar.Content title="Albums" subtitle={refreshing ? 'Mise à jour...' : undefined} />
+                <Appbar.Action icon={() => <RefreshCw size={24} />} onPress={refresh} disabled={refreshing} />
                 <Appbar.Action icon={() => <Plus size={24} />} onPress={handleCreateNewAlbum} disabled={isCreating} />
             </Appbar.Header>
 
@@ -71,10 +72,16 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
                             onPress={handleAlbumPress}
                         />
                     )}
-                    contentContainerStyle={[styles.list, albums.length === 0 && { flexGrow: 1 }]}
+                    contentContainerStyle={[styles.list, { flexGrow: 1 }]}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={refresh} />
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={refresh}
+                            progressViewOffset={Platform.OS === 'android' ? 50 : 0}
+                        />
                     }
+                    alwaysBounceVertical={true}
+                    overScrollMode="always"
                     ListEmptyComponent={
                         loading && albums.length === 0 ? (
                             <View style={styles.center}>

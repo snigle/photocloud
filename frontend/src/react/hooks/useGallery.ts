@@ -64,23 +64,8 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
       setPhotos(sparsePhotos);
       setHasMore(allKnown.length < total);
 
-      // 3. Trigger background sync
-      galleryUseCase.sync(creds, email).then(async () => {
-          const refreshed = await galleryUseCase.getPhotos(100000, 0); // Get all from cache
-          // const localAfter = await localRepo.listLocalPhotos();
-          // const uploadedAfter = await localRepo.getUploadedLocalIds();
-          // const filteredLocalAfter = localAfter.filter(p => !uploadedAfter.has(p.id));
-
-          const allRefreshed = [...refreshed].sort((a, b) => b.creationDate - a.creationDate);
-
-          setPhotos(prev => {
-              const next = new Array(Math.max(prev.length, allRefreshed.length)).fill(null);
-              for (let i = 0; i < allRefreshed.length; i++) {
-                  next[i] = allRefreshed[i];
-              }
-              return next;
-          });
-      });
+      // 3. Background sync is now triggered manually via pull-to-refresh
+      // to ensure instant UI responsiveness and avoid multiple redundant syncs
     } catch (err: any) {
       setError(err.message || 'Failed to fetch photos');
     } finally {

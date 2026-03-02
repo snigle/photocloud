@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, useWindowDimensions, RefreshControl, ActivityIndicator } from 'react-native';
 import { Appbar, Text, useTheme, Button, Portal, Dialog } from 'react-native-paper';
-import { Menu } from 'lucide-react-native';
+import { Menu, RefreshCw } from 'lucide-react-native';
 import { FolderItem } from '../components/FolderItem';
 import { getIsStaging } from '../utils/routing-utils';
 import { GetFoldersUseCase } from '../../usecase/get-folders.usecase';
@@ -74,7 +74,8 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
     <View style={styles.container}>
       <Appbar.Header elevated style={{ backgroundColor: isStaging ? '#fff3e0' : undefined }}>
         <Appbar.Action icon={() => <Menu size={24} />} onPress={() => navigation.openDrawer()} />
-        <Appbar.Content title="Dossiers" subtitle="Choisissez les dossiers à synchroniser" />
+        <Appbar.Content title="Dossiers" subtitle={refreshing ? 'Mise à jour...' : 'Synchronisation'} />
+        <Appbar.Action icon={() => <RefreshCw size={24} />} onPress={() => loadData(true)} disabled={refreshing} />
       </Appbar.Header>
 
       <FlatList
@@ -90,10 +91,16 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
             size={itemSize}
           />
         )}
-        contentContainerStyle={[styles.list, folders.length === 0 && { flexGrow: 1 }]}
+        contentContainerStyle={[styles.list, { flexGrow: 1 }]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => loadData(true)} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadData(true)}
+            progressViewOffset={Platform.OS === 'android' ? 50 : 0}
+          />
         }
+        alwaysBounceVertical={true}
+        overScrollMode="always"
         ListEmptyComponent={
             loading && folders.length === 0 ? (
                 <View style={styles.center}>

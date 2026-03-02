@@ -31,9 +31,9 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({ album, creds, size, onPres
             return;
         }
 
-        const s3Repo = new S3Repository(creds);
         const loadThumbnail = async () => {
             setLoading(true);
+            const s3Repo = new S3Repository(creds);
             try {
                 // Ensure we use the thumbnail key for the cover
                 let coverKey = album.coverPhotoKey!;
@@ -72,7 +72,7 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({ album, creds, size, onPres
                 </View>
                 <View style={styles.content}>
                     <Text variant="bodyMedium" numberOfLines={1} style={styles.title}>{album.title}</Text>
-                    <Text variant="bodySmall" style={styles.subtitle}>{album.photoKeys.length} photos</Text>
+                    <Text variant="bodySmall" style={styles.subtitle}>{album.photoCount ?? album.photoKeys?.length ?? 0} photos</Text>
                 </View>
             </Card>
         </TouchableOpacity>

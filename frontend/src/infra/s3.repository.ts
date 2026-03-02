@@ -88,8 +88,9 @@ export class S3Repository implements IS3Repository {
         const years = index.years.map(y => y.year);
 
         if (years.length > 0) {
-            for (const year of years) {
-                const yearPhotos = await this.listFolder(bucket, `${basePrefix}${year}/thumbnail/`);
+            console.log(`S3Repository: listing photos for years: ${years.join(', ')}`);
+            const results = await Promise.all(years.map(year => this.listFolder(bucket, `${basePrefix}${year}/thumbnail/`)));
+            for (const yearPhotos of results) {
                 allPhotos = [...allPhotos, ...yearPhotos];
             }
         }

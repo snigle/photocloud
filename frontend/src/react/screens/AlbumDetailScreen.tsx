@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, Image, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity, Platform, RefreshControl } from 'react-native';
 import { Appbar, Text, useTheme, IconButton, Portal, Dialog, Button } from 'react-native-paper';
-import { ArrowLeft, MoreVertical, X, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, MoreVertical, X, Trash2, RefreshCw } from 'lucide-react-native';
 import { Album, S3Credentials, Photo, UploadedPhoto } from '../../domain/types';
 import { useAlbums } from '../hooks/useAlbums';
 import { useSelection } from '../hooks/useSelection';
@@ -49,13 +49,13 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
     }, [loadAlbum]);
 
     useEffect(() => {
-        if (!album) {
+        if (!album || !album.photoKeys) {
             loadAlbum();
         }
-    }, [album, loadAlbum]);
+    }, [album?.id, album?.photoKeys, loadAlbum]);
 
     const photos = useMemo(() => {
-        if (!album) return [];
+        if (!album || !album.photoKeys) return [];
         const reconstructedPhotos: UploadedPhoto[] = album.photoKeys.map(key => {
             const parts = key.split('/');
             const filename = parts.pop()!;
@@ -225,7 +225,8 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                 ) : (
                     <>
                         <Appbar.BackAction onPress={() => navigation.goBack()} />
-                        <Appbar.Content title={album.title} />
+                        <Appbar.Content title={album.title} subtitle={refreshing ? 'Mise à jour...' : undefined} />
+                        <Appbar.Action icon={() => <RefreshCw size={24} />} onPress={handleRefresh} disabled={refreshing} />
                         <Appbar.Action icon={() => <MoreVertical size={24} />} onPress={() => {}} />
                     </>
                 )}
@@ -238,8 +239,14 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                 key={numColumns}
                 ListHeaderComponent={renderHeader}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        progressViewOffset={Platform.OS === 'android' ? 50 : 0}
+                    />
                 }
+                alwaysBounceVertical={true}
+                overScrollMode="always"
                 renderItem={({ item }) => (
                     <PhotoItem
                         photo={item}
@@ -331,6 +338,7 @@ const styles = StyleSheet.create({
     },
     listContent: {
         paddingBottom: 20,
+        flexGrow: 1,
     },
 });
 

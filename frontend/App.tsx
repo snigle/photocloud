@@ -25,7 +25,7 @@ const Drawer = createDrawerNavigator();
 
 const isStaging = getIsStaging();
 
-const theme = {
+const APP_THEME = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
@@ -144,7 +144,7 @@ export default function App() {
     }
   }, [session]);
 
-  const CustomDrawerContent = (props: any) => {
+  const renderDrawerContent = useCallback((props: any) => {
     return (
         <View style={{ flex: 1 }}>
             <DrawerContentScrollView {...props}>
@@ -161,7 +161,7 @@ export default function App() {
             </View>
         </View>
     );
-  };
+  }, [backendVersion]);
 
   if (loading) {
     return (
@@ -173,7 +173,7 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-        <PaperProvider theme={theme}>
+        <PaperProvider theme={APP_THEME}>
         <StatusBar style="auto" />
         <View style={styles.container}>
             <NavigationContainer linking={linking}>
@@ -184,10 +184,10 @@ export default function App() {
                             {() => (
                                 <Drawer.Navigator
                                     initialRouteName="Gallery"
-                                    drawerContent={(props) => <CustomDrawerContent {...props} />}
+                                    drawerContent={renderDrawerContent}
                                     screenOptions={{
                                         headerShown: false,
-                                        drawerActiveTintColor: theme.colors.primary,
+                                        drawerActiveTintColor: APP_THEME.colors.primary,
                                         headerStyle: {
                                             backgroundColor: isStaging ? '#fff3e0' : undefined,
                                         }
