@@ -201,6 +201,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
       <GalleryHeader
         selectedCount={selectedIds.size}
         uploading={uploading}
+        refreshing={refreshing}
         progress={progress}
         totalCount={totalCount}
         onClearSelection={clearSelection}
@@ -260,7 +261,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
           }
           alwaysBounceVertical={true}
           overScrollMode="always"
-          contentContainerStyle={{ flexGrow: 1, minHeight: '100%' }}
+          contentContainerStyle={{ paddingBottom: 100 }}
           onScroll={handleScroll}
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}
@@ -287,7 +288,6 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
                 </View>
             ) : null
           }
-          contentContainerStyle={{ flexGrow: 1 }}
         />
       </View>
 

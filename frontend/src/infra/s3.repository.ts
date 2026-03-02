@@ -85,14 +85,47 @@ export class S3Repository implements IS3Repository {
     const basePrefix = `users/${email}/`;
 
     try {
-        console.log(`S3Repository: Listing all photos recursively for ${email}`);
-        const allFiles = await this.listFolder(bucket, basePrefix);
+        // 1. Discover all top-level folders for parallelism
+        const folders = await this.listFolders(bucket, basePrefix);
 
-        for (const p of allFiles) {
+        // 2. List each discovered folder recursively in parallel
+        if (folders.length > 0) {
+            console.log(`S3Repository: Parallel recursive listing for ${folders.length} folders`);
+            const concurrency = 5;
+            for (let i = 0; i < folders.length; i += concurrency) {
+                const chunk = folders.slice(i, i + concurrency);
+                const results = await Promise.all(chunk.map(t => this.listFolder(bucket, t)));
+                for (const photos of results) {
+                    for (const p of photos) {
+                        const existing = allPhotosMap.get(p.id);
+                        // Prefer thumbnail keys for better gallery performance
+                        if (!existing || p.key.includes('/thumbnail/')) {
+                            allPhotosMap.set(p.id, p);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Also check for any files directly at the root of the user's directory
+        const rootFiles = await this.listFolder(bucket, basePrefix, '/');
+        for (const p of rootFiles) {
             const existing = allPhotosMap.get(p.id);
-            // Deduplicate by ID and prefer the key that is a thumbnail
             if (!existing || p.key.includes('/thumbnail/')) {
                 allPhotosMap.set(p.id, p);
+            }
+        }
+
+        // 4. Final safety fallback: if still empty, do one full broad recursive scan
+        // This handles cases where folder discovery might have failed
+        if (allPhotosMap.size === 0) {
+            console.log('S3Repository: Still empty after targeted scans, performing full broad recursive fallback');
+            const broad = await this.listFolder(bucket, basePrefix);
+            for (const p of broad) {
+                const existing = allPhotosMap.get(p.id);
+                if (!existing || p.key.includes('/thumbnail/')) {
+                    allPhotosMap.set(p.id, p);
+                }
             }
         }
 
@@ -101,7 +134,7 @@ export class S3Repository implements IS3Repository {
     }
 
     const uniquePhotos = Array.from(allPhotosMap.values());
-    console.log(`S3Repository: Found ${uniquePhotos.length} unique photos`);
+    console.log(`S3Repository: Synchronization found ${uniquePhotos.length} unique photos for ${email}`);
     return uniquePhotos;
   }
 

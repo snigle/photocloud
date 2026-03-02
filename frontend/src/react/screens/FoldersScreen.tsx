@@ -91,7 +91,6 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
             size={itemSize}
           />
         )}
-        contentContainerStyle={[styles.list, { flexGrow: 1 }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -102,7 +101,7 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
         }
         alwaysBounceVertical={true}
         overScrollMode="always"
-        contentContainerStyle={[styles.list, { flexGrow: 1, minHeight: '100%' }]}
+        contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
         ListEmptyComponent={
             loading && folders.length === 0 ? (
                 <View style={styles.center}>

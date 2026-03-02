@@ -264,6 +264,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                     />
                 )}
                 contentContainerStyle={styles.listContent}
+                ListFooterComponent={<View style={{ height: 100 }} />}
             />
 
             {viewerPhotoId && (

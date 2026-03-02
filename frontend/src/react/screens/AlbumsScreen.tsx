@@ -72,7 +72,6 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
                             onPress={handleAlbumPress}
                         />
                     )}
-                    contentContainerStyle={[styles.list, { flexGrow: 1 }]}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}
@@ -83,7 +82,7 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
                     }
                     alwaysBounceVertical={true}
                     overScrollMode="always"
-                    contentContainerStyle={[styles.list, { flexGrow: 1, minHeight: '100%' }]}
+                    contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
                     ListEmptyComponent={
                         loading && albums.length === 0 ? (
                             <View style={styles.center}>

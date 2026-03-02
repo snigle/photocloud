@@ -6,6 +6,7 @@ import { LogOut, RefreshCw, Upload, X, Trash2, Menu, FolderPlus } from 'lucide-r
 interface GalleryHeaderProps {
     selectedCount: number;
     uploading: boolean;
+    refreshing?: boolean;
     progress: { current: number; total: number } | null;
     totalCount: number;
     onClearSelection: () => void;
@@ -21,6 +22,7 @@ interface GalleryHeaderProps {
 export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
     selectedCount,
     uploading,
+    refreshing,
     progress,
     totalCount,
     onClearSelection,
