@@ -18,7 +18,7 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
     const theme = useTheme();
     const isStaging = getIsStaging();
     const { width } = useWindowDimensions();
-    const { albums, loading, error, refresh, createAlbum } = useAlbums(creds, email);
+    const { albums, loading, refreshing, error, refresh, createAlbum } = useAlbums(creds, email);
     const [isCreating, setIsCreating] = useState(false);
 
 
@@ -73,7 +73,7 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
                     )}
                     contentContainerStyle={[styles.list, albums.length === 0 && { flexGrow: 1 }]}
                     refreshControl={
-                        <RefreshControl refreshing={loading} onRefresh={refresh} />
+                        <RefreshControl refreshing={refreshing} onRefresh={refresh} />
                     }
                     ListEmptyComponent={
                         loading && albums.length === 0 ? (

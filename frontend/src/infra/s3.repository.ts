@@ -11,6 +11,9 @@ import type { IS3Repository, S3Credentials, UploadedPhoto } from '../domain/type
 import { base64ToUint8Array, uint8ArrayToBase64, decodeText, md5 } from './utils';
 import { ThumbnailCache } from './thumbnail-cache';
 
+// Cache S3 clients by credentials to reuse connection pools
+const s3Clients = new Map<string, S3Client>();
+
 export class S3Repository implements IS3Repository {
   private s3: S3Client;
   private creds: S3Credentials;
@@ -18,15 +21,21 @@ export class S3Repository implements IS3Repository {
 
   constructor(creds: S3Credentials) {
     this.creds = creds;
-    this.s3 = new S3Client({
-      credentials: {
-        accessKeyId: creds.access,
-        secretAccessKey: creds.secret,
-      },
-      endpoint: creds.endpoint,
-      region: creds.region,
-      forcePathStyle: true,
-    });
+    const clientKey = `${creds.access}:${creds.endpoint}:${creds.region}`;
+
+    if (!s3Clients.has(clientKey)) {
+        s3Clients.set(clientKey, new S3Client({
+            credentials: {
+              accessKeyId: creds.access,
+              secretAccessKey: creds.secret,
+            },
+            endpoint: creds.endpoint,
+            region: creds.region,
+            forcePathStyle: true,
+        }));
+    }
+
+    this.s3 = s3Clients.get(clientKey)!;
   }
 
   private async getSSE() {

@@ -21,14 +21,17 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [enabledFolders, setEnabledFolders] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [permissionDialogVisible, setPermissionDialogVisible] = useState(false);
 
   const localRepo = useMemo(() => new LocalGalleryRepository(), []);
   const syncSettingsRepo = useMemo(() => new SyncSettingsRepository(), []);
   const getFoldersUseCase = useMemo(() => new GetFoldersUseCase(localRepo), [localRepo]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    else setLoading(true);
+
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== 'granted') {
       setPermissionDialogVisible(true);
@@ -51,6 +54,7 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
     setFolders(fetchedFolders);
     setEnabledFolders(settings.enabledFolders);
     setLoading(false);
+    setRefreshing(false);
   }, [getFoldersUseCase, syncSettingsRepo]);
 
   useEffect(() => {
@@ -88,7 +92,7 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
         )}
         contentContainerStyle={[styles.list, folders.length === 0 && { flexGrow: 1 }]}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadData} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => loadData(true)} />
         }
         ListEmptyComponent={
             loading && folders.length === 0 ? (

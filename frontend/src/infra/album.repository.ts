@@ -22,6 +22,7 @@ export class AlbumRepository implements IAlbumRepository {
 
     try {
         if (await this.s3Repo.exists(bucket, indexKey)) {
+            console.log(`AlbumRepository: Loading albums from index ${indexKey}`);
             const indexData = await this.s3Repo.getFile(bucket, indexKey);
             return JSON.parse(decodeText(indexData)) as Album[];
         }
@@ -30,6 +31,7 @@ export class AlbumRepository implements IAlbumRepository {
     }
 
     // Fallback: list all individual album files
+    console.log(`AlbumRepository: Index not found, falling back to full listing for ${email}`);
     const prefix = `users/${email}/albums/`;
     try {
         const keys = await this.s3Repo.listKeys(bucket, prefix);

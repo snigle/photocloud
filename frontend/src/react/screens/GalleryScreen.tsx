@@ -251,7 +251,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
               return item.type === 'header' ? numColumns : 1;
           }}
           refreshControl={
-            <RefreshControl refreshing={refreshing || (loading && photos.length === 0)} onRefresh={refresh} />
+            <RefreshControl refreshing={refreshing} onRefresh={refresh} />
           }
           onScroll={handleScroll}
           onEndReached={loadMore}

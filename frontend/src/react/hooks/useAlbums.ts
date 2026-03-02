@@ -11,6 +11,7 @@ import { Album, S3Credentials } from '../../domain/types';
 export function useAlbums(creds: S3Credentials, email: string) {
     const [albums, setAlbums] = useState<Album[]>([]);
     const [loading, setLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const s3Repo = useMemo(() => new S3Repository(creds), [creds]);
@@ -22,8 +23,10 @@ export function useAlbums(creds: S3Credentials, email: string) {
     const removePhotosFromAlbumUseCase = useMemo(() => new RemovePhotosFromAlbumUseCase(albumRepo), [albumRepo]);
     const getAlbumUseCase = useMemo(() => new GetAlbumUseCase(albumRepo), [albumRepo]);
 
-    const loadAlbums = useCallback(async () => {
-        setLoading(true);
+    const loadAlbums = useCallback(async (isManualRefresh = false) => {
+        if (isManualRefresh) setRefreshing(true);
+        else setLoading(true);
+
         setError(null);
         try {
             const result = await listAlbumsUseCase.execute(creds.bucket, email);
@@ -32,6 +35,7 @@ export function useAlbums(creds: S3Credentials, email: string) {
             setError(err.message || 'Failed to load albums');
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     }, [creds.bucket, email, listAlbumsUseCase]);
 
@@ -96,8 +100,9 @@ export function useAlbums(creds: S3Credentials, email: string) {
     return {
         albums,
         loading,
+        refreshing,
         error,
-        refresh: loadAlbums,
+        refresh: () => loadAlbums(true),
         createAlbum,
         addPhotosToAlbum,
         removePhotosFromAlbum,
