@@ -4,6 +4,7 @@ import { S3Repository } from '../../infra/s3.repository';
 import { ListAlbumsUseCase } from '../../usecase/list-albums.usecase';
 import { CreateAlbumUseCase } from '../../usecase/create-album.usecase';
 import { AddPhotosToAlbumUseCase } from '../../usecase/add-photos-to-album.usecase';
+import { GetAlbumUseCase } from '../../usecase/get-album.usecase';
 import { Album, S3Credentials } from '../../domain/types';
 
 export function useAlbums(creds: S3Credentials, email: string) {
@@ -17,6 +18,7 @@ export function useAlbums(creds: S3Credentials, email: string) {
     const listAlbumsUseCase = useMemo(() => new ListAlbumsUseCase(albumRepo), [albumRepo]);
     const createAlbumUseCase = useMemo(() => new CreateAlbumUseCase(albumRepo), [albumRepo]);
     const addPhotosToAlbumUseCase = useMemo(() => new AddPhotosToAlbumUseCase(albumRepo), [albumRepo]);
+    const getAlbumUseCase = useMemo(() => new GetAlbumUseCase(albumRepo), [albumRepo]);
 
     const loadAlbums = useCallback(async () => {
         setLoading(true);
@@ -59,6 +61,18 @@ export function useAlbums(creds: S3Credentials, email: string) {
         }
     }, [creds.bucket, email, addPhotosToAlbumUseCase]);
 
+    const getAlbum = useCallback(async (albumId: string) => {
+        setLoading(true);
+        try {
+            return await getAlbumUseCase.execute(creds.bucket, email, albumId);
+        } catch (err: any) {
+            setError(err.message || 'Failed to get album');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [creds.bucket, email, getAlbumUseCase]);
+
     useEffect(() => {
         loadAlbums();
     }, [loadAlbums]);
@@ -70,5 +84,6 @@ export function useAlbums(creds: S3Credentials, email: string) {
         refresh: loadAlbums,
         createAlbum,
         addPhotosToAlbum,
+        getAlbum,
     };
 }

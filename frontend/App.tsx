@@ -15,6 +15,7 @@ import AuthScreen from './src/react/screens/AuthScreen';
 import GalleryScreen from './src/react/screens/GalleryScreen';
 import FoldersScreen from './src/react/screens/FoldersScreen';
 import AlbumsScreen from './src/react/screens/AlbumsScreen';
+import AlbumDetailScreen from './src/react/screens/AlbumDetailScreen';
 import { AuthRepository } from './src/infra/auth.repository';
 import { AuthUseCase } from './src/usecase/auth.usecase';
 import { BACKGROUND_SYNC_TASK } from './src/domain/constants';
@@ -50,6 +51,7 @@ const linking = {
           Gallery: 'gallery',
           Dossiers: 'folders',
           Albums: 'albums',
+          AlbumDetail: 'albums/:albumId',
         }
       },
     },
@@ -150,6 +152,7 @@ export default function App() {
             <NavigationContainer linking={linking}>
                 <Stack.Navigator screenOptions={{ headerShown: false }}>
                     {session ? (
+                        <>
                         <Stack.Screen name="App">
                             {() => (
                                 <Drawer.Navigator
@@ -183,6 +186,16 @@ export default function App() {
                                 </Drawer.Navigator>
                             )}
                         </Stack.Screen>
+                        <Stack.Screen name="AlbumDetail">
+                            {(props) => (
+                                <AlbumDetailScreen
+                                    {...props}
+                                    creds={session.creds}
+                                    email={session.email}
+                                />
+                            )}
+                        </Stack.Screen>
+                        </>
                     ) : (
                         <Stack.Screen name="Auth">
                             {(props) => <AuthScreen {...props} onLogin={login} authUseCase={authUseCase} />}
