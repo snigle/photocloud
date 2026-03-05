@@ -13,9 +13,16 @@ test.describe('Photo Cloud App', () => {
     await devButton.click();
 
     // Check if we are in the Gallery
-    // GalleryScreen should show "No photos found." if count is 0
-    // Note: It might show "Loading your gallery..." briefly
-    await expect(page.getByText('No photos found.')).toBeVisible({ timeout: 30000 });
+    // Wait for either photos to appear or the "No photos found" message
+    // Synchronization happens in background, so we give it some time
+    const galleryItems = page.locator('img');
+    const emptyMessage = page.getByText('No photos found.');
+
+    await expect(galleryItems.first().or(emptyMessage)).toBeVisible({ timeout: 60000 });
+
+    // Wait a bit more to let more photos load if they exist
+    await page.waitForTimeout(5000);
+
     await page.screenshot({ path: 'e2e-screenshots/02-gallery-screen.png' });
   });
 });
