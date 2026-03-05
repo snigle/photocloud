@@ -83,8 +83,13 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
       const index = await galleryUseCase.getCloudIndex(creds, email);
       setCloudIndex(index);
 
-      // 3. Trigger sync in background
-      performSync().catch(() => {});
+      // 3. Trigger sync and wait for it if cache was empty
+      // This ensures we don't show "No photos found" while the first sync is running
+      if (cachedPhotos.length === 0) {
+          await performSync();
+      } else {
+          performSync().catch(() => {});
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch photos');
     } finally {

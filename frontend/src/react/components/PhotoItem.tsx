@@ -33,6 +33,7 @@ export const PhotoItem = React.memo(({
     onDragEnd: () => void
 }) => {
   const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<boolean>(false);
   const [isHovered, setIsHovered] = useState(false);
   const dragTimerRef = useRef<any>(null);
 
@@ -93,10 +94,11 @@ export const PhotoItem = React.memo(({
               }
           } catch (err) {
               console.error('Failed to load cloud image', err);
+              if (isMounted) setError(true);
           }
       };
 
-      const timer = setTimeout(load, 200);
+      const timer = setTimeout(load, 50); // Reduced delay for faster loading
       return () => {
           isMounted = false;
           clearTimeout(timer);
@@ -163,7 +165,16 @@ export const PhotoItem = React.memo(({
     >
       <View style={[styles.imageWrapper, isSelected && styles.selectedImageWrapper]}>
         {url ? (
-            <Image source={{ uri: url }} style={[styles.image, isSelected && styles.selectedImage]} resizeMode="cover" />
+            <Image
+                testID="photo-image"
+                source={{ uri: url }}
+                style={[styles.image, isSelected && styles.selectedImage]}
+                resizeMode="cover"
+            />
+        ) : error ? (
+            <View style={[styles.placeholder, { backgroundColor: '#fee' }]}>
+                <Text style={{ fontSize: 16 }}>⚠️</Text>
+            </View>
         ) : (
             <View style={styles.placeholder}>
                 <ActivityIndicator size="small" />
