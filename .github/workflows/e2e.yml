@@ -46,6 +46,7 @@ jobs:
           OVH_PROJECT_ID: ${{ secrets.OVH_PROJECT_ID }}
           OVH_REGION: ${{ secrets.OVH_REGION }}
           OVH_S3_BUCKET: ${{ secrets.OVH_S3_BUCKET }}
+          OVH_ENDPOINT: ovh-eu
           EXPO_PUBLIC_API_URL: http://localhost:8080
 
       - name: Upload screenshots
