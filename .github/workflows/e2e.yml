@@ -39,14 +39,13 @@ jobs:
         working-directory: frontend
         run: yarn test:e2e
         env:
-          OVH_ENDPOINT: ${{ secrets.OVH_ENDPOINT }}
+          OVH_ENDPOINT: ${{ secrets.OVH_ENDPOINT || 'ovh-eu' }}
           OVH_APPLICATION_KEY: ${{ secrets.OVH_APPLICATION_KEY }}
           OVH_APPLICATION_SECRET: ${{ secrets.OVH_APPLICATION_SECRET }}
           OVH_CONSUMER_KEY: ${{ secrets.OVH_CONSUMER_KEY }}
           OVH_PROJECT_ID: ${{ secrets.OVH_PROJECT_ID }}
           OVH_REGION: ${{ secrets.OVH_REGION }}
           OVH_S3_BUCKET: ${{ secrets.OVH_S3_BUCKET }}
-          OVH_ENDPOINT: ovh-eu
           EXPO_PUBLIC_API_URL: http://localhost:8080
 
       - name: Upload screenshots
