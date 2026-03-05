@@ -98,7 +98,7 @@ export const PhotoItem = React.memo(({
           }
       };
 
-      const timer = setTimeout(load, 200);
+      const timer = setTimeout(load, 50); // Reduced delay for faster loading
       return () => {
           isMounted = false;
           clearTimeout(timer);

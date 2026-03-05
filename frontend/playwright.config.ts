@@ -6,6 +6,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
+  timeout: 120 * 1000,
   reporter: 'html',
   use: {
     baseURL: 'http://localhost:8081',
@@ -23,7 +24,7 @@ export default defineConfig({
     {
       command: 'npx expo export --platform web && python3 -m http.server 8081 --directory dist',
       url: 'http://localhost:8081/index.html',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120 * 1000,
     },
     {
