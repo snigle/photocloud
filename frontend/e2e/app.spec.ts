@@ -12,6 +12,9 @@ test.describe('Photo Cloud App', () => {
     const devButton = page.getByRole('button', { name: 'Use Developer Account' });
     await devButton.click();
 
+    // Verify redirection to gallery (URL or some persistent element)
+    await expect(page).toHaveURL(/.*gallery/, { timeout: 30000 });
+
     // Check if we are in the Gallery
     // Wait for either photos to appear or the "No photos found" message
     // Synchronization happens in background, so we give it some time
