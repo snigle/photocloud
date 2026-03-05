@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, StyleSheet, FlatList, useWindowDimensions, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, useWindowDimensions, RefreshControl, ActivityIndicator } from 'react-native';
 import { Appbar, Text, useTheme, Button, Portal, Dialog } from 'react-native-paper';
-import { Menu } from 'lucide-react-native';
+import { Menu, RefreshCw } from 'lucide-react-native';
 import { FolderItem } from '../components/FolderItem';
+import { getIsStaging } from '../utils/routing-utils';
 import { GetFoldersUseCase } from '../../usecase/get-folders.usecase';
 import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
 import { SyncSettingsRepository } from '../../infra/sync-settings.repository';
@@ -15,18 +16,22 @@ interface FoldersScreenProps {
 
 const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
   const theme = useTheme();
+  const isStaging = getIsStaging();
   const { width } = useWindowDimensions();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [enabledFolders, setEnabledFolders] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [permissionDialogVisible, setPermissionDialogVisible] = useState(false);
 
   const localRepo = useMemo(() => new LocalGalleryRepository(), []);
   const syncSettingsRepo = useMemo(() => new SyncSettingsRepository(), []);
   const getFoldersUseCase = useMemo(() => new GetFoldersUseCase(localRepo), [localRepo]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    else setLoading(true);
+
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== 'granted') {
       setPermissionDialogVisible(true);
@@ -49,6 +54,7 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
     setFolders(fetchedFolders);
     setEnabledFolders(settings.enabledFolders);
     setLoading(false);
+    setRefreshing(false);
   }, [getFoldersUseCase, syncSettingsRepo]);
 
   useEffect(() => {
@@ -66,9 +72,10 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Appbar.Header elevated>
+      <Appbar.Header elevated style={{ backgroundColor: isStaging ? '#fff3e0' : undefined }}>
         <Appbar.Action icon={() => <Menu size={24} />} onPress={() => navigation.openDrawer()} />
-        <Appbar.Content title="Dossiers" subtitle="Choisissez les dossiers à synchroniser" />
+        <Appbar.Content title="Dossiers" subtitle={refreshing ? 'Mise à jour...' : 'Synchronisation'} />
+        <Appbar.Action icon={() => <RefreshCw size={24} />} onPress={() => loadData(true)} disabled={refreshing} />
       </Appbar.Header>
 
       <FlatList
@@ -84,12 +91,24 @@ const FoldersScreen: React.FC<FoldersScreenProps> = ({ navigation }) => {
             size={itemSize}
           />
         )}
-        contentContainerStyle={styles.list}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadData} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadData(true)}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
         }
+        alwaysBounceVertical={true}
+        overScrollMode="always"
+        contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
         ListEmptyComponent={
-            !loading ? (
+            loading && folders.length === 0 ? (
+                <View style={styles.center}>
+                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Text style={{ marginTop: 16 }}>Chargement des dossiers...</Text>
+                </View>
+            ) : !loading && folders.length === 0 ? (
                 <View style={styles.center}>
                     <Text>Aucun dossier trouvé ou permission refusée.</Text>
                     <Button mode="contained" onPress={loadData} style={{ marginTop: 16 }}>

@@ -6,6 +6,7 @@ import { LogOut, RefreshCw, Upload, X, Trash2, Menu, FolderPlus } from 'lucide-r
 interface GalleryHeaderProps {
     selectedCount: number;
     uploading: boolean;
+    refreshing?: boolean;
     progress: { current: number; total: number } | null;
     totalCount: number;
     onClearSelection: () => void;
@@ -15,11 +16,13 @@ interface GalleryHeaderProps {
     onLogout: () => void;
     onMenu?: () => void;
     onAddToAlbum?: () => void;
+    isStaging?: boolean;
 }
 
 export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
     selectedCount,
     uploading,
+    refreshing,
     progress,
     totalCount,
     onClearSelection,
@@ -29,12 +32,13 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
     onLogout,
     onMenu,
     onAddToAlbum,
+    isStaging,
 }) => {
     const theme = useTheme();
 
     if (selectedCount > 0) {
         return (
-            <Appbar.Header style={{ backgroundColor: '#e3f2fd' }}>
+            <Appbar.Header style={{ backgroundColor: isStaging ? '#fff3e0' : '#e3f2fd' }}>
                 <Appbar.Action icon={() => <X size={24} />} onPress={onClearSelection} />
                 <Appbar.Content title={`${selectedCount} sélectionné(s)`} />
                 {onAddToAlbum && <Appbar.Action icon={() => <FolderPlus size={24} />} onPress={onAddToAlbum} />}
@@ -44,7 +48,7 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
     }
 
     return (
-        <Appbar.Header elevated>
+        <Appbar.Header elevated style={{ backgroundColor: isStaging ? '#fff3e0' : undefined }}>
             {onMenu && (
                 <Appbar.Action
                     icon={() => <Menu size={24} color={theme.colors.onSurface} />}
@@ -55,7 +59,7 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
             )}
             <Appbar.Content
                 title="PhotoCloud"
-                subtitle={uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`}
+                subtitle={refreshing ? 'Mise à jour...' : (uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`)}
             />
             {uploading && !progress && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
             <Appbar.Action

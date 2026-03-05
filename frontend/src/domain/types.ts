@@ -37,7 +37,8 @@ export interface Folder {
 export interface Album {
   id: string;
   title: string;
-  photoKeys: string[];
+  photoKeys?: string[];
+  photoCount?: number;
   coverPhotoKey?: string;
   order: 'date-asc' | 'date-desc' | 'manual';
   createdAt: number;
@@ -83,6 +84,7 @@ export interface IS3Repository {
   exists(bucket: string, key: string): Promise<boolean>;
   deleteFile(bucket: string, key: string): Promise<void>;
   listKeys(bucket: string, prefix: string): Promise<string[]>;
+  listFolders(bucket: string, prefix: string): Promise<string[]>;
 }
 
 export interface ILocalGalleryRepository {
@@ -100,7 +102,7 @@ export interface ILocalGalleryRepository {
 }
 
 export interface IAlbumRepository {
-  listAlbums(bucket: string, email: string): Promise<Album[]>;
+  listAlbums(bucket: string, email: string, skipCache?: boolean): Promise<Album[]>;
   getAlbum(bucket: string, email: string, albumId: string): Promise<Album>;
   saveAlbum(bucket: string, email: string, album: Album): Promise<void>;
   deleteAlbum(bucket: string, email: string, albumId: string): Promise<void>;

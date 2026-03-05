@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, Image, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity, Platform } from 'react-native';
+import { View, StyleSheet, Image, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity, Platform, RefreshControl } from 'react-native';
 import { Appbar, Text, useTheme, IconButton, Portal, Dialog, Button } from 'react-native-paper';
-import { ArrowLeft, MoreVertical, X, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, MoreVertical, X, Trash2, RefreshCw } from 'lucide-react-native';
 import { Album, S3Credentials, Photo, UploadedPhoto } from '../../domain/types';
 import { useAlbums } from '../hooks/useAlbums';
 import { useSelection } from '../hooks/useSelection';
@@ -9,6 +9,7 @@ import { PhotoItem } from '../components/PhotoItem';
 import { PhotoViewer } from '../components/PhotoViewer';
 import { S3Repository } from '../../infra/s3.repository';
 import { uint8ArrayToBase64 } from '../../infra/utils';
+import { getIsStaging } from '../utils/routing-utils';
 import { ThumbnailCache } from '../../infra/thumbnail-cache';
 
 interface AlbumDetailScreenProps {
@@ -21,10 +22,12 @@ interface AlbumDetailScreenProps {
 const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation, creds, email }) => {
     const { albumId, album: initialAlbum } = route.params || {};
     const theme = useTheme();
+    const isStaging = getIsStaging();
     const { width } = useWindowDimensions();
     const { getAlbum, removePhotosFromAlbum, loading: albumLoading } = useAlbums(creds, email);
 
     const [album, setAlbum] = useState<Album | null>(initialAlbum || null);
+    const [refreshing, setRefreshing] = useState(false);
     const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
     const [coverUrl, setCoverUrl] = useState<string | null>(null);
     const [loadingCover, setLoadingCover] = useState(false);
@@ -39,14 +42,20 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
         }
     }, [albumId, getAlbum]);
 
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await loadAlbum();
+        setRefreshing(false);
+    }, [loadAlbum]);
+
     useEffect(() => {
-        if (!album) {
+        if (!album || !album.photoKeys) {
             loadAlbum();
         }
-    }, [album, loadAlbum]);
+    }, [album?.id, album?.photoKeys, loadAlbum]);
 
     const photos = useMemo(() => {
-        if (!album) return [];
+        if (!album || !album.photoKeys) return [];
         const reconstructedPhotos: UploadedPhoto[] = album.photoKeys.map(key => {
             const parts = key.split('/');
             const filename = parts.pop()!;
@@ -206,7 +215,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
 
     return (
         <View style={styles.container}>
-            <Appbar.Header elevated mode="center-aligned">
+            <Appbar.Header elevated mode="center-aligned" style={{ backgroundColor: isStaging ? '#fff3e0' : undefined }}>
                 {isSelectionMode ? (
                     <>
                         <Appbar.Action icon={() => <X size={24} />} onPress={clearSelection} />
@@ -216,7 +225,8 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                 ) : (
                     <>
                         <Appbar.BackAction onPress={() => navigation.goBack()} />
-                        <Appbar.Content title={album.title} />
+                        <Appbar.Content title={album.title} subtitle={refreshing ? 'Mise à jour...' : undefined} />
+                        <Appbar.Action icon={() => <RefreshCw size={24} />} onPress={handleRefresh} disabled={refreshing} />
                         <Appbar.Action icon={() => <MoreVertical size={24} />} onPress={() => {}} />
                     </>
                 )}
@@ -228,6 +238,16 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                 numColumns={numColumns}
                 key={numColumns}
                 ListHeaderComponent={renderHeader}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        colors={[theme.colors.primary]}
+                        tintColor={theme.colors.primary}
+                    />
+                }
+                alwaysBounceVertical={true}
+                overScrollMode="always"
                 renderItem={({ item }) => (
                     <PhotoItem
                         photo={item}
@@ -244,6 +264,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                     />
                 )}
                 contentContainerStyle={styles.listContent}
+                ListFooterComponent={<View style={{ height: 100 }} />}
             />
 
             {viewerPhotoId && (
@@ -319,6 +340,7 @@ const styles = StyleSheet.create({
     },
     listContent: {
         paddingBottom: 20,
+        flexGrow: 1,
     },
 });
 

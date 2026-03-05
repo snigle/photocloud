@@ -33,3 +33,13 @@ export const getRouteFromPath = (pathname: string, base: string) => {
 
     return 'login';
 };
+
+export const getIsStaging = () => {
+    try {
+        if (Platform.OS !== 'web') return false;
+        if (typeof window === 'undefined') return false;
+        return window.location.pathname.includes('/staging') || window.location.hostname.includes('staging');
+    } catch (e) {
+        return false;
+    }
+};
