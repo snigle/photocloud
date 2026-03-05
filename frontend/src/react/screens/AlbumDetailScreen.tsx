@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, Image, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity, Platform, RefreshControl } from 'react-native';
-import { Appbar, Text, useTheme, IconButton, Portal, Dialog, Button } from 'react-native-paper';
+import { Appbar, Text, useTheme, IconButton, Portal, Dialog, Button, Menu as PaperMenu } from 'react-native-paper';
 import { ArrowLeft, MoreVertical, X, Trash2, RefreshCw } from 'lucide-react-native';
 import { Album, S3Credentials, Photo, UploadedPhoto } from '../../domain/types';
 import { useAlbums } from '../hooks/useAlbums';
@@ -24,7 +24,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
     const theme = useTheme();
     const isStaging = getIsStaging();
     const { width } = useWindowDimensions();
-    const { getAlbum, removePhotosFromAlbum, loading: albumLoading } = useAlbums(creds, email);
+    const { getAlbum, removePhotosFromAlbum, deleteAlbum, loading: albumLoading } = useAlbums(creds, email);
 
     const [album, setAlbum] = useState<Album | null>(initialAlbum || null);
     const [refreshing, setRefreshing] = useState(false);
@@ -32,6 +32,8 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
     const [coverUrl, setCoverUrl] = useState<string | null>(null);
     const [loadingCover, setLoadingCover] = useState(false);
     const [removeDialogVisible, setRemoveDialogVisible] = useState(false);
+    const [menuVisible, setMenuVisible] = useState(false);
+    const [deleteAlbumDialogVisible, setDeleteAlbumDialogVisible] = useState(false);
 
     const loadAlbum = useCallback(async () => {
         try {
@@ -178,6 +180,20 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
         }
     };
 
+    const handleDeleteAlbum = async () => {
+        if (!album) return;
+        console.log('Deleting album...', album.id);
+        setDeleteAlbumDialogVisible(false);
+        try {
+            await deleteAlbum(album.id);
+            console.log('Album deleted successfully');
+            navigation.goBack();
+        } catch (err) {
+            console.error('Failed to delete album', err);
+            alert('Erreur lors de la suppression de l\'album');
+        }
+    };
+
     if (!album && albumLoading) {
         return (
             <View style={styles.center}>
@@ -227,7 +243,28 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                         <Appbar.BackAction onPress={() => navigation.goBack()} />
                         <Appbar.Content title={album.title} subtitle={refreshing ? 'Mise à jour...' : undefined} />
                         <Appbar.Action icon={() => <RefreshCw size={24} />} onPress={handleRefresh} disabled={refreshing} />
-                        <Appbar.Action icon={() => <MoreVertical size={24} />} onPress={() => {}} />
+                        <PaperMenu
+                            visible={menuVisible}
+                            onDismiss={() => setMenuVisible(false)}
+                            anchor={
+                                <Appbar.Action
+                                    icon={() => <MoreVertical size={24} />}
+                                    onPress={() => setMenuVisible(true)}
+                                    testID="album-menu-button"
+                                />
+                            }
+                        >
+                            <PaperMenu.Item
+                                onPress={() => {
+                                    setMenuVisible(false);
+                                    setDeleteAlbumDialogVisible(true);
+                                }}
+                                title="Supprimer l'album"
+                                leadingIcon={() => <Trash2 size={20} color={theme.colors.error} />}
+                                titleStyle={{ color: theme.colors.error }}
+                                testID="delete-album-menu-item"
+                            />
+                        </PaperMenu>
                     </>
                 )}
             </Appbar.Header>
@@ -286,6 +323,17 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                     <Dialog.Actions>
                         <Button onPress={() => setRemoveDialogVisible(false)}>Annuler</Button>
                         <Button onPress={confirmRemove} textColor={theme.colors.error}>Retirer</Button>
+                    </Dialog.Actions>
+                </Dialog>
+
+                <Dialog visible={deleteAlbumDialogVisible} onDismiss={() => setDeleteAlbumDialogVisible(false)}>
+                    <Dialog.Title>Supprimer l'album</Dialog.Title>
+                    <Dialog.Content>
+                        <Text>Êtes-vous sûr de vouloir supprimer l'album "{album.title}" ? Les photos ne seront pas supprimées de votre galerie.</Text>
+                    </Dialog.Content>
+                    <Dialog.Actions>
+                        <Button onPress={() => setDeleteAlbumDialogVisible(false)}>Annuler</Button>
+                        <Button onPress={handleDeleteAlbum} textColor={theme.colors.error} testID="confirm-delete-album-button">Supprimer</Button>
                     </Dialog.Actions>
                 </Dialog>
             </Portal>

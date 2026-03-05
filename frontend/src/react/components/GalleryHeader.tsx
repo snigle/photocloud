@@ -39,10 +39,22 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
     if (selectedCount > 0) {
         return (
             <Appbar.Header style={{ backgroundColor: isStaging ? '#fff3e0' : '#e3f2fd' }}>
-                <Appbar.Action icon={() => <X size={24} />} onPress={onClearSelection} />
+                <Appbar.Action icon={() => <X size={24} />} onPress={onClearSelection} testID="clear-selection-button" />
                 <Appbar.Content title={`${selectedCount} sélectionné(s)`} />
-                {onAddToAlbum && <Appbar.Action icon={() => <FolderPlus size={24} />} onPress={onAddToAlbum} />}
-                <Appbar.Action icon={() => <Trash2 size={24} />} onPress={onDeleteSelected} />
+                {onAddToAlbum && (
+                    <Appbar.Action
+                        icon={() => <FolderPlus size={24} />}
+                        onPress={onAddToAlbum}
+                        testID="add-to-album-button"
+                        accessibilityLabel="Add to album"
+                    />
+                )}
+                <Appbar.Action
+                    icon={() => <Trash2 size={24} />}
+                    onPress={onDeleteSelected}
+                    testID="delete-photos-button"
+                    accessibilityLabel="Delete photos"
+                />
             </Appbar.Header>
         );
     }
@@ -66,6 +78,8 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
                 icon={() => <Upload size={24} color={theme.colors.onSurface} />}
                 onPress={onUpload}
                 disabled={uploading}
+                testID="upload-button"
+                accessibilityLabel="Upload"
             />
             <Appbar.Action icon={() => <RefreshCw size={24} color={theme.colors.onSurface} />} onPress={onRefresh} />
             <Appbar.Action icon={() => <LogOut size={24} color={theme.colors.onSurface} />} onPress={onLogout} />

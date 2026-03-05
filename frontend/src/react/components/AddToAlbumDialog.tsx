@@ -73,11 +73,17 @@ export const AddToAlbumDialog: React.FC<AddToAlbumDialogProps> = ({ visible, onD
                                                 onChangeText={setNewAlbumTitle}
                                                 mode="outlined"
                                                 autoFocus
+                                                testID="new-album-title-input"
                                                 right={<TextInput.Icon icon={() => <Check size={24} />} onPress={handleCreateAlbum} />}
                                             />
                                             <View style={styles.inputActions}>
                                                 <Button onPress={() => setShowNewAlbumInput(false)}>Annuler</Button>
-                                                <Button onPress={handleCreateAlbum} loading={processing} disabled={!newAlbumTitle.trim()}>Créer</Button>
+                                                <Button
+                                                    onPress={handleCreateAlbum}
+                                                    loading={processing}
+                                                    disabled={!newAlbumTitle.trim()}
+                                                    testID="confirm-create-album-button"
+                                                >Créer</Button>
                                             </View>
                                         </View>
                                     )}
@@ -87,7 +93,7 @@ export const AddToAlbumDialog: React.FC<AddToAlbumDialogProps> = ({ visible, onD
                             renderItem={({ item }) => (
                                 <List.Item
                                     title={item.title}
-                                    description={`${item.photoKeys.length} photos`}
+                                    description={`${item.photoCount ?? item.photoKeys?.length ?? 0} photos`}
                                     onPress={() => handleAddToAlbum(item.id)}
                                     disabled={processing}
                                 />

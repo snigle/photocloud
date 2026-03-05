@@ -52,7 +52,12 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
     return (
         <View style={styles.container}>
             <Appbar.Header elevated style={{ backgroundColor: isStaging ? '#fff3e0' : undefined }}>
-                <Appbar.Action icon={() => <Menu size={24} />} onPress={() => navigation.openDrawer()} />
+                <Appbar.Action
+                    icon={() => <Menu size={24} />}
+                    onPress={() => navigation.openDrawer()}
+                    testID="menu-button"
+                    accessibilityLabel="Menu"
+                />
                 <Appbar.Content title="Albums" subtitle={refreshing ? 'Mise à jour...' : undefined} />
                 <Appbar.Action icon={() => <RefreshCw size={24} />} onPress={refresh} disabled={refreshing} />
                 <Appbar.Action icon={() => <Plus size={24} />} onPress={handleCreateNewAlbum} disabled={isCreating} />

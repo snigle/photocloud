@@ -6,6 +6,7 @@ import { CreateAlbumUseCase } from '../../usecase/create-album.usecase';
 import { AddPhotosToAlbumUseCase } from '../../usecase/add-photos-to-album.usecase';
 import { RemovePhotosFromAlbumUseCase } from '../../usecase/remove-photos-from-album.usecase';
 import { GetAlbumUseCase } from '../../usecase/get-album.usecase';
+import { DeleteAlbumUseCase } from '../../usecase/delete-album.usecase';
 import { Album, S3Credentials } from '../../domain/types';
 
 export function useAlbums(creds: S3Credentials, email: string) {
@@ -22,6 +23,7 @@ export function useAlbums(creds: S3Credentials, email: string) {
     const addPhotosToAlbumUseCase = useMemo(() => new AddPhotosToAlbumUseCase(albumRepo), [albumRepo]);
     const removePhotosFromAlbumUseCase = useMemo(() => new RemovePhotosFromAlbumUseCase(albumRepo), [albumRepo]);
     const getAlbumUseCase = useMemo(() => new GetAlbumUseCase(albumRepo), [albumRepo]);
+    const deleteAlbumUseCase = useMemo(() => new DeleteAlbumUseCase(albumRepo), [albumRepo]);
 
     const loadAlbums = useCallback(async (isManualRefresh = false) => {
         if (isManualRefresh) setRefreshing(true);
@@ -93,6 +95,19 @@ export function useAlbums(creds: S3Credentials, email: string) {
         }
     }, [creds.bucket, email, removePhotosFromAlbumUseCase]);
 
+    const deleteAlbum = useCallback(async (albumId: string) => {
+        setLoading(true);
+        try {
+            await deleteAlbumUseCase.execute(creds.bucket, email, albumId);
+            setAlbums(prev => prev.filter(a => a.id !== albumId));
+        } catch (err: any) {
+            setError(err.message || 'Failed to delete album');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [creds.bucket, email, deleteAlbumUseCase]);
+
     useEffect(() => {
         loadAlbums();
     }, [loadAlbums]);
@@ -107,5 +122,6 @@ export function useAlbums(creds: S3Credentials, email: string) {
         addPhotosToAlbum,
         removePhotosFromAlbum,
         getAlbum,
+        deleteAlbum,
     };
 }
