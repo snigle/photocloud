@@ -19,10 +19,18 @@ export default defineConfig({
     },
   ],
   /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'npx expo export --platform web && python3 -m http.server 8081 --directory dist',
-    url: 'http://localhost:8081/index.html',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  webServer: [
+    {
+      command: 'npx expo export --platform web && python3 -m http.server 8081 --directory dist',
+      url: 'http://localhost:8081/index.html',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120 * 1000,
+    },
+    {
+      command: 'cd .. && DEV_AUTH_ENABLED=true go run ./cmd/api',
+      url: 'http://localhost:8080/version',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120 * 1000,
+    }
+  ],
 });
