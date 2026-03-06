@@ -22,7 +22,8 @@ export class AuthUseCase {
   }
 
   async registerPasskey(email: string): Promise<void> {
-    const options = await this.authRepo.beginPasskeyRegistration(email);
+    const res = await this.authRepo.beginPasskeyRegistration(email);
+    const options = res.publicKey || res;
 
     let credential;
     if (Platform.OS === 'web') {
@@ -38,7 +39,8 @@ export class AuthUseCase {
   }
 
   async loginWithPasskey(email: string): Promise<AuthResponse> {
-    const options = await this.authRepo.beginPasskeyLogin(email);
+    const res = await this.authRepo.beginPasskeyLogin(email);
+    const options = res.publicKey || res;
 
     let credential;
     if (Platform.OS === 'web') {
