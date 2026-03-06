@@ -24,10 +24,10 @@ describe('AuthRepository', () => {
       json: async () => ({ access: 'test', email: 'dev@test.local' })
     });
 
-    const response = await authRepo.devLogin();
+    const response = await authRepo.devLogin('dev@test.local');
     expect(response.access).toBe('test');
     expect(response.email).toBe('dev@test.local');
-    expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/auth/dev`);
+    expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/auth/dev?email=dev%40test.local`);
   });
 
   it('should request magic link', async () => {
@@ -56,6 +56,6 @@ describe('AuthRepository', () => {
       ok: false
     });
 
-    await expect(authRepo.devLogin()).rejects.toThrow('Failed to dev login');
+    await expect(authRepo.devLogin('dev@test.local')).rejects.toThrow('Failed to dev login');
   });
 });
