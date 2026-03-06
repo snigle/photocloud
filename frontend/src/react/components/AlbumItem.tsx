@@ -59,7 +59,11 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({ album, creds, size, onPres
     }, [album.coverPhotoKey, creds]);
 
     return (
-        <TouchableOpacity onPress={() => onPress(album)} style={[styles.container, { width: size }]}>
+        <TouchableOpacity
+            onPress={() => onPress(album)}
+            style={[styles.container, { width: size }]}
+            testID="album-item"
+        >
             <Card style={styles.card}>
                 <View style={[styles.imageContainer, { height: size - 40 }]}>
                     {thumbnailUrl ? (

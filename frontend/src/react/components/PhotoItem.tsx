@@ -129,6 +129,7 @@ export const PhotoItem = React.memo(({
 
   return (
     <TouchableOpacity
+        testID="photo-item"
         onPress={handlePress}
         onLongPress={handleLongPress}
         delayLongPress={500}
@@ -186,6 +187,7 @@ export const PhotoItem = React.memo(({
         {/* Selection Indicator */}
         {(isSelected || (Platform.OS === 'web' && isHovered) || isSelectionMode) && (
             <TouchableOpacity
+                testID="selection-indicator"
                 style={[
                     styles.selectionIndicator,
                     isSelected && styles.selectionIndicatorSelected

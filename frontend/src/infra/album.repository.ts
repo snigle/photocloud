@@ -169,18 +169,22 @@ export class AlbumRepository implements IAlbumRepository {
   }
 
   async deleteAlbum(bucket: string, email: string, albumId: string): Promise<void> {
+    console.log(`AlbumRepository: Deleting album ${albumId} for ${email}`);
     const release = await GlobalLock.acquire(`albums-${email}`);
     try {
         const key = this.getAlbumKey(email, albumId);
         await this.s3Repo.deleteFile(bucket, key);
+        console.log(`AlbumRepository: Deleted album file ${key}`);
 
         // Update index
         try {
+            console.log(`AlbumRepository: Updating index after deletion of ${albumId}`);
             const albums = await this.listAlbums(bucket, email, true); // skip cache
             const filtered = albums.filter(a => a.id !== albumId);
             const indexKey = this.getAlbumsIndexKey(email);
             await this.s3Repo.uploadFile(bucket, indexKey, encodeText(JSON.stringify(filtered)), 'application/json');
             albumsCache.set(indexKey, { data: filtered, timestamp: Date.now() });
+            console.log(`AlbumRepository: Index updated successfully for ${email}`);
         } catch (e) {
             console.error('Failed to update albums index after delete', e);
         }
