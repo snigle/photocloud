@@ -187,7 +187,9 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
         try {
             await deleteAlbum(album.id);
             console.log('Album deleted successfully');
-            navigation.goBack();
+            // Use navigate instead of goBack for more deterministic behavior in tests
+            // Explicitly targeting the App stack and Albums screen within the drawer
+            navigation.navigate('App', { screen: 'Albums' });
         } catch (err) {
             console.error('Failed to delete album', err);
             alert('Erreur lors de la suppression de l\'album');

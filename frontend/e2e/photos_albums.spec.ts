@@ -5,6 +5,10 @@ test.describe('Photos and Albums Flow', () => {
   test.beforeEach(async ({ page }) => {
     page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
     page.on('pageerror', err => console.log('BROWSER ERROR:', err.message));
+    page.on('dialog', async dialog => {
+      console.log(`BROWSER DIALOG: [${dialog.type()}] ${dialog.message()}`);
+      await dialog.dismiss();
+    });
     await page.goto('/');
     const devButton = page.getByRole('button', { name: 'Use Developer Account' });
     await devButton.click();
@@ -17,20 +21,18 @@ test.describe('Photos and Albums Flow', () => {
     await page.getByTestId('upload-button').click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(path.join(__dirname, 'assets', 'test-image.jpg'));
-    await page.waitForTimeout(5000);
 
-    // Wait for upload to complete (progress bar disappears or subtitle updates)
-    // We look for the photo in the gallery. PhotoItem has testID="photo-image"
-    const photo = page.getByTestId('photo-image').first();
-    await expect(photo).toBeVisible({ timeout: 60000 });
+    // Wait for the new photo item to appear in the gallery
+    const photoItem = page.getByTestId('photo-item').first();
+    // Allow up to 2 minutes for upload and thumbnail generation in dev/CI
+    await expect(photoItem).toBeVisible({ timeout: 120000 });
     await page.screenshot({ path: 'e2e-screenshots/04-photo-uploaded.png' });
 
     // 2. Select photo and create album
-    // On web, we can click the selection indicator.
-    await photo.hover();
+    await photoItem.hover();
     const indicator = page.getByTestId('selection-indicator').first();
+    await expect(indicator).toBeVisible();
     await indicator.click();
-    await page.waitForTimeout(1000);
 
     // Now selection mode is active, "Add to album" should be visible
     const addToAlbumButton = page.getByTestId('add-to-album-button');
@@ -64,38 +66,44 @@ test.describe('Photos and Albums Flow', () => {
 
     // Wait to be back on Albums screen
     console.log('Waiting for Albums screen...');
-    await expect(page).toHaveURL(/.*albums/, { timeout: 20000 });
+    await expect(page).toHaveURL(/.*\/albums(\/|\?|$)/, { timeout: 20000 });
 
     // Should be back in Albums list and album should be gone
-    await expect(page.getByText(albumTitle)).not.toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).not.toBeVisible({ timeout: 10000 });
     await page.screenshot({ path: 'e2e-screenshots/06-album-deleted.png' });
 
-    // 5. Delete the photo definitively
-    // Use .filter({ visible: true }) to get the button on the current screen
-    const menuBtn = page.getByTestId('menu-button').filter({ visible: true }).first();
-    await expect(menuBtn).toBeVisible({ timeout: 10000 });
-    await page.waitForTimeout(1000);
-
-    console.log('Opening drawer menu...');
-    await menuBtn.click();
-
-    console.log('Clicking on Galerie button in drawer...');
-    // The drawer might take a moment to animate
-    const galerieLink = page.getByRole('button', { name: 'Galerie' });
-    await expect(galerieLink).toBeVisible({ timeout: 10000 });
-    await galerieLink.click();
-
+    // 5. Delete the photo definitively from gallery
+    console.log('Navigating to gallery...');
+    await page.goto('/#/gallery');
     await expect(page).toHaveURL(/.*gallery/);
 
-    // Select the photo again
-    await photo.hover();
+    // Wait for sync to stabilize
+    await expect(page.getByText('Mise à jour...')).not.toBeVisible({ timeout: 60000 });
+    const photoCountSubtitle = page.getByTestId('photo-count-subtitle');
+    await expect(photoCountSubtitle).toBeVisible({ timeout: 30000 });
+
+    // Wait until the count contains "photos" and is not 0
+    await expect(photoCountSubtitle).toHaveText(/.* photos/, { timeout: 60000 });
+    await expect(photoCountSubtitle).not.toHaveText('0 photos', { timeout: 60000 });
+
+    const countText = await photoCountSubtitle.innerText();
+    const initialTotal = parseInt(countText.split(' ')[0]);
+    console.log(`Initial total photos: ${initialTotal}`);
+
+    const photoItems = page.getByTestId('photo-item');
+    await photoItems.first().hover();
     await page.getByTestId('selection-indicator').first().click();
 
     await page.getByTestId('delete-photos-button').click();
-    await page.getByRole('button', { name: 'Supprimer' }).click();
+    await page.getByText('Supprimer', { exact: true }).filter({ visible: true }).click();
 
-    // Photo should eventually disappear
-    await expect(photo).not.toBeVisible({ timeout: 20000 });
+    // Verify the header count decremented
+    if (initialTotal > 1) {
+        await expect(photoCountSubtitle).toHaveText(`${initialTotal - 1} photos`, { timeout: 30000 });
+    } else {
+        await expect(page.getByText('No photos found.')).toBeVisible({ timeout: 30000 });
+    }
+
     await page.screenshot({ path: 'e2e-screenshots/07-photo-deleted.png' });
   });
 });

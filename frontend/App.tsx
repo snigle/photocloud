@@ -53,9 +53,9 @@ const linking = {
           Gallery: 'gallery',
           Dossiers: 'folders',
           Albums: 'albums',
-          AlbumDetail: 'albums/:albumId',
         }
       },
+      AlbumDetail: 'albums/:albumId',
     },
   },
   getStateFromPath: (path: string, options: any) => {

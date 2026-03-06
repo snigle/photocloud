@@ -1,6 +1,6 @@
 import React from 'react';
-import { ActivityIndicator } from 'react-native';
-import { Appbar, useTheme } from 'react-native-paper';
+import { ActivityIndicator, View } from 'react-native';
+import { Appbar, useTheme, Text } from 'react-native-paper';
 import { LogOut, RefreshCw, Upload, X, Trash2, Menu, FolderPlus } from 'lucide-react-native';
 
 interface GalleryHeaderProps {
@@ -70,8 +70,19 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
                 />
             )}
             <Appbar.Content
-                title="PhotoCloud"
-                subtitle={refreshing ? 'Mise à jour...' : (uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`)}
+                title={
+                    <View>
+                        <Text style={{ fontWeight: 'bold', fontSize: 18 }}>PhotoCloud</Text>
+                        <Text
+                            variant="labelSmall"
+                            style={{ opacity: 0.7 }}
+                            testID="photo-count-subtitle"
+                        >
+                            {refreshing ? 'Mise à jour...' : (uploading && progress ? `Uploading ${progress.current}/${progress.total}...` : `${totalCount} photos`)}
+                        </Text>
+                    </View>
+                }
+                testID="gallery-header-content"
             />
             {uploading && !progress && <ActivityIndicator style={{ marginRight: 10 }} color={theme.colors.primary} />}
             <Appbar.Action

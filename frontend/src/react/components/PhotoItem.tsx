@@ -129,6 +129,7 @@ export const PhotoItem = React.memo(({
 
   return (
     <TouchableOpacity
+        testID="photo-item"
         onPress={handlePress}
         onLongPress={handleLongPress}
         delayLongPress={500}
