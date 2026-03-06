@@ -90,7 +90,7 @@ func main() {
 	googleAuth := auth.NewGoogleAuthenticator(googleClientID)
 	magicLinkAuth := auth.NewMagicLinkAuthenticator(jwtSecret, "photocloud-api")
 	emailSender := email.NewSMTPEmailSender(smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom)
-	devAuth := auth.NewDevAuthenticator()
+	devAuth := auth.NewDevAuthenticator([]string{"dev@photocloud.local", "dev2@photocloud.local"})
 
 	webAuthn, err := auth.NewPasskeyAuthenticator(storageRepo, &webauthn.Config{
 		RPDisplayName: "Photo Cloud",

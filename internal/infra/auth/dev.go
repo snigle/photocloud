@@ -9,10 +9,11 @@ import (
 )
 
 type DevAuthenticator struct {
+	allowedEmails []string
 }
 
-func NewDevAuthenticator() *DevAuthenticator {
-	return &DevAuthenticator{}
+func NewDevAuthenticator(allowedEmails []string) *DevAuthenticator {
+	return &DevAuthenticator{allowedEmails: allowedEmails}
 }
 
 func (a *DevAuthenticator) Authenticate(ctx context.Context, email string) (*domain.UserInfo, error) {
@@ -22,6 +23,17 @@ func (a *DevAuthenticator) Authenticate(ctx context.Context, email string) (*dom
 
 	if email == "" {
 		return nil, errors.New("email is required")
+	}
+
+	allowed := false
+	for _, e := range a.allowedEmails {
+		if e == email {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return nil, errors.New("email not allowed for dev auth")
 	}
 
 	return &domain.UserInfo{Email: email}, nil
