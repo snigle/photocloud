@@ -8,8 +8,8 @@ test.describe('Photo Cloud App', () => {
     await expect(page.getByText('Photo Cloud')).toBeVisible({ timeout: 30000 });
     await page.screenshot({ path: 'e2e-screenshots/01-auth-screen.png' });
 
-    // Click "Use Developer Account"
-    const devButton = page.getByRole('button', { name: 'Use Developer Account' });
+    // Click "Dev 1"
+    const devButton = page.getByRole('button', { name: 'Dev 1' });
     await devButton.click();
 
     // Verify redirection to gallery (URL or some persistent element)
