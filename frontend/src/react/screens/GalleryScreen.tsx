@@ -7,7 +7,7 @@ import { useGallery } from '../hooks/useGallery';
 import { useUpload } from '../hooks/useUpload';
 import { useSelection } from '../hooks/useSelection';
 import { groupPhotosByDay, ListItem } from '../utils/gallery-utils';
-import { getBaseDir, getIsStaging } from '../utils/routing-utils';
+import { getIsStaging } from '../utils/routing-utils';
 import { PhotoViewer } from '../components/PhotoViewer';
 import { PhotoItem } from '../components/PhotoItem';
 import { GalleryHeader } from '../components/GalleryHeader';
