@@ -134,8 +134,10 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
     setError(null);
     try {
       // Use #/login for better support on static hosting (GH Pages)
-      // Linking.createURL will handle the base path correctly on web
-      const redirectUrl = Linking.createURL('#/login');
+      // Linking.createURL might miss the base path in some hosting environments.
+      // We explicitly construct the full URL to ensure it includes window.location.pathname.
+      const base = getBaseDir();
+      const redirectUrl = window.location.origin + base + '#/login';
 
       console.log('Requesting magic link with redirect:', redirectUrl);
       await authUseCase.requestMagicLink(email, redirectUrl);
