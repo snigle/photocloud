@@ -5,7 +5,7 @@ import { Mail, Chrome, Code, Fingerprint } from 'lucide-react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Google from 'expo-auth-session/providers/google';
-import { getBaseDir } from '../utils/routing-utils';
+import { getBaseDir, getIsStaging } from '../utils/routing-utils';
 import type { S3Credentials } from '../../domain/types';
 import type { AuthUseCase } from '../../usecase/auth.usecase';
 
@@ -235,15 +235,17 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
               Sign in with Google
             </Button>
 
-            <Button
-              mode="text"
-              onPress={handleDevLogin}
-              disabled={loading}
-              icon={() => <Code size={20} color={theme.colors.secondary} />}
-              style={styles.devButton}
-            >
-              Use Developer Account
-            </Button>
+            {(getIsStaging() || (process.env.NODE_ENV === 'development' && Platform.OS === 'web') || (typeof window !== 'undefined' && window.location.hostname === 'localhost')) && (
+              <Button
+                mode="text"
+                onPress={handleDevLogin}
+                disabled={loading}
+                icon={() => <Code size={20} color={theme.colors.secondary} />}
+                style={styles.devButton}
+              >
+                Use Developer Account
+              </Button>
+            )}
           </Card.Content>
         </Card>
 
