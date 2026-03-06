@@ -10,7 +10,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as BackgroundFetch from 'expo-background-fetch';
 
 import { useAuth } from './src/react/hooks/useAuth';
-import { getBaseDir, getRouteFromPath, getIsStaging } from './src/react/utils/routing-utils';
+import { getBaseDir, getIsStaging } from './src/react/utils/routing-utils';
 import AuthScreen from './src/react/screens/AuthScreen';
 import GalleryScreen from './src/react/screens/GalleryScreen';
 import FoldersScreen from './src/react/screens/FoldersScreen';
@@ -49,6 +49,7 @@ const linking = {
     screens: {
       Auth: 'login',
       App: {
+        path: '',
         screens: {
           Gallery: 'gallery',
           Dossiers: 'folders',
@@ -62,7 +63,9 @@ const linking = {
     if (Platform.OS === 'web') {
       const hash = window.location.hash.replace(/^#\/?/, '');
       const search = window.location.search;
+
       // Combine hash path and search params so tokens are parsed
+      // We also check if the hash itself contains query params (e.g. #/login?token=...)
       let fullPath = hash || 'login';
       if (search && !fullPath.includes('?')) {
         fullPath += search;
@@ -74,8 +77,9 @@ const linking = {
   getPathFromState: (state: any, options: any) => {
     const path = getPathFromState(state, options);
     if (Platform.OS === 'web') {
-      // Use relative hash to stay within current subdirectory (e.g. /staging/#/login)
-      return `#/${path.replace(/^\//, '')}`;
+      // By returning absolute path with hash, we ensure the browser's pathname
+      // is reset to the base directory on every navigation.
+      return getBaseDir() + '#' + path;
     }
     return path;
   },
@@ -91,16 +95,6 @@ export default function App() {
       authUseCase.getVersion().then(setBackendVersion).catch(() => setBackendVersion('err'));
   }, [authUseCase]);
 
-  if (Platform.OS === 'web' && !window.location.hash) {
-      const base = getBaseDir();
-      const route = getRouteFromPath(window.location.pathname, base);
-      const newUrl = window.location.origin + base + '#/' + route + window.location.search;
-
-      console.log('App: Redirecting to hash URL:', newUrl);
-      // Use replaceState to avoid full page reload and keep CI stable
-      window.history.replaceState(null, '', newUrl);
-  }
-
   const processedTokens = useRef(new Set<string>());
 
   useEffect(() => {
@@ -115,6 +109,12 @@ export default function App() {
           try {
               const res = await authUseCase.validateMagicLink(token);
               login(res, res.email);
+
+              if (Platform.OS === 'web') {
+                  // Clean up URL: remove search params (like ?token=...) to avoid polluting future hash-based navigation
+                  const newUrl = window.location.origin + window.location.pathname + window.location.hash;
+                  window.history.replaceState(null, '', newUrl);
+              }
           } catch (err) {
               console.error('App: Failed to validate magic link from deep link:', err);
           }
