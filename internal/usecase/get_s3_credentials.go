@@ -32,8 +32,12 @@ func (uc *GetS3CredentialsUseCase) Execute(ctx context.Context, email string) (*
 	if err != nil {
 		// If the key is not found, generate a new one
 		// We check for "404" or "NoSuchKey" in the error message as S3 errors are often strings when wrapped
-		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "NoSuchKey") {
-			log.Printf("User key not found for %s, generating new one", email)
+		// For the dev user, we also regenerate if AccessDenied (likely master key changed)
+		isNotFound := strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "NoSuchKey")
+		isDevAccessDenied := email == "dev@photocloud.local" && strings.Contains(err.Error(), "AccessDenied")
+
+		if isNotFound || isDevAccessDenied {
+			log.Printf("User key not found or inaccessible for %s, generating new one", email)
 			userKey = make([]byte, 32)
 			if _, err := rand.Read(userKey); err != nil {
 				return nil, err

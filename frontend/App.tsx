@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useMemo, useCallback } from 'react';
-import { StyleSheet, View, Platform, Text } from 'react-native';
+import { StyleSheet, View, Platform, Text, Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider, ActivityIndicator, MD3LightTheme, Button } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
@@ -148,22 +148,37 @@ export default function App() {
   const renderDrawerContent = useCallback((props: any) => {
     const handleClearDev = async () => {
         if (!session || session.email !== 'dev@photocloud.local') return;
-        const confirm = window.confirm('Are you sure you want to clear the dev account? All photos and your key will be deleted.');
-        if (!confirm) return;
 
-        try {
-            const s3 = new S3Repository(session.creds);
-            const prefix = `users/${session.email}/`;
-            const keys = await s3.listKeys(session.creds.bucket, prefix);
-            console.log(`Clearing ${keys.length} objects for dev account...`);
-            for (const key of keys) {
-                await s3.deleteFile(session.creds.bucket, key);
+        const performClear = async () => {
+            try {
+                const s3 = new S3Repository(session.creds);
+                const prefix = `users/${session.email}/`;
+                const keys = await s3.listKeys(session.creds.bucket, prefix);
+                console.log(`Clearing ${keys.length} objects for dev account...`);
+                for (const key of keys) {
+                    await s3.deleteFile(session.creds.bucket, key);
+                }
+                console.log('Dev account cleared, logging out...');
+                logout();
+            } catch (err) {
+                console.error('Failed to clear dev account:', err);
+                Alert.alert('Erreur', 'Impossible de nettoyer le compte : ' + (err as any).message);
             }
-            console.log('Dev account cleared, logging out...');
-            logout();
-        } catch (err) {
-            console.error('Failed to clear dev account:', err);
-            alert('Failed to clear dev account: ' + (err as any).message);
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm('Es-tu sûr de vouloir nettoyer le compte de dev ? Toutes les photos et ta clé seront supprimées.')) {
+                await performClear();
+            }
+        } else {
+            Alert.alert(
+                'Nettoyer compte Dev',
+                'Es-tu sûr de vouloir nettoyer le compte de dev ? Toutes les photos et ta clé seront supprimées.',
+                [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Supprimer tout', style: 'destructive', onPress: performClear }
+                ]
+            );
         }
     };
 
