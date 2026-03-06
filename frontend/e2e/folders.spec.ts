@@ -5,7 +5,7 @@ test.describe('Folders Screen', () => {
     await page.goto('/');
 
     // Click "Dev 1"
-    const devButton = page.getByRole('button', { name: 'Dev 1' });
+    const devButton = page.getByRole('button', { name: /Dev 1/i });
     await devButton.click();
 
     // Open drawer

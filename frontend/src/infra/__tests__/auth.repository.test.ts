@@ -36,7 +36,7 @@ describe('AuthRepository', () => {
     });
 
     await authRepo.requestMagicLink('test@example.com');
-    expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/auth/magic-link/request?email=test@example.com`);
+    expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/auth/magic-link/request?email=test%40example.com`);
   });
 
   it('should request magic link with redirect url', async () => {
@@ -47,7 +47,7 @@ describe('AuthRepository', () => {
     const redirectUrl = 'photocloud://callback';
     await authRepo.requestMagicLink('test@example.com', redirectUrl);
     expect(global.fetch).toHaveBeenCalledWith(
-      `${API_URL}/auth/magic-link/request?email=test@example.com&redirect_url=${encodeURIComponent(redirectUrl)}`
+      `${API_URL}/auth/magic-link/request?email=test%40example.com&redirect_url=${encodeURIComponent(redirectUrl)}`
     );
   });
 

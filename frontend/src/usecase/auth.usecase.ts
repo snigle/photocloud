@@ -62,12 +62,20 @@ export class AuthUseCase {
   private prepareOptions(options: any) {
     const newOptions = { ...options };
     if (newOptions.challenge) newOptions.challenge = this.bufferFromBase64(newOptions.challenge);
-    if (newOptions.user?.id) newOptions.user.id = this.bufferFromBase64(newOptions.user.id);
+    if (newOptions.user?.id) {
+        newOptions.user = { ...newOptions.user, id: this.bufferFromBase64(newOptions.user.id) };
+    }
     if (newOptions.allowCredentials) {
       newOptions.allowCredentials = newOptions.allowCredentials.map((c: any) => ({
         ...c,
         id: this.bufferFromBase64(c.id)
       }));
+    }
+    if (newOptions.excludeCredentials) {
+        newOptions.excludeCredentials = newOptions.excludeCredentials.map((c: any) => ({
+          ...c,
+          id: this.bufferFromBase64(c.id)
+        }));
     }
     return newOptions;
   }

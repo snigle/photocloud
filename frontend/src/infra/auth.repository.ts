@@ -10,13 +10,13 @@ export class AuthRepository implements IAuthRepository {
   }
 
   async googleLogin(token: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_URL}/auth/google?token=${token}`);
+    const response = await fetch(`${API_URL}/auth/google?token=${encodeURIComponent(token)}`);
     if (!response.ok) throw new Error('Failed to google login');
     return await response.json();
   }
 
   async requestMagicLink(email: string, redirectUrl?: string): Promise<void> {
-    let url = `${API_URL}/auth/magic-link/request?email=${email}`;
+    let url = `${API_URL}/auth/magic-link/request?email=${encodeURIComponent(email)}`;
     if (redirectUrl) {
       url += `&redirect_url=${encodeURIComponent(redirectUrl)}`;
     }
@@ -25,13 +25,13 @@ export class AuthRepository implements IAuthRepository {
   }
 
   async validateMagicLink(token: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_URL}/auth/magic-link/callback?token=${token}`);
+    const response = await fetch(`${API_URL}/auth/magic-link/callback?token=${encodeURIComponent(token)}`);
     if (!response.ok) throw new Error('Failed to validate magic link');
     return await response.json();
   }
 
   async beginPasskeyRegistration(email: string): Promise<any> {
-    const response = await fetch(`${API_URL}/auth/passkey/register/begin?email=${email}`, {
+    const response = await fetch(`${API_URL}/auth/passkey/register/begin?email=${encodeURIComponent(email)}`, {
       credentials: 'include'
     });
     if (!response.ok) throw new Error('Failed to begin passkey registration');
@@ -39,7 +39,7 @@ export class AuthRepository implements IAuthRepository {
   }
 
   async finishPasskeyRegistration(email: string, credential: any): Promise<void> {
-    const response = await fetch(`${API_URL}/auth/passkey/register/finish?email=${email}`, {
+    const response = await fetch(`${API_URL}/auth/passkey/register/finish?email=${encodeURIComponent(email)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credential),
@@ -49,7 +49,7 @@ export class AuthRepository implements IAuthRepository {
   }
 
   async beginPasskeyLogin(email: string): Promise<any> {
-    const response = await fetch(`${API_URL}/auth/passkey/login/begin?email=${email}`, {
+    const response = await fetch(`${API_URL}/auth/passkey/login/begin?email=${encodeURIComponent(email)}`, {
       credentials: 'include'
     });
     if (!response.ok) throw new Error('Failed to begin passkey login');
@@ -57,7 +57,7 @@ export class AuthRepository implements IAuthRepository {
   }
 
   async finishPasskeyLogin(email: string, credential: any): Promise<AuthResponse> {
-    const response = await fetch(`${API_URL}/auth/passkey/login/finish?email=${email}`, {
+    const response = await fetch(`${API_URL}/auth/passkey/login/finish?email=${encodeURIComponent(email)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credential),
