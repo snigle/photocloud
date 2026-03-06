@@ -49,6 +49,7 @@ const linking = {
     screens: {
       Auth: 'login',
       App: {
+        path: '',
         screens: {
           Gallery: 'gallery',
           Dossiers: 'folders',
@@ -91,6 +92,16 @@ export default function App() {
   useEffect(() => {
       authUseCase.getVersion().then(setBackendVersion).catch(() => setBackendVersion('err'));
   }, [authUseCase]);
+
+  // Ensure we are always on the base directory pathname on web
+  // This cleans up any legacy pathnames like /gallery or /login
+  if (Platform.OS === 'web') {
+    const base = getBaseDir();
+    if (window.location.pathname !== base) {
+        const newUrl = window.location.origin + base + window.location.hash + window.location.search;
+        window.history.replaceState(null, '', newUrl);
+    }
+  }
 
   const processedTokens = useRef(new Set<string>());
 
