@@ -106,6 +106,12 @@ export default function App() {
           try {
               const res = await authUseCase.validateMagicLink(token);
               login(res, res.email);
+
+              if (Platform.OS === 'web') {
+                  // Clean up URL: remove search params (like ?token=...) to avoid polluting future hash-based navigation
+                  const newUrl = window.location.origin + window.location.pathname + window.location.hash;
+                  window.history.replaceState(null, '', newUrl);
+              }
           } catch (err) {
               console.error('App: Failed to validate magic link from deep link:', err);
           }
