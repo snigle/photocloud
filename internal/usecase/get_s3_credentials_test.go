@@ -71,3 +71,95 @@ func TestGetS3CredentialsUseCase_Execute(t *testing.T) {
 		t.Errorf("expected %+v, got %+v", expectedCreds, creds)
 	}
 }
+
+func TestGetS3CredentialsUseCase_Execute_GenerateKey(t *testing.T) {
+	ctx := context.Background()
+	email := "new@example.com"
+	expectedCreds := &domain.S3Credentials{
+		AccessKey: "access",
+		SecretKey: "secret",
+	}
+
+	savedKey := []byte{}
+	mockRepo := &mockStorageRepository{
+		getS3CredentialsFunc: func(ctx context.Context, email string) (*domain.S3Credentials, error) {
+			return expectedCreds, nil
+		},
+		getUserKeyFunc: func(ctx context.Context, email string) ([]byte, error) {
+			return nil, errors.New("404: Not Found")
+		},
+		saveUserKeyFunc: func(ctx context.Context, email string, key []byte) error {
+			savedKey = key
+			return nil
+		},
+	}
+
+	uc := NewGetS3CredentialsUseCase(mockRepo, mockRepo)
+	creds, err := uc.Execute(ctx, email)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(savedKey) != 32 {
+		t.Errorf("expected 32 bytes key to be saved, got %d bytes", len(savedKey))
+	}
+
+	if creds.UserKey == "" {
+		t.Error("expected UserKey to be populated in credentials")
+	}
+}
+
+func TestGetS3CredentialsUseCase_Execute_ErrorOnKeyFailure(t *testing.T) {
+	ctx := context.Background()
+	email := "error@example.com"
+
+	mockRepo := &mockStorageRepository{
+		getS3CredentialsFunc: func(ctx context.Context, email string) (*domain.S3Credentials, error) {
+			return &domain.S3Credentials{}, nil
+		},
+		getUserKeyFunc: func(ctx context.Context, email string) ([]byte, error) {
+			return nil, errors.New("unexpected S3 error")
+		},
+	}
+
+	uc := NewGetS3CredentialsUseCase(mockRepo, mockRepo)
+	_, err := uc.Execute(ctx, email)
+
+	if err == nil {
+		t.Error("expected error when GetUserKey fails with non-404 error, got nil")
+	}
+}
+
+func TestGetS3CredentialsUseCase_Execute_DevRegenerateOnAccessDenied(t *testing.T) {
+	ctx := context.Background()
+	email := "dev@photocloud.local"
+	expectedCreds := &domain.S3Credentials{
+		AccessKey: "access",
+	}
+
+	savedKey := []byte{}
+	mockRepo := &mockStorageRepository{
+		getS3CredentialsFunc: func(ctx context.Context, email string) (*domain.S3Credentials, error) {
+			return expectedCreds, nil
+		},
+		getUserKeyFunc: func(ctx context.Context, email string) ([]byte, error) {
+			return nil, errors.New("AccessDenied: correct secret key required")
+		},
+		saveUserKeyFunc: func(ctx context.Context, email string, key []byte) error {
+			savedKey = key
+			return nil
+		},
+	}
+
+	uc := NewGetS3CredentialsUseCase(mockRepo, mockRepo)
+	_, err := uc.Execute(ctx, email)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(savedKey) != 32 {
+		t.Errorf("expected 32 bytes key to be saved for dev on AccessDenied, got %d bytes", len(savedKey))
+	}
+}

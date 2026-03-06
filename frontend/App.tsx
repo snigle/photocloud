@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useMemo, useCallback } from 'react';
-import { StyleSheet, View, Platform, Text } from 'react-native';
+import { StyleSheet, View, Platform, Text, Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { PaperProvider, ActivityIndicator, MD3LightTheme } from 'react-native-paper';
+import { PaperProvider, ActivityIndicator, MD3LightTheme, Button } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
 import { NavigationContainer, getStateFromPath, getPathFromState } from '@react-navigation/native';
@@ -19,6 +19,7 @@ import AlbumDetailScreen from './src/react/screens/AlbumDetailScreen';
 import { AuthRepository } from './src/infra/auth.repository';
 import { AuthUseCase } from './src/usecase/auth.usecase';
 import { BACKGROUND_SYNC_TASK } from './src/domain/constants';
+import { S3Repository } from './src/infra/s3.repository';
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -145,10 +146,58 @@ export default function App() {
   }, [session]);
 
   const renderDrawerContent = useCallback((props: any) => {
+    const handleClearDev = async () => {
+        if (!session || session.email !== 'dev@photocloud.local') return;
+
+        const performClear = async () => {
+            try {
+                const s3 = new S3Repository(session.creds);
+                const prefix = `users/${session.email}/`;
+                const keys = await s3.listKeys(session.creds.bucket, prefix);
+                console.log(`Clearing ${keys.length} objects for dev account...`);
+                for (const key of keys) {
+                    await s3.deleteFile(session.creds.bucket, key);
+                }
+                console.log('Dev account cleared, logging out...');
+                logout();
+            } catch (err) {
+                console.error('Failed to clear dev account:', err);
+                Alert.alert('Erreur', 'Impossible de nettoyer le compte : ' + (err as any).message);
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm('Es-tu sûr de vouloir nettoyer le compte de dev ? Toutes les photos et ta clé seront supprimées.')) {
+                await performClear();
+            }
+        } else {
+            Alert.alert(
+                'Nettoyer compte Dev',
+                'Es-tu sûr de vouloir nettoyer le compte de dev ? Toutes les photos et ta clé seront supprimées.',
+                [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Supprimer tout', style: 'destructive', onPress: performClear }
+                ]
+            );
+        }
+    };
+
     return (
         <View style={{ flex: 1 }}>
             <DrawerContentScrollView {...props}>
                 <DrawerItemList {...props} />
+                {session?.email === 'dev@photocloud.local' && (
+                    <Button
+                        icon="delete-forever"
+                        mode="text"
+                        textColor={APP_THEME.colors.error}
+                        onPress={handleClearDev}
+                        style={{ marginTop: 10, marginHorizontal: 10 }}
+                        contentStyle={{ justifyContent: 'flex-start' }}
+                    >
+                        Nettoyer compte Dev
+                    </Button>
+                )}
             </DrawerContentScrollView>
             <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#eee', opacity: 0.5 }}>
                 <Text style={{ fontSize: 10 }}>

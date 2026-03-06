@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -60,12 +59,6 @@ func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.Ge
 			log.Printf("Error getting S3 credentials for dev: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
-		}
-
-		// Fallback to the master key for dev user key if no key is stored in S3
-		// This ensures consistent encryption for testing while allowing real keys if they exist
-		if creds.UserKey == "" || creds.UserKey == base64.StdEncoding.EncodeToString([]byte{}) {
-			creds.UserKey = base64.StdEncoding.EncodeToString(masterKey)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
