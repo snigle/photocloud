@@ -3,8 +3,8 @@ import type { IAuthRepository, AuthResponse } from '../domain/types';
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
 
 export class AuthRepository implements IAuthRepository {
-  async devLogin(): Promise<AuthResponse> {
-    const response = await fetch(`${API_URL}/auth/dev`);
+  async devLogin(email: string): Promise<AuthResponse> {
+    const response = await fetch(`${API_URL}/auth/dev?email=${encodeURIComponent(email)}`);
     if (!response.ok) throw new Error('Failed to dev login');
     return await response.json();
   }

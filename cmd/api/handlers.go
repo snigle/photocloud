@@ -48,7 +48,8 @@ func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.Ge
 			http.Error(w, "Dev auth disabled", http.StatusForbidden)
 			return
 		}
-		userInfo, err := devAuth.Authenticate(r.Context(), "dev-token")
+		email := r.URL.Query().Get("email")
+		userInfo, err := devAuth.Authenticate(r.Context(), email)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return

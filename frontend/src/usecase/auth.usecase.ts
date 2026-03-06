@@ -5,8 +5,8 @@ import type { IAuthRepository, AuthResponse } from '../domain/types';
 export class AuthUseCase {
   constructor(private authRepo: IAuthRepository) {}
 
-  async loginWithDev(): Promise<AuthResponse> {
-    return await this.authRepo.devLogin();
+  async loginWithDev(email: string): Promise<AuthResponse> {
+    return await this.authRepo.devLogin(email);
   }
 
   async loginWithGoogle(token: string): Promise<AuthResponse> {

@@ -9,22 +9,20 @@ import (
 )
 
 type DevAuthenticator struct {
-	devEmail string
 }
 
-func NewDevAuthenticator(devEmail string) *DevAuthenticator {
-	return &DevAuthenticator{devEmail: devEmail}
+func NewDevAuthenticator() *DevAuthenticator {
+	return &DevAuthenticator{}
 }
 
-func (a *DevAuthenticator) Authenticate(ctx context.Context, token string) (*domain.UserInfo, error) {
+func (a *DevAuthenticator) Authenticate(ctx context.Context, email string) (*domain.UserInfo, error) {
 	if os.Getenv("DEV_AUTH_ENABLED") != "true" {
 		return nil, errors.New("dev auth is disabled")
 	}
 
-	// In dev mode, the "token" is ignored or must match a secret
-	if token != "dev-token" {
-		return nil, errors.New("invalid dev token")
+	if email == "" {
+		return nil, errors.New("email is required")
 	}
 
-	return &domain.UserInfo{Email: a.devEmail}, nil
+	return &domain.UserInfo{Email: email}, nil
 }

@@ -90,7 +90,7 @@ func main() {
 	googleAuth := auth.NewGoogleAuthenticator(googleClientID)
 	magicLinkAuth := auth.NewMagicLinkAuthenticator(jwtSecret, "photocloud-api")
 	emailSender := email.NewSMTPEmailSender(smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom)
-	devAuth := auth.NewDevAuthenticator("dev@photocloud.local")
+	devAuth := auth.NewDevAuthenticator()
 
 	webAuthn, err := auth.NewPasskeyAuthenticator(storageRepo, &webauthn.Config{
 		RPDisplayName: "Photo Cloud",
@@ -124,7 +124,9 @@ func main() {
 	}
 
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowOriginFunc: func(origin string) bool {
+			return true
+		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-User-Email"},
 		AllowCredentials: true,
