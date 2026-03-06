@@ -2,8 +2,10 @@ package usecase
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"log"
+	"strings"
 
 	"github.com/snigle/photocloud/internal/domain"
 )
@@ -28,8 +30,21 @@ func (uc *GetS3CredentialsUseCase) Execute(ctx context.Context, email string) (*
 
 	userKey, err := uc.userStorage.GetUserKey(ctx, email)
 	if err != nil {
-		log.Printf("Error getting user key for %s: %v", email, err)
-		userKey = []byte{} // Use empty key if not found, to avoid regenerating
+		// If the key is not found, generate a new one
+		// We check for "404" or "NoSuchKey" in the error message as S3 errors are often strings when wrapped
+		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "NoSuchKey") {
+			log.Printf("User key not found for %s, generating new one", email)
+			userKey = make([]byte, 32)
+			if _, err := rand.Read(userKey); err != nil {
+				return nil, err
+			}
+			err = uc.userStorage.SaveUserKey(ctx, email, userKey)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	creds.UserKey = base64.StdEncoding.EncodeToString(userKey)

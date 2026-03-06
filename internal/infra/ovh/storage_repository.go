@@ -183,7 +183,7 @@ func (r *StorageRepository) GetUser(ctx context.Context, email string) (domain.P
 	}
 
 	key := fmt.Sprintf("users/%s/config/passkeys.json", email)
-	algo, sseKey, sseKeyMD5 := r.getSSEParams()
+	algo, sseKey, sseKeyMD5 := r.getSSEParams(email)
 	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket:               aws.String(r.bucket),
 		Key:                  aws.String(key),
@@ -239,7 +239,7 @@ func (r *StorageRepository) SaveUser(ctx context.Context, email string, user dom
 	}
 
 	key := fmt.Sprintf("users/%s/config/passkeys.json", email)
-	algo, sseKey, sseKeyMD5 := r.getSSEParams()
+	algo, sseKey, sseKeyMD5 := r.getSSEParams(email)
 	_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:               aws.String(r.bucket),
 		Key:                  aws.String(key),
@@ -262,7 +262,7 @@ func (r *StorageRepository) GetUserKey(ctx context.Context, email string) ([]byt
 	}
 
 	key := fmt.Sprintf("users/%s/secret.key", email)
-	algo, sseKey, sseKeyMD5 := r.getSSEParams()
+	algo, sseKey, sseKeyMD5 := r.getSSEParams(email)
 	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket:               aws.String(r.bucket),
 		Key:                  aws.String(key),
@@ -285,7 +285,7 @@ func (r *StorageRepository) SaveUserKey(ctx context.Context, email string, userK
 	}
 
 	key := fmt.Sprintf("users/%s/secret.key", email)
-	algo, sseKey, sseKeyMD5 := r.getSSEParams()
+	algo, sseKey, sseKeyMD5 := r.getSSEParams(email)
 	_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:               aws.String(r.bucket),
 		Key:                  aws.String(key),
@@ -301,9 +301,13 @@ func (r *StorageRepository) SaveUserKey(ctx context.Context, email string, userK
 	return nil
 }
 
-func (r *StorageRepository) getSSEParams() (string, string, string) {
-	key := base64.StdEncoding.EncodeToString(r.masterKey)
-	hash := md5.Sum(r.masterKey)
+func (r *StorageRepository) getSSEParams(email string) (string, string, string) {
+	masterKey := r.masterKey
+	if email == "dev@photocloud.local" {
+		masterKey = []byte("dev-master-key-must-be-32-bytes-")
+	}
+	key := base64.StdEncoding.EncodeToString(masterKey)
+	hash := md5.Sum(masterKey)
 	keyMD5 := base64.StdEncoding.EncodeToString(hash[:])
 	return "AES256", key, keyMD5
 }
