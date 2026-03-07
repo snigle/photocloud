@@ -303,7 +303,7 @@ func (r *StorageRepository) SaveUserKey(ctx context.Context, email string, userK
 
 func (r *StorageRepository) getSSEParams(email string) (string, string, string) {
 	masterKey := r.masterKey
-	if email == "dev@photocloud.local" {
+	if email == "dev@photocloud.local" || email == "dev2@photocloud.local" {
 		masterKey = []byte("dev-master-key-must-be-32-bytes-")
 	}
 	key := base64.StdEncoding.EncodeToString(masterKey)

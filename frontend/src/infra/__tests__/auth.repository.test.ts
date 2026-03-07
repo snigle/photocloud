@@ -24,10 +24,10 @@ describe('AuthRepository', () => {
       json: async () => ({ access: 'test', email: 'dev@test.local' })
     });
 
-    const response = await authRepo.devLogin();
+    const response = await authRepo.devLogin('dev@test.local');
     expect(response.access).toBe('test');
     expect(response.email).toBe('dev@test.local');
-    expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/auth/dev`);
+    expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/auth/dev?email=dev%40test.local`);
   });
 
   it('should request magic link', async () => {
@@ -36,7 +36,7 @@ describe('AuthRepository', () => {
     });
 
     await authRepo.requestMagicLink('test@example.com');
-    expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/auth/magic-link/request?email=test@example.com`);
+    expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/auth/magic-link/request?email=test%40example.com`);
   });
 
   it('should request magic link with redirect url', async () => {
@@ -47,7 +47,7 @@ describe('AuthRepository', () => {
     const redirectUrl = 'photocloud://callback';
     await authRepo.requestMagicLink('test@example.com', redirectUrl);
     expect(global.fetch).toHaveBeenCalledWith(
-      `${API_URL}/auth/magic-link/request?email=test@example.com&redirect_url=${encodeURIComponent(redirectUrl)}`
+      `${API_URL}/auth/magic-link/request?email=test%40example.com&redirect_url=${encodeURIComponent(redirectUrl)}`
     );
   });
 
@@ -56,6 +56,6 @@ describe('AuthRepository', () => {
       ok: false
     });
 
-    await expect(authRepo.devLogin()).rejects.toThrow('Failed to dev login');
+    await expect(authRepo.devLogin('dev@test.local')).rejects.toThrow('Failed to dev login');
   });
 });

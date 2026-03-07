@@ -146,8 +146,21 @@ export default function App() {
   }, [session]);
 
   const renderDrawerContent = useCallback((props: any) => {
+    const isDev = session?.email === 'dev@photocloud.local' || session?.email === 'dev2@photocloud.local';
+
+    const handleRegisterPasskey = async () => {
+        if (!session) return;
+        try {
+            await authUseCase.registerPasskey(session.email);
+            Alert.alert('Succès', 'Passkey enregistrée avec succès !');
+        } catch (err: any) {
+            console.error('Passkey registration failed:', err);
+            Alert.alert('Erreur', 'Échec de l\'enregistrement de la passkey : ' + err.message);
+        }
+    };
+
     const handleClearDev = async () => {
-        if (!session || session.email !== 'dev@photocloud.local') return;
+        if (!session || !isDev) return;
 
         const performClear = async () => {
             try {
@@ -186,7 +199,16 @@ export default function App() {
         <View style={{ flex: 1 }}>
             <DrawerContentScrollView {...props}>
                 <DrawerItemList {...props} />
-                {session?.email === 'dev@photocloud.local' && (
+                <Button
+                    icon="fingerprint"
+                    mode="text"
+                    onPress={handleRegisterPasskey}
+                    style={{ marginTop: 10, marginHorizontal: 10 }}
+                    contentStyle={{ justifyContent: 'flex-start' }}
+                >
+                    Enregistrer Passkey
+                </Button>
+                {isDev && (
                     <Button
                         icon="delete-forever"
                         mode="text"
@@ -210,7 +232,7 @@ export default function App() {
             </View>
         </View>
     );
-  }, [backendVersion]);
+  }, [backendVersion, authUseCase, session, logout]);
 
   if (loading) {
     return (

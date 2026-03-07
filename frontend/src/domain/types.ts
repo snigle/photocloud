@@ -59,7 +59,7 @@ export interface AuthResponse extends S3Credentials {
 }
 
 export interface IAuthRepository {
-  devLogin(): Promise<AuthResponse>;
+  devLogin(email: string): Promise<AuthResponse>;
   googleLogin(token: string): Promise<AuthResponse>;
   requestMagicLink(email: string, redirectUrl?: string): Promise<void>;
   validateMagicLink(token: string): Promise<AuthResponse>;

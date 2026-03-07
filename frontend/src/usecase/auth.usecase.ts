@@ -5,8 +5,8 @@ import type { IAuthRepository, AuthResponse } from '../domain/types';
 export class AuthUseCase {
   constructor(private authRepo: IAuthRepository) {}
 
-  async loginWithDev(): Promise<AuthResponse> {
-    return await this.authRepo.devLogin();
+  async loginWithDev(email: string): Promise<AuthResponse> {
+    return await this.authRepo.devLogin(email);
   }
 
   async loginWithGoogle(token: string): Promise<AuthResponse> {
@@ -22,7 +22,8 @@ export class AuthUseCase {
   }
 
   async registerPasskey(email: string): Promise<void> {
-    const options = await this.authRepo.beginPasskeyRegistration(email);
+    const res = await this.authRepo.beginPasskeyRegistration(email);
+    const options = res.publicKey || res;
 
     let credential;
     if (Platform.OS === 'web') {
@@ -38,7 +39,8 @@ export class AuthUseCase {
   }
 
   async loginWithPasskey(email: string): Promise<AuthResponse> {
-    const options = await this.authRepo.beginPasskeyLogin(email);
+    const res = await this.authRepo.beginPasskeyLogin(email);
+    const options = res.publicKey || res;
 
     let credential;
     if (Platform.OS === 'web') {
@@ -60,12 +62,20 @@ export class AuthUseCase {
   private prepareOptions(options: any) {
     const newOptions = { ...options };
     if (newOptions.challenge) newOptions.challenge = this.bufferFromBase64(newOptions.challenge);
-    if (newOptions.user?.id) newOptions.user.id = this.bufferFromBase64(newOptions.user.id);
+    if (newOptions.user?.id) {
+        newOptions.user = { ...newOptions.user, id: this.bufferFromBase64(newOptions.user.id) };
+    }
     if (newOptions.allowCredentials) {
       newOptions.allowCredentials = newOptions.allowCredentials.map((c: any) => ({
         ...c,
         id: this.bufferFromBase64(c.id)
       }));
+    }
+    if (newOptions.excludeCredentials) {
+        newOptions.excludeCredentials = newOptions.excludeCredentials.map((c: any) => ({
+          ...c,
+          id: this.bufferFromBase64(c.id)
+        }));
     }
     return newOptions;
   }

@@ -8,8 +8,8 @@ test.describe('Photo Cloud App', () => {
     await expect(page.getByText('Photo Cloud')).toBeVisible({ timeout: 30000 });
     await page.screenshot({ path: 'e2e-screenshots/01-auth-screen.png' });
 
-    // Click "Use Developer Account"
-    const devButton = page.getByRole('button', { name: 'Use Developer Account' });
+    // Click "Dev 1"
+    const devButton = page.getByRole('button', { name: /Dev 1/i });
     await devButton.click();
 
     // Verify redirection to gallery (URL or some persistent element)
@@ -18,7 +18,7 @@ test.describe('Photo Cloud App', () => {
     // Check if we are in the Gallery
     // Wait for either photos, error placeholders, or the "No photos found" message
     // Synchronization happens in background, so we give it some time
-    const galleryItems = page.locator('img[data-testid="photo-image"]');
+    const galleryItems = page.getByTestId('photo-item');
     const errorItems = page.getByText('⚠️');
     const emptyMessage = page.getByText('No photos found.');
 
@@ -31,7 +31,7 @@ test.describe('Photo Cloud App', () => {
         // We wait for the first few thumbnails to be loaded (blob URL assigned)
         // Increased timeout to 60s for S3 decryption/download
         try {
-            await expect(galleryItems.first()).toHaveAttribute('src', /^blob:/, { timeout: 60000 });
+            await expect(page.getByTestId('photo-image').first()).toHaveAttribute('src', /^blob:/, { timeout: 60000 });
         } catch (e) {
             console.log('Timeout waiting for blob URL, maybe they failed to load');
         }

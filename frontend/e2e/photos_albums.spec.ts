@@ -10,7 +10,7 @@ test.describe('Photos and Albums Flow', () => {
       await dialog.dismiss();
     });
     await page.goto('/');
-    const devButton = page.getByRole('button', { name: 'Use Developer Account' });
+    const devButton = page.getByRole('button', { name: /Dev 1/i });
     await devButton.click();
     await expect(page).toHaveURL(/.*gallery/, { timeout: 30000 });
   });

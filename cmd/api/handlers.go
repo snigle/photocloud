@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -48,7 +49,8 @@ func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.Ge
 			http.Error(w, "Dev auth disabled", http.StatusForbidden)
 			return
 		}
-		userInfo, err := devAuth.Authenticate(r.Context(), "dev-token")
+		email := r.URL.Query().Get("email")
+		userInfo, err := devAuth.Authenticate(r.Context(), email)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
@@ -174,7 +176,11 @@ func handlePasskeyRegisterBegin(webAuthn *auth.PasskeyAuthenticator) http.Handle
 			return
 		}
 		sessionData, _ := json.Marshal(session)
-		http.SetCookie(w, &http.Cookie{Name: "webauthn_session", Value: string(sessionData), Path: "/"})
+		http.SetCookie(w, &http.Cookie{
+			Name:  "webauthn_session",
+			Value: base64.StdEncoding.EncodeToString(sessionData),
+			Path:  "/",
+		})
 		json.NewEncoder(w).Encode(options)
 	}
 }
@@ -187,8 +193,15 @@ func handlePasskeyRegisterFinish(webAuthn *auth.PasskeyAuthenticator) http.Handl
 			http.Error(w, "Session not found", http.StatusBadRequest)
 			return
 		}
+
+		sessionData, err := base64.StdEncoding.DecodeString(cookie.Value)
+		if err != nil {
+			http.Error(w, "Invalid session encoding", http.StatusBadRequest)
+			return
+		}
+
 		var session webauthn.SessionData
-		json.Unmarshal([]byte(cookie.Value), &session)
+		json.Unmarshal(sessionData, &session)
 
 		err = webAuthn.FinishRegistration(r.Context(), email, session, r)
 		if err != nil {
@@ -208,7 +221,11 @@ func handlePasskeyLoginBegin(webAuthn *auth.PasskeyAuthenticator) http.HandlerFu
 			return
 		}
 		sessionData, _ := json.Marshal(session)
-		http.SetCookie(w, &http.Cookie{Name: "webauthn_session", Value: string(sessionData), Path: "/"})
+		http.SetCookie(w, &http.Cookie{
+			Name:  "webauthn_session",
+			Value: base64.StdEncoding.EncodeToString(sessionData),
+			Path:  "/",
+		})
 		json.NewEncoder(w).Encode(options)
 	}
 }
@@ -221,8 +238,15 @@ func handlePasskeyLoginFinish(webAuthn *auth.PasskeyAuthenticator, getS3CredsUse
 			http.Error(w, "Session not found", http.StatusBadRequest)
 			return
 		}
+
+		sessionData, err := base64.StdEncoding.DecodeString(cookie.Value)
+		if err != nil {
+			http.Error(w, "Invalid session encoding", http.StatusBadRequest)
+			return
+		}
+
 		var session webauthn.SessionData
-		json.Unmarshal([]byte(cookie.Value), &session)
+		json.Unmarshal(sessionData, &session)
 
 		userInfo, err := webAuthn.FinishLogin(r.Context(), email, session, r)
 		if err != nil {

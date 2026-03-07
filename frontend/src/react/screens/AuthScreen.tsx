@@ -97,29 +97,11 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
     }
   };
 
-  const handlePasskeyRegister = async () => {
-    if (!email) {
-      setError('Please enter your email first');
-      return;
-    }
+  const handleDevLogin = async (devEmail: string) => {
     setLoading(true);
     setError(null);
     try {
-      await authUseCase.registerPasskey(email);
-      setError('Passkey registered successfully! You can now login with it.');
-    } catch (err: any) {
-      console.error(err);
-      setError('Passkey registration failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDevLogin = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await authUseCase.loginWithDev();
+      const res = await authUseCase.loginWithDev(devEmail);
       onLogin(res, res.email);
     } catch (err) {
       setError('Dev login failed');
@@ -202,15 +184,6 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
                 >
                   Sign in with Passkey
                 </Button>
-                <Button
-                  mode="text"
-                  onPress={handlePasskeyRegister}
-                  loading={loading}
-                  disabled={loading || !email}
-                  style={{ marginTop: 4 }}
-                >
-                  Register new Passkey
-                </Button>
               </>
             ) : (
               <View style={styles.sentContainer}>
@@ -236,15 +209,24 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
             </Button>
 
             {(getIsStaging() || (process.env.NODE_ENV === 'development' && Platform.OS === 'web') || (typeof window !== 'undefined' && window.location.hostname === 'localhost')) && (
-              <Button
-                mode="text"
-                onPress={handleDevLogin}
-                disabled={loading}
-                icon={() => <Code size={20} color={theme.colors.secondary} />}
-                style={styles.devButton}
-              >
-                Use Developer Account
-              </Button>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 16 }}>
+                <Button
+                  mode="text"
+                  onPress={() => handleDevLogin('dev@photocloud.local')}
+                  disabled={loading}
+                  icon={() => <Code size={20} color={theme.colors.secondary} />}
+                >
+                  Dev 1
+                </Button>
+                <Button
+                  mode="text"
+                  onPress={() => handleDevLogin('dev2@photocloud.local')}
+                  disabled={loading}
+                  icon={() => <Code size={20} color={theme.colors.secondary} />}
+                >
+                  Dev 2
+                </Button>
+              </View>
             )}
           </Card.Content>
         </Card>
