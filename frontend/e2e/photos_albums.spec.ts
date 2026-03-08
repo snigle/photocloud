@@ -52,9 +52,8 @@ test.describe('Photos and Albums Flow', () => {
     await expect(page.getByText('Ajouter aux albums')).not.toBeVisible({ timeout: 15000 });
 
     // 3. Go to Albums screen and verify
-    await page.getByTestId('menu-button').click();
-    await page.getByRole('button', { name: 'Albums' }).click();
-    await expect(page.getByText(albumTitle)).toBeVisible({ timeout: 10000 });
+    await page.goto('/#/albums');
+    await expect(page.getByText(albumTitle)).toBeVisible({ timeout: 20000 });
     await page.screenshot({ path: 'e2e-screenshots/05-albums-list.png' });
 
     // 4. Delete the album

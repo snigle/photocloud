@@ -108,7 +108,14 @@ export class AlbumRepository implements IAlbumRepository {
     const request = (async () => {
     try {
         console.log(`AlbumRepository: Loading albums from index ${indexKey}`);
-        const indexData = await this.s3Repo.getFile(bucket, indexKey);
+        let indexData: Uint8Array;
+        try {
+            indexData = await this.s3Repo.getFile(bucket, indexKey);
+        } catch (e: any) {
+            // Retry once for index
+            console.warn(`Failed to fetch index ${indexKey}, retrying once...`);
+            indexData = await this.s3Repo.getFile(bucket, indexKey);
+        }
         let albums = JSON.parse(decodeText(indexData)) as Album[];
 
         // Discover shared albums
@@ -313,7 +320,7 @@ export class AlbumRepository implements IAlbumRepository {
             }
 
             await this.s3Repo.uploadFile(bucket, indexKey, encodeText(JSON.stringify(albums)), 'application/json');
-            albumsCache.delete(indexKey); // Clear cache to force refresh
+            albumsCache.clear(); // Clear all caches to force fresh load including discovery
         } catch (e) {
             console.error('Failed to update albums index after save', e);
         }
