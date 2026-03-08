@@ -108,10 +108,11 @@ export class AlbumRepository implements IAlbumRepository {
         const cached = albumsCache.get(indexKey)!;
         if (Date.now() - cached.timestamp < CACHE_TTL) {
             console.log(`AlbumRepository: Returning cached albums for ${email}`);
-            // Discover shared albums even when local albums are cached
+            // Keep local albums from cache, but always re-discover shared albums
+            // as they are external and don't trigger local cache invalidation
+            const localAlbums = cached.data.filter(a => !a.ownerEmail || a.ownerEmail === email);
             const sharedAlbums = await this.discoverSharedAlbums(bucket, email);
-            const allAlbums = [...cached.data, ...sharedAlbums];
-            return allAlbums;
+            return [...localAlbums, ...sharedAlbums];
         }
     }
 
@@ -295,6 +296,7 @@ export class AlbumRepository implements IAlbumRepository {
                                 await this.s3Repo.uploadFile(bucket, destThumbnailKey, thumbnailData, 'application/octet-stream', album.albumKey);
                             } catch (e) {
                                 console.error(`Failed to copy thumbnail ${photoKey}`, e);
+                                throw e; // Re-throw to make the whole process fail
                             }
                         }
                     });
