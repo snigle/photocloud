@@ -400,9 +400,12 @@ export class S3Repository implements IS3Repository {
       const sourceSSE = await this.getSSE(sourceSSEKey);
       const destSSE = await this.getSSE(destSSEKey);
 
+      // CopySource must be URL-encoded, but the bucket and key separator should be a slash.
+      // S3 expects the format: /bucket/key
+      const encodedSourceKey = sourceKey.split('/').map(part => encodeURIComponent(part)).join('/');
       const command = new CopyObjectCommand({
           Bucket: bucket,
-          CopySource: `${bucket}/${sourceKey}`,
+          CopySource: `${bucket}/${encodedSourceKey}`,
           Key: destKey,
           CopySourceSSECustomerAlgorithm: sourceSSE.algorithm,
           CopySourceSSECustomerKey: sourceSSE.key,

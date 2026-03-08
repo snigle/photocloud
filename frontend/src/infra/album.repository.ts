@@ -77,6 +77,18 @@ export class AlbumRepository implements IAlbumRepository {
                     const albumData = await this.s3Repo.getFile(bucket, albumJsonPath, albumKey);
                     const sharedAlbum = JSON.parse(decodeText(albumData)) as Album;
                     sharedAlbum.albumKey = albumKey;
+
+                    // Rewrite keys to point to the shared location in recipient's space
+                    const sharedPath = albumFolderPrefix;
+                    sharedAlbum.photoKeys = sharedAlbum.photoKeys?.map(pk => {
+                        const photoId = this.extractPhotoIdFromKey(pk);
+                        return `${sharedPath}thumbnails/${photoId}.jpg.enc`;
+                    });
+                    if (sharedAlbum.coverPhotoKey) {
+                        const coverId = this.extractPhotoIdFromKey(sharedAlbum.coverPhotoKey);
+                        sharedAlbum.coverPhotoKey = `${sharedPath}thumbnails/${coverId}.jpg.enc`;
+                    }
+
                     sharedAlbums.push(sharedAlbum);
                 } catch (e) {
                     // Skip if error reading this shared album
@@ -235,7 +247,9 @@ export class AlbumRepository implements IAlbumRepository {
                 if (!(await this.s3Repo.exists(bucket, albumThumbnailKey, album.albumKey))) {
                     console.log(`AlbumRepository: Cloning thumbnail ${photoKey} to ${albumThumbnailKey} with albumKey`);
                     try {
-                        const thumbnailData = await this.s3Repo.getFile(bucket, photoKey);
+                        // Determine source encryption key: if photoKey is already an album path, use albumKey
+                        const sourceKey = photoKey.includes('/albums/') ? album.albumKey : undefined;
+                        const thumbnailData = await this.s3Repo.getFile(bucket, photoKey, sourceKey);
                         await this.s3Repo.uploadFile(bucket, albumThumbnailKey, thumbnailData, 'application/octet-stream', album.albumKey);
                     } catch (e) {
                         console.error(`Failed to clone thumbnail ${photoKey}`, e);
@@ -275,8 +289,10 @@ export class AlbumRepository implements IAlbumRepository {
                         if (!(await this.s3Repo.exists(bucket, destThumbnailKey, album.albumKey))) {
                             console.log(`AlbumRepository: Copying thumbnail ${photoKey} to ${destThumbnailKey}`);
                             try {
-                                // Source is chiffré with userKey (default), Dest is chiffré with albumKey
-                                await this.s3Repo.copyObject(bucket, photoKey, destThumbnailKey, undefined, album.albumKey);
+                                // Determine source encryption key: if photoKey is already an album path, use albumKey
+                                const sourceSSEKey = photoKey.includes('/albums/') ? album.albumKey : undefined;
+                                const thumbnailData = await this.s3Repo.getFile(bucket, photoKey, sourceSSEKey);
+                                await this.s3Repo.uploadFile(bucket, destThumbnailKey, thumbnailData, 'application/octet-stream', album.albumKey);
                             } catch (e) {
                                 console.error(`Failed to copy thumbnail ${photoKey}`, e);
                             }
