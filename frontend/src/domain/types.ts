@@ -88,7 +88,7 @@ export interface IS3Repository {
   getDownloadUrl(bucket: string, key: string, customSSEKey?: string): Promise<string>;
   exists(bucket: string, key: string, customSSEKey?: string): Promise<boolean>;
   deleteFile(bucket: string, key: string): Promise<void>;
-  listKeys(bucket: string, prefix: string): Promise<string[]>;
+  listKeys(bucket: string, prefix: string, delimiter?: string): Promise<string[]>;
   listFolders(bucket: string, prefix: string): Promise<string[]>;
   copyObject(
     bucket: string,

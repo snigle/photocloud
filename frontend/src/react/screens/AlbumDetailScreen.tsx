@@ -63,7 +63,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
         const reconstructedPhotos: UploadedPhoto[] = album.photoKeys.map(key => {
             const parts = key.split('/');
             const filename = parts.pop()!;
-            const namePart = filename.replace('.enc', '').replace('.json', '');
+            const namePart = filename.replace('.enc', '').replace('.json', '').replace('.jpg', '');
             const timestampMatch = namePart.match(/^(\d+)-/);
             const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0;
             const id = timestampMatch ? namePart.substring(timestampMatch[0].length) : namePart;

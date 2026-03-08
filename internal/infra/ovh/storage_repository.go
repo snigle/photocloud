@@ -93,11 +93,6 @@ func (r *StorageRepository) GetS3Credentials(ctx context.Context, email string) 
 							"s3:prefix": []string{
 								fmt.Sprintf("users/%s/", email),
 								fmt.Sprintf("users/%s/*", email),
-								"users/",
-								"users/*/",
-								"users/*/albums/",
-								"users/*/albums/shared/",
-								fmt.Sprintf("users/*/albums/shared/%s/", email),
 								fmt.Sprintf("users/*/albums/shared/%s/*", email),
 							},
 						},

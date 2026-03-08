@@ -97,8 +97,27 @@ export class S3Repository implements IS3Repository {
     const basePrefix = `users/${email}/`;
 
     try {
-        // 1. Discover all top-level folders for parallelism
-        const folders = await this.listFolders(bucket, basePrefix);
+        // 1. Discover all top-level folders for parallelism, excluding 'albums/' and 'config/'
+        const folders = (await this.listFolders(bucket, basePrefix))
+            .filter(f => !f.endsWith('/albums/') && !f.endsWith('/config/'));
+
+        // Helper to add photos with filtering
+        const addPhotos = (photos: UploadedPhoto[]) => {
+            const albumsPrefix = `${basePrefix}albums/`;
+            const configPrefix = `${basePrefix}config/`;
+            for (const p of photos) {
+                // Ignore photos in albums or config folders
+                if (p.key.startsWith(albumsPrefix) || p.key.startsWith(configPrefix)) continue;
+                // Exclude any keys that don't match our expected photo structure to avoid orphans
+                if (!p.key.includes('/thumbnail/') && !p.key.includes('/original/') && !p.key.includes('/1080p/')) continue;
+
+                const existing = allPhotosMap.get(p.id);
+                // Prefer thumbnail keys for better gallery performance
+                if (!existing || p.key.includes('/thumbnail/')) {
+                    allPhotosMap.set(p.id, p);
+                }
+            }
+        };
 
         // 2. List each discovered folder recursively in parallel
         if (folders.length > 0) {
@@ -108,37 +127,20 @@ export class S3Repository implements IS3Repository {
                 const chunk = folders.slice(i, i + concurrency);
                 const results = await Promise.all(chunk.map(t => this.listFolder(bucket, t)));
                 for (const photos of results) {
-                    for (const p of photos) {
-                        const existing = allPhotosMap.get(p.id);
-                        // Prefer thumbnail keys for better gallery performance
-                        if (!existing || p.key.includes('/thumbnail/')) {
-                            allPhotosMap.set(p.id, p);
-                        }
-                    }
+                    addPhotos(photos);
                 }
             }
         }
 
         // 3. Also check for any files directly at the root of the user's directory
         const rootFiles = await this.listFolder(bucket, basePrefix, '/');
-        for (const p of rootFiles) {
-            const existing = allPhotosMap.get(p.id);
-            if (!existing || p.key.includes('/thumbnail/')) {
-                allPhotosMap.set(p.id, p);
-            }
-        }
+        addPhotos(rootFiles);
 
         // 4. Final safety fallback: if still empty, do one full broad recursive scan
-        // This handles cases where folder discovery might have failed
         if (allPhotosMap.size === 0) {
             console.log('S3Repository: Still empty after targeted scans, performing full broad recursive fallback');
             const broad = await this.listFolder(bucket, basePrefix);
-            for (const p of broad) {
-                const existing = allPhotosMap.get(p.id);
-                if (!existing || p.key.includes('/thumbnail/')) {
-                    allPhotosMap.set(p.id, p);
-                }
-            }
+            addPhotos(broad);
         }
 
     } catch (err) {
@@ -355,7 +357,7 @@ export class S3Repository implements IS3Repository {
     return folders;
   }
 
-  async listKeys(bucket: string, prefix: string): Promise<string[]> {
+  async listKeys(bucket: string, prefix: string, delimiter?: string): Promise<string[]> {
     let keys: string[] = [];
     let continuationToken: string | undefined = undefined;
 
@@ -364,6 +366,7 @@ export class S3Repository implements IS3Repository {
             const command: ListObjectsV2Command = new ListObjectsV2Command({
               Bucket: bucket,
               Prefix: prefix,
+              Delimiter: delimiter,
               ContinuationToken: continuationToken,
             });
 
