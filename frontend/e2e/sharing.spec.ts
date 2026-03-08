@@ -50,13 +50,15 @@ test.describe('Album Sharing Flow', () => {
     await page.screenshot({ path: 'e2e-screenshots/sharing-01-shared-by-dev1.png' });
 
     // 5. Logout and login as User B (Dev 2)
-    await page.getByTestId('menu-button').click();
+    // Go back from AlbumDetail to Albums list where drawer is accessible
+    await page.getByTestId('back-button').click();
+    await page.getByTestId('menu-button').first().click();
     await page.getByRole('button', { name: 'Déconnexion' }).click();
     await page.getByRole('button', { name: /Dev 2/i }).click();
     await expect(page).toHaveURL(/.*gallery/, { timeout: 30000 });
 
     // 6. Check Albums for the shared album
-    await page.getByTestId('menu-button').click();
+    await page.getByTestId('menu-button').first().click();
     await page.getByRole('button', { name: 'Albums' }).click();
 
     // The shared album should be visible in Dev 2's list

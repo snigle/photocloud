@@ -257,7 +257,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                     </>
                 ) : (
                     <>
-                        <Appbar.BackAction onPress={() => navigation.goBack()} />
+                        <Appbar.BackAction onPress={() => navigation.goBack()} testID="back-button" />
                         <Appbar.Content title={album.title} subtitle={refreshing ? 'Mise à jour...' : undefined} />
                         <Appbar.Action icon={() => <RefreshCw size={24} />} onPress={handleRefresh} disabled={refreshing} />
                         <PaperMenu
