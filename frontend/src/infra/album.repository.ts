@@ -171,8 +171,9 @@ export class AlbumRepository implements IAlbumRepository {
         const sharedAlbums = await this.discoverSharedAlbums(bucket, email);
         albums = [...albums, ...sharedAlbums];
 
-        // Create a light index
-        const lightAlbums = albums.map(a => ({
+        // Create a light index (Only local albums)
+        const localAlbums = albums.filter(a => !a.ownerEmail || a.ownerEmail === email);
+        const lightAlbums = localAlbums.map(a => ({
             ...a,
             photoKeys: undefined,
             photoCount: a.photoCount ?? a.photoKeys?.length ?? 0
@@ -181,7 +182,7 @@ export class AlbumRepository implements IAlbumRepository {
         // Save the index for next time
         await this.s3Repo.uploadFile(bucket, indexKey, encodeText(JSON.stringify(lightAlbums)), 'application/json');
 
-        albumsCache.set(indexKey, { data: lightAlbums, timestamp: Date.now() });
+        albumsCache.set(indexKey, { data: albums.map(a => ({ ...a, photoKeys: undefined })), timestamp: Date.now() });
         return albums;
     } catch (e) {
         console.error('Failed to list albums', e);
@@ -288,30 +289,30 @@ export class AlbumRepository implements IAlbumRepository {
 
         // Update index (Only local albums should be in the index.json)
         try {
-            const prefix = `users/${email}/albums/`;
-            const keys = await this.s3Repo.listKeys(bucket, prefix, '/');
-            const albumKeys = keys.filter(k => k.endsWith('.json') && !k.endsWith('index.json'));
-
-            const albumsData = await Promise.all(albumKeys.map(async (key) => {
-                try {
-                    const data = await this.s3Repo.getFile(bucket, key);
-                    return JSON.parse(decodeText(data)) as Album;
-                } catch (e) {
-                    return null;
-                }
-            }));
-
-            const localAlbums = albumsData.filter((a): a is Album => a !== null);
-
-            // Re-map to ensure all items in index are light
-            const lightIndex = localAlbums.map(a => ({
-                ...a,
-                photoKeys: undefined,
-                photoCount: a.photoCount ?? a.photoKeys?.length ?? 0
-            }));
-
             const indexKey = this.getAlbumsIndexKey(email);
-            await this.s3Repo.uploadFile(bucket, indexKey, encodeText(JSON.stringify(lightIndex)), 'application/json');
+            let albums: Album[] = [];
+            try {
+                const indexData = await this.s3Repo.getFile(bucket, indexKey);
+                albums = JSON.parse(decodeText(indexData)) as Album[];
+            } catch (e) {
+                // If index missing, it will be recreated on next list
+            }
+
+            // Update or add the saved album in the index
+            const lightAlbum = {
+                ...updatedAlbum,
+                photoKeys: undefined,
+                photoCount: updatedAlbum.photoKeys?.length ?? updatedAlbum.photoCount ?? 0
+            };
+
+            const idx = albums.findIndex(a => a.id === updatedAlbum.id);
+            if (idx >= 0) {
+                albums[idx] = lightAlbum;
+            } else {
+                albums.push(lightAlbum);
+            }
+
+            await this.s3Repo.uploadFile(bucket, indexKey, encodeText(JSON.stringify(albums)), 'application/json');
             albumsCache.delete(indexKey); // Clear cache to force refresh
         } catch (e) {
             console.error('Failed to update albums index after save', e);

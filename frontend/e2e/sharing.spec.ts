@@ -40,18 +40,20 @@ test.describe('Album Sharing Flow', () => {
 
     // 4. Share the album with Dev 2
     await page.getByText(albumTitle).first().click();
+    await expect(page.getByRole('heading', { name: albumTitle })).toBeVisible();
     await page.getByTestId('album-menu-button').click();
     await page.getByTestId('share-album-menu-item').click();
     await page.getByTestId('share-email-input').fill('dev2@photocloud.local');
     await page.getByTestId('confirm-share-button').click();
 
     // Wait for sharing process to complete (cloning thumbnails)
-    await page.waitForTimeout(5000);
+    await expect(page.getByText('Partager l\'album')).not.toBeVisible({ timeout: 30000 });
     await page.screenshot({ path: 'e2e-screenshots/sharing-01-shared-by-dev1.png' });
 
     // 5. Logout and login as User B (Dev 2)
     // Go back from AlbumDetail to Albums list where drawer is accessible
     await page.getByTestId('back-button').click();
+    await expect(page).toHaveURL(/.*\/albums(\/|\?|$)/, { timeout: 20000 });
     await page.getByTestId('menu-button').first().click();
     await page.getByRole('button', { name: 'Déconnexion' }).click();
     await page.getByRole('button', { name: /Dev 2/i }).click();
