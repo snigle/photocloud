@@ -4,7 +4,7 @@ import { GlobalLock } from './locks';
 import * as Crypto from 'expo-crypto';
 
 // Simple memory cache for albums index to speed up navigation
-const albumsCache = new Map<string, { data: Album[], timestamp: number }>();
+export const albumsCache = new Map<string, { data: Album[], timestamp: number }>();
 const CACHE_TTL = 30000; // 30 seconds
 const pendingRequests = new Map<string, Promise<Album[]>>();
 
@@ -78,6 +78,7 @@ export class AlbumRepository implements IAlbumRepository {
                     const albumData = await this.s3Repo.getFile(bucket, albumJsonPath, albumKey);
                     const sharedAlbum = JSON.parse(decodeText(albumData)) as Album;
                     sharedAlbum.albumKey = albumKey;
+                    sharedAlbum.ownerEmail = ownerEmail;
 
                     // Rewrite keys to point to the shared location in recipient's space
                     const sharedPath = albumFolderPrefix;
@@ -134,13 +135,24 @@ export class AlbumRepository implements IAlbumRepository {
             indexData = await this.s3Repo.getFile(bucket, indexKey);
         }
         let albums = JSON.parse(decodeText(indexData)) as Album[];
+        let needsUpdate = false;
+
+        // Filter out incompatible old albums (missing albumKey)
+        const validLocalAlbums = albums.filter(a => {
+            if (!a.albumKey) {
+                console.warn(`AlbumRepository: Hiding incompatible old album ${a.id}`);
+                needsUpdate = true;
+                return false;
+            }
+            return true;
+        });
 
         // Discover shared albums
         const sharedAlbums = await this.discoverSharedAlbums(bucket, email);
-        albums = [...albums, ...sharedAlbums];
+        albums = [...validLocalAlbums, ...sharedAlbums];
 
-            let needsUpdate = false;
-            const processed = albums.map(a => {
+            // For the persistent index, we only want light local valid albums
+            const processed = validLocalAlbums.map(a => {
                 if (a.photoKeys) {
                     needsUpdate = true;
                     return {
@@ -156,7 +168,7 @@ export class AlbumRepository implements IAlbumRepository {
             });
 
             if (needsUpdate) {
-                console.log('AlbumRepository: Lightening index on the fly');
+                console.log('AlbumRepository: Updating index on the fly (cleaning old formats/lightening)');
                 // Don't await, do it in background
                 this.s3Repo.uploadFile(bucket, indexKey, encodeText(JSON.stringify(processed)), 'application/json')
                     .catch(e => console.error('Failed to update light index', e));
@@ -189,7 +201,7 @@ export class AlbumRepository implements IAlbumRepository {
             }
         }));
 
-        let albums = albumsData.filter((a): a is Album => a !== null);
+        let albums = albumsData.filter((a): a is Album => a !== null && a.albumKey);
 
         // Discover shared albums (fallback logic)
         const sharedAlbums = await this.discoverSharedAlbums(bucket, email);

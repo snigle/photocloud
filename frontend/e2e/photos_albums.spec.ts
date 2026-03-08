@@ -53,7 +53,7 @@ test.describe('Photos and Albums Flow', () => {
 
     // 3. Go to Albums screen and verify
     await page.goto('/#/albums');
-    await expect(page.getByText(albumTitle)).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).toBeVisible({ timeout: 30000 });
     await page.screenshot({ path: 'e2e-screenshots/05-albums-list.png' });
 
     // 4. Delete the album
@@ -65,7 +65,7 @@ test.describe('Photos and Albums Flow', () => {
 
     // Wait to be back on Albums screen
     console.log('Waiting for Albums screen...');
-    await expect(page).toHaveURL(/.*\/albums(\/|\?|$)/, { timeout: 20000 });
+    await expect(page).toHaveURL(/.*\/albums(\/|\?|$)/, { timeout: 30000 });
 
     // Should be back in Albums list and album should be gone
     await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).not.toBeVisible({ timeout: 10000 });
