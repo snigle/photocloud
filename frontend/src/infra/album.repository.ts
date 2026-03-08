@@ -96,7 +96,10 @@ export class AlbumRepository implements IAlbumRepository {
         const cached = albumsCache.get(indexKey)!;
         if (Date.now() - cached.timestamp < CACHE_TTL) {
             console.log(`AlbumRepository: Returning cached albums for ${email}`);
-            return cached.data;
+            // Discover shared albums even when local albums are cached
+            const sharedAlbums = await this.discoverSharedAlbums(bucket, email);
+            const allAlbums = [...cached.data, ...sharedAlbums];
+            return allAlbums;
         }
     }
 
@@ -146,7 +149,7 @@ export class AlbumRepository implements IAlbumRepository {
             }
 
             albumsCache.set(indexKey, { data: processed, timestamp: Date.now() });
-            return processed;
+            return albums;
     } catch (e: any) {
         if (e.name !== 'NoSuchKey' && e.$metadata?.httpStatusCode !== 404) {
             console.error('Failed to load albums index, falling back to full list', e);
@@ -189,7 +192,7 @@ export class AlbumRepository implements IAlbumRepository {
         // Save the index for next time
         await this.s3Repo.uploadFile(bucket, indexKey, encodeText(JSON.stringify(lightAlbums)), 'application/json');
 
-        albumsCache.set(indexKey, { data: albums.map(a => ({ ...a, photoKeys: undefined })), timestamp: Date.now() });
+        albumsCache.set(indexKey, { data: lightAlbums, timestamp: Date.now() });
         return albums;
     } catch (e) {
         console.error('Failed to list albums', e);

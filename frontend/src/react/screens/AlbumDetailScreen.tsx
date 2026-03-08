@@ -43,6 +43,8 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
             setAlbum(data);
         } catch (err) {
             console.error('Failed to load album', err);
+            // If it's a shared album, we might need to get it via discovery logic if direct fetch fails
+            // but for now let's just log.
         }
     }, [albumId, getAlbum]);
 

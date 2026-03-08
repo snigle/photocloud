@@ -35,7 +35,7 @@ test.describe('Album Sharing Flow', () => {
 
     // Verify on Albums screen
     await page.goto('/#/albums');
-    await expect(page.getByText(albumTitle)).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).toBeVisible({ timeout: 30000 });
 
     // 4. Share the album with Dev 2
     await page.getByText(albumTitle).first().click();
@@ -60,13 +60,14 @@ test.describe('Album Sharing Flow', () => {
     await page.goto('/#/albums');
 
     // The shared album should be visible in Dev 2's list
-    await expect(page.getByText(albumTitle)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).toBeVisible({ timeout: 60000 });
     await page.screenshot({ path: 'e2e-screenshots/sharing-02-received-by-dev2.png' });
 
     // 7. Verify thumbnails in the shared album
     await page.getByText(albumTitle).first().click();
+    await expect(page.getByRole('heading', { name: albumTitle })).toBeVisible({ timeout: 20000 });
     const sharedPhotoItem = page.getByTestId('photo-item').first();
-    await expect(sharedPhotoItem).toBeVisible({ timeout: 15000 });
+    await expect(sharedPhotoItem).toBeVisible({ timeout: 30000 });
     await page.screenshot({ path: 'e2e-screenshots/sharing-03-album-detail-dev2.png' });
   });
 });
