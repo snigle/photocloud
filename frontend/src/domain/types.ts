@@ -43,6 +43,10 @@ export interface Album {
   order: 'date-asc' | 'date-desc' | 'manual';
   createdAt: number;
   updatedAt: number;
+  sharedWith?: string[];
+  ownerEmail?: string;
+  shareKey?: string;
+  albumKey?: string;
 }
 
 export interface SyncSettings {
@@ -77,14 +81,22 @@ export interface IS3Repository {
     bucket: string,
     key: string,
     data: Uint8Array,
-    contentType: string
+    contentType: string,
+    customSSEKey?: string
   ): Promise<void>;
-  getFile(bucket: string, key: string): Promise<Uint8Array>;
-  getDownloadUrl(bucket: string, key: string): Promise<string>;
-  exists(bucket: string, key: string): Promise<boolean>;
+  getFile(bucket: string, key: string, customSSEKey?: string): Promise<Uint8Array>;
+  getDownloadUrl(bucket: string, key: string, customSSEKey?: string): Promise<string>;
+  exists(bucket: string, key: string, customSSEKey?: string): Promise<boolean>;
   deleteFile(bucket: string, key: string): Promise<void>;
   listKeys(bucket: string, prefix: string): Promise<string[]>;
   listFolders(bucket: string, prefix: string): Promise<string[]>;
+  copyObject(
+    bucket: string,
+    sourceKey: string,
+    destKey: string,
+    sourceSSEKey?: string,
+    destSSEKey?: string
+  ): Promise<void>;
 }
 
 export interface ILocalGalleryRepository {
@@ -106,4 +118,5 @@ export interface IAlbumRepository {
   getAlbum(bucket: string, email: string, albumId: string): Promise<Album>;
   saveAlbum(bucket: string, email: string, album: Album): Promise<void>;
   deleteAlbum(bucket: string, email: string, albumId: string): Promise<void>;
+  shareAlbum(bucket: string, email: string, albumId: string, shareEmail: string): Promise<Album>;
 }

@@ -5,6 +5,7 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
   DeleteObjectCommand,
+  CopyObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { IS3Repository, S3Credentials, UploadedPhoto } from '../domain/types';
@@ -38,7 +39,18 @@ export class S3Repository implements IS3Repository {
     this.s3 = s3Clients.get(clientKey)!;
   }
 
-  private async getSSE() {
+  private async getSSE(customKey?: string) {
+    if (customKey) {
+        const binaryKey = base64ToUint8Array(customKey);
+        const hash = md5(binaryKey);
+        const keyMD5 = uint8ArrayToBase64(hash);
+        return {
+            algorithm: 'AES256',
+            key: customKey,
+            keyMD5: keyMD5
+        };
+    }
+
     if (this.sseParams) return this.sseParams;
 
     const key = this.creds.user_key; // already base64
@@ -190,8 +202,8 @@ export class S3Repository implements IS3Repository {
     return folderPhotos;
   }
 
-  async getDownloadUrl(bucket: string, key: string): Promise<string> {
-    const sse = await this.getSSE();
+  async getDownloadUrl(bucket: string, key: string, customSSEKey?: string): Promise<string> {
+    const sse = await this.getSSE(customSSEKey);
     const getObjectCommand = new GetObjectCommand({
         Bucket: bucket,
         Key: key,
@@ -208,9 +220,10 @@ export class S3Repository implements IS3Repository {
     bucket: string,
     key: string,
     data: Uint8Array,
-    contentType: string
+    contentType: string,
+    customSSEKey?: string
   ): Promise<void> {
-    const sse = await this.getSSE();
+    const sse = await this.getSSE(customSSEKey);
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
@@ -224,14 +237,14 @@ export class S3Repository implements IS3Repository {
     await this.s3.send(command);
   }
 
-  async getFile(bucket: string, key: string): Promise<Uint8Array> {
+  async getFile(bucket: string, key: string, customSSEKey?: string): Promise<Uint8Array> {
     const isThumbnail = key.includes('/thumbnail/');
-    if (isThumbnail) {
+    if (isThumbnail && !customSSEKey) {
         const cached = ThumbnailCache.get(key);
         if (cached) return cached.data;
     }
 
-    const sse = await this.getSSE();
+    const sse = await this.getSSE(customSSEKey);
     const command = new GetObjectCommand({
       Bucket: bucket,
       Key: key,
@@ -289,8 +302,8 @@ export class S3Repository implements IS3Repository {
     throw new Error('Unsupported S3 body type');
   }
 
-  async exists(bucket: string, key: string): Promise<boolean> {
-    const sse = await this.getSSE();
+  async exists(bucket: string, key: string, customSSEKey?: string): Promise<boolean> {
+    const sse = await this.getSSE(customSSEKey);
     try {
       const command = new HeadObjectCommand({
         Bucket: bucket,
@@ -372,6 +385,32 @@ export class S3Repository implements IS3Repository {
     }
 
     return keys;
+  }
+
+  async copyObject(
+      bucket: string,
+      sourceKey: string,
+      destKey: string,
+      sourceSSEKey?: string,
+      destSSEKey?: string
+  ): Promise<void> {
+      const sourceSSE = await this.getSSE(sourceSSEKey);
+      const destSSE = await this.getSSE(destSSEKey);
+
+      const command = new CopyObjectCommand({
+          Bucket: bucket,
+          CopySource: `${bucket}/${sourceKey}`,
+          Key: destKey,
+          CopySourceSSECustomerAlgorithm: sourceSSE.algorithm,
+          CopySourceSSECustomerKey: sourceSSE.key,
+          CopySourceSSECustomerKeyMD5: sourceSSE.keyMD5,
+          SSECustomerAlgorithm: destSSE.algorithm,
+          SSECustomerKey: destSSE.key,
+          SSECustomerKeyMD5: destSSE.keyMD5,
+          MetadataDirective: 'COPY',
+      });
+
+      await this.s3.send(command);
   }
 
   static get1080pKey(thumbnailKey: string): string {

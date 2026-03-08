@@ -26,7 +26,7 @@ const AlbumsScreen: React.FC<AlbumsScreenProps> = ({ navigation, creds, email })
     const itemSize = width / numColumns;
 
     const handleAlbumPress = (album: Album) => {
-        navigation.navigate('AlbumDetail', { albumId: album.id, album });
+        navigation.navigate('AlbumDetail', { albumId: album.id, album, shareKey: album.shareKey });
     };
 
     const handleCreateNewAlbum = async () => {
