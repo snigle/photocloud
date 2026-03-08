@@ -56,6 +56,9 @@ test.describe('Album Sharing Flow', () => {
     await page.getByRole('button', { name: /Dev 2/i }).click();
     await expect(page).toHaveURL(/.*gallery/, { timeout: 30000 });
 
+    // Hard reload to clear all in-memory caches (essential for testing shared discovery)
+    await page.reload();
+
     // 6. Check Albums for the shared album
     await page.goto('/#/albums');
 

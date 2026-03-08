@@ -60,6 +60,7 @@ export class AlbumRepository implements IAlbumRepository {
     const sharedAlbums: Album[] = [];
     try {
         const sharedPath = this.getAlbumsSharedWithMePath(email);
+        console.log(`AlbumRepository: Scanning for shared albums in ${sharedPath}`);
         const owners = await this.s3Repo.listFolders(bucket, sharedPath);
         for (const ownerPrefix of owners) {
             const ownerEmail = ownerPrefix.split('/').filter(Boolean).pop()!;
@@ -236,14 +237,14 @@ export class AlbumRepository implements IAlbumRepository {
 
         // Update photo keys to point to cloned thumbnails in the album folder
         const originalPhotoKeys = album.photoKeys || [];
-        const albumPhotoKeys: string[] = [];
+        const albumPhotoKeys: string[] = new Array(originalPhotoKeys.length);
 
         // Clone thumbnails to album folder (encrypted with albumKey)
         if (originalPhotoKeys.length > 0) {
-            const tasks = originalPhotoKeys.map(photoKey => async () => {
+            const tasks = originalPhotoKeys.map((photoKey, idx) => async () => {
                 const photoId = this.extractPhotoIdFromKey(photoKey);
                 const albumThumbnailKey = this.getAlbumThumbnailKey(email, album.id, photoId);
-                albumPhotoKeys.push(albumThumbnailKey);
+                albumPhotoKeys[idx] = albumThumbnailKey;
 
                 if (!(await this.s3Repo.exists(bucket, albumThumbnailKey, album.albumKey))) {
                     console.log(`AlbumRepository: Cloning thumbnail ${photoKey} to ${albumThumbnailKey} with albumKey`);
@@ -278,14 +279,13 @@ export class AlbumRepository implements IAlbumRepository {
                 // Write albumKey in plain text to recipient's folder
                 await this.s3Repo.uploadFile(bucket, `${sharedPath}key.txt`, encodeText(album.albumKey!), 'text/plain');
 
-                const sharedPhotoKeys: string[] = [];
-
                 // Clone thumbnails for shared user using server-side CopyObject
+                const sharedPhotoKeys: string[] = new Array(originalPhotoKeys.length);
                 if (originalPhotoKeys.length > 0) {
-                    const tasks = originalPhotoKeys.map(photoKey => async () => {
+                    const tasks = originalPhotoKeys.map((photoKey, idx) => async () => {
                         const photoId = this.extractPhotoIdFromKey(photoKey);
                         const destThumbnailKey = `${sharedPath}thumbnails/${photoId}.jpg.enc`;
-                        sharedPhotoKeys.push(destThumbnailKey);
+                        sharedPhotoKeys[idx] = destThumbnailKey;
 
                         if (!(await this.s3Repo.exists(bucket, destThumbnailKey, album.albumKey))) {
                             console.log(`AlbumRepository: Copying thumbnail ${photoKey} to ${destThumbnailKey}`);
