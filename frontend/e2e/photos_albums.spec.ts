@@ -53,7 +53,14 @@ test.describe('Photos and Albums Flow', () => {
 
     // 3. Go to Albums screen and verify
     await page.goto('/#/albums');
-    await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).toBeVisible({ timeout: 30000 });
+    // Force a small wait and potential reload if not found to handle S3 eventual consistency in the index
+    try {
+        await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).toBeVisible({ timeout: 10000 });
+    } catch (e) {
+        console.log('Album not visible after navigation, retrying with reload...');
+        await page.reload();
+        await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).toBeVisible({ timeout: 30000 });
+    }
     await page.screenshot({ path: 'e2e-screenshots/05-albums-list.png' });
 
     // 4. Delete the album
@@ -68,7 +75,12 @@ test.describe('Photos and Albums Flow', () => {
     await expect(page).toHaveURL(/.*\/albums(\/|\?|$)/, { timeout: 30000 });
 
     // Should be back in Albums list and album should be gone
-    await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).not.toBeVisible({ timeout: 10000 });
+    try {
+        await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).not.toBeVisible({ timeout: 10000 });
+    } catch (e) {
+        await page.reload();
+        await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).not.toBeVisible({ timeout: 20000 });
+    }
     await page.screenshot({ path: 'e2e-screenshots/06-album-deleted.png' });
 
     // 5. Delete the photo definitively from gallery

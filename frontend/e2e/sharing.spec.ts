@@ -65,7 +65,13 @@ test.describe('Album Sharing Flow', () => {
     // The shared album should be visible in Dev 2's list
     console.log(`Waiting for shared album "${albumTitle}" to appear in recipient list...`);
     const sharedAlbumItem = page.getByTestId('album-item').filter({ hasText: albumTitle });
-    await expect(sharedAlbumItem).toBeVisible({ timeout: 60000 });
+    try {
+        await expect(sharedAlbumItem).toBeVisible({ timeout: 15000 });
+    } catch (e) {
+        console.log('Shared album not visible yet, retrying with reload...');
+        await page.reload();
+        await expect(sharedAlbumItem).toBeVisible({ timeout: 60000 });
+    }
 
     // Verify it shows as shared (has the emoji if we added it)
     await expect(page.getByText('👥')).toBeVisible({ timeout: 10000 });
