@@ -106,125 +106,108 @@ export class AlbumRepository implements IAlbumRepository {
   async listAlbums(bucket: string, email: string, skipCache = false): Promise<Album[]> {
     const indexKey = this.getAlbumsIndexKey(email);
 
+    // 1. Check Memory Cache
     if (!skipCache && albumsCache.has(indexKey)) {
         const cached = albumsCache.get(indexKey)!;
         if (Date.now() - cached.timestamp < CACHE_TTL) {
-            console.log(`AlbumRepository: Returning cached albums for ${email}`);
-            // Keep local albums from cache, but always re-discover shared albums
-            // as they are external and don't trigger local cache invalidation
-            const localAlbums = cached.data.filter(a => !a.ownerEmail || a.ownerEmail === email);
+            console.log(`AlbumRepository: Returning cached local albums for ${email}`);
+            const localAlbums = cached.data;
             const sharedAlbums = await this.discoverSharedAlbums(bucket, email);
             return [...localAlbums, ...sharedAlbums];
         }
     }
 
+    // 2. Joining pending request
     if (pendingRequests.has(indexKey)) {
         console.log(`AlbumRepository: Joining pending request for ${indexKey}`);
         return pendingRequests.get(indexKey)!;
     }
 
     const request = (async () => {
-    try {
-        console.log(`AlbumRepository: Loading albums from index ${indexKey}`);
-        let indexData: Uint8Array;
+        let localAlbums: Album[] = [];
+        let needsIndexUpdate = false;
+
         try {
-            indexData = await this.s3Repo.getFile(bucket, indexKey);
-        } catch (e: any) {
-            // Retry once for index
-            console.warn(`Failed to fetch index ${indexKey}, retrying once...`);
-            indexData = await this.s3Repo.getFile(bucket, indexKey);
-        }
-        let albums = JSON.parse(decodeText(indexData)) as Album[];
-        let needsUpdate = false;
+            // 3. Try to Load Index
+            console.log(`AlbumRepository: Fetching index ${indexKey}`);
+            const indexData = await this.s3Repo.getFile(bucket, indexKey);
+            const albums = JSON.parse(decodeText(indexData)) as Album[];
 
-        // Filter out incompatible old albums (missing albumKey)
-        const validLocalAlbums = albums.filter(a => {
-            if (!a.albumKey) {
-                console.warn(`AlbumRepository: Hiding incompatible old album ${a.id}`);
-                needsUpdate = true;
-                return false;
-            }
-            return true;
-        });
-
-        // Discover shared albums
-        const sharedAlbums = await this.discoverSharedAlbums(bucket, email);
-        albums = [...validLocalAlbums, ...sharedAlbums];
-
-            // For the persistent index, we only want light local valid albums
-            const processed = validLocalAlbums.map(a => {
-                if (a.photoKeys) {
-                    needsUpdate = true;
-                    return {
-                        ...a,
-                        photoCount: a.photoCount ?? a.photoKeys.length,
-                        photoKeys: undefined
-                    };
+            localAlbums = albums.filter(a => {
+                if (!a.albumKey) {
+                    console.warn(`AlbumRepository: Hiding incompatible old album ${a.id} from index`);
+                    needsIndexUpdate = true;
+                    return false;
                 }
-                return {
-                    ...a,
-                    photoCount: a.photoCount ?? 0
-                };
+                // Only keep local albums in the local index
+                if (a.ownerEmail && a.ownerEmail !== email) {
+                    needsIndexUpdate = true;
+                    return false;
+                }
+                return true;
             });
 
-            if (needsUpdate) {
-                console.log('AlbumRepository: Updating index on the fly (cleaning old formats/lightening)');
-                // Don't await, do it in background
-                this.s3Repo.uploadFile(bucket, indexKey, encodeText(JSON.stringify(processed)), 'application/json')
-                    .catch(e => console.error('Failed to update light index', e));
+            // Check if any local album in index has photoKeys (should be light)
+            if (localAlbums.some(a => a.photoKeys !== undefined)) {
+                needsIndexUpdate = true;
             }
 
-            albumsCache.set(indexKey, { data: processed, timestamp: Date.now() });
-            return albums;
-    } catch (e: any) {
-        if (e.name !== 'NoSuchKey' && e.$metadata?.httpStatusCode !== 404) {
-            console.error('Failed to load albums index, falling back to full list', e);
-        }
-    } finally {
-        pendingRequests.delete(indexKey);
-    }
+        } catch (e: any) {
+            if (e.name !== 'NoSuchKey' && e.$metadata?.httpStatusCode !== 404) {
+                console.error(`Failed to load index ${indexKey}, falling back to full listing`, e);
+            }
 
-    // Fallback: list all individual album files
-    console.log(`AlbumRepository: Index not found, falling back to full listing for ${email}`);
-    const prefix = `users/${email}/albums/`;
-    try {
-        const keys = await this.s3Repo.listKeys(bucket, prefix, '/');
-        const albumKeys = keys.filter(k => k.endsWith('.json') && !k.endsWith('index.json'));
-
-        const albumsData = await Promise.all(albumKeys.map(async (key) => {
+            // 4. Fallback: Full Listing
+            console.log(`AlbumRepository: Fallback to full listing for ${email}`);
+            const prefix = `users/${email}/albums/`;
             try {
-                const data = await this.s3Repo.getFile(bucket, key);
-                return JSON.parse(decodeText(data)) as Album;
-            } catch (e) {
-                console.error(`Failed to load album data for key ${key}`, e);
-                return null;
+                const keys = await this.s3Repo.listKeys(bucket, prefix, '/');
+                const albumKeys = keys.filter(k => k.endsWith('.json') && !k.endsWith('index.json'));
+
+                const albumsData = await Promise.all(albumKeys.map(async (key) => {
+                    try {
+                        const data = await this.s3Repo.getFile(bucket, key);
+                        const album = JSON.parse(decodeText(data)) as Album;
+                        if (!album.albumKey) {
+                            console.warn(`AlbumRepository: Hiding incompatible old album ${album.id} from file listing`);
+                            return null;
+                        }
+                        return album;
+                    } catch (e) {
+                        return null;
+                    }
+                }));
+
+                localAlbums = albumsData.filter((a): a is Album => a !== null);
+                needsIndexUpdate = true;
+            } catch (err) {
+                console.error('Failed full album listing', err);
             }
-        }));
+        } finally {
+            pendingRequests.delete(indexKey);
+        }
 
-        let albums = albumsData.filter((a): a is Album => a !== null && a.albumKey);
-
-        // Discover shared albums (fallback logic)
+        // 5. Discover Shared Albums
         const sharedAlbums = await this.discoverSharedAlbums(bucket, email);
-        albums = [...albums, ...sharedAlbums];
 
-        // Create a light index (Only local albums)
-        const localAlbums = albums.filter(a => !a.ownerEmail || a.ownerEmail === email);
-        const lightAlbums = localAlbums.map(a => ({
+        // 6. Update and Cache Index
+        const lightLocalAlbums = localAlbums.map(a => ({
             ...a,
             photoKeys: undefined,
-            photoCount: a.photoCount ?? a.photoKeys?.length ?? 0
+            photoCount: a.photoCount ?? a.photoKeys?.length ?? 0,
+            albumKey: a.albumKey // Maintain albumKey in index
         }));
 
-        // Save the index for next time
-        await this.s3Repo.uploadFile(bucket, indexKey, encodeText(JSON.stringify(lightAlbums)), 'application/json');
+        if (needsIndexUpdate) {
+            console.log('AlbumRepository: Saving updated light index');
+            this.s3Repo.uploadFile(bucket, indexKey, encodeText(JSON.stringify(lightLocalAlbums)), 'application/json')
+                .catch(e => console.error('Failed to update light index', e));
+        }
 
-        albumsCache.set(indexKey, { data: lightAlbums, timestamp: Date.now() });
-        return albums;
-    } catch (e) {
-        console.error('Failed to list albums', e);
-    }
+        albumsCache.set(indexKey, { data: lightLocalAlbums, timestamp: Date.now() });
 
-    return [];
+        // 7. Return combined list (with full photoKeys for shared if they were just discovered, or light if preferred)
+        return [...localAlbums, ...sharedAlbums];
     })();
 
     pendingRequests.set(indexKey, request);
@@ -342,7 +325,8 @@ export class AlbumRepository implements IAlbumRepository {
             const lightAlbum = {
                 ...album,
                 photoKeys: undefined,
-                photoCount: album.photoKeys?.length ?? album.photoCount ?? 0
+                photoCount: album.photoKeys?.length ?? album.photoCount ?? 0,
+                albumKey: album.albumKey // Keep key in index
             };
 
             const idx = indexAlbums.findIndex(a => a.id === album.id);

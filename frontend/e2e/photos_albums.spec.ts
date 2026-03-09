@@ -38,6 +38,7 @@ test.describe('Photos and Albums Flow', () => {
     const addToAlbumButton = page.getByTestId('add-to-album-button');
     await expect(addToAlbumButton).toBeVisible({ timeout: 10000 });
     await addToAlbumButton.click();
+    await expect(page.getByText('Ajouter aux albums')).toBeVisible({ timeout: 10000 });
 
     // In the dialog, create a new album
     await page.screenshot({ path: 'e2e-screenshots/04b-add-to-album-dialog.png' });
