@@ -119,13 +119,13 @@ export class S3Repository implements IS3Repository {
             }
         };
 
-        // 2. List each discovered folder recursively in parallel
+        // 2. List the 'thumbnail/' subfolder of each year in parallel
         if (folders.length > 0) {
-            console.log(`S3Repository: Parallel recursive listing for ${folders.length} folders`);
+            console.log(`S3Repository: Parallel thumbnail listing for ${folders.length} folders`);
             const concurrency = 5;
             for (let i = 0; i < folders.length; i += concurrency) {
                 const chunk = folders.slice(i, i + concurrency);
-                const results = await Promise.all(chunk.map(t => this.listFolder(bucket, t)));
+                const results = await Promise.all(chunk.map(t => this.listFolder(bucket, `${t}thumbnail/`)));
                 for (const photos of results) {
                     addPhotos(photos);
                 }
