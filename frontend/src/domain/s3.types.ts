@@ -8,11 +8,11 @@ export interface IS3Repository {
     key: string,
     data: Uint8Array,
     contentType: string,
-    customSSEKey?: string
+    customSSEKey?: string | null
   ): Promise<void>;
-  getFile(bucket: string, key: string, customSSEKey?: string): Promise<Uint8Array>;
-  getDownloadUrl(bucket: string, key: string, customSSEKey?: string): Promise<string>;
-  exists(bucket: string, key: string, customSSEKey?: string): Promise<boolean>;
+  getFile(bucket: string, key: string, customSSEKey?: string | null): Promise<Uint8Array>;
+  getDownloadUrl(bucket: string, key: string, customSSEKey?: string | null): Promise<string>;
+  exists(bucket: string, key: string, customSSEKey?: string | null): Promise<boolean>;
   deleteFile(bucket: string, key: string): Promise<void>;
   listKeys(bucket: string, prefix: string, delimiter?: string): Promise<string[]>;
   listFolders(bucket: string, prefix: string): Promise<string[]>;
@@ -20,7 +20,7 @@ export interface IS3Repository {
     bucket: string,
     sourceKey: string,
     destKey: string,
-    sourceSSEKey?: string,
-    destSSEKey?: string
+    sourceSSEKey?: string | null,
+    destSSEKey?: string | null
   ): Promise<void>;
 }

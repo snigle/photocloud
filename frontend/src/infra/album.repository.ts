@@ -71,7 +71,7 @@ export class AlbumRepository implements IAlbumRepository {
                 try {
                     const albumId = albumFolderPrefix.split('/').filter(Boolean).pop()!;
                     const keyPath = `${albumFolderPrefix}key.txt`;
-                    const albumKeyData = await this.s3Repo.getFile(bucket, keyPath);
+                    const albumKeyData = await this.s3Repo.getFile(bucket, keyPath, null); // key.txt is in plain text
                     const albumKey = decodeText(albumKeyData);
 
                     const albumJsonPath = `${albumFolderPrefix}album.json`;
@@ -277,7 +277,7 @@ export class AlbumRepository implements IAlbumRepository {
                 const sharedPath = this.getSharedAlbumPath(sharedUser, email, album.id);
 
                 // Write albumKey in plain text to recipient's folder
-                await this.s3Repo.uploadFile(bucket, `${sharedPath}key.txt`, encodeText(album.albumKey!), 'text/plain');
+                await this.s3Repo.uploadFile(bucket, `${sharedPath}key.txt`, encodeText(album.albumKey!), 'text/plain', null);
 
                 // Clone thumbnails for shared user using client-side cloning
                 const sharedPhotoKeys: string[] = new Array(originalPhotoKeys.length);
