@@ -94,6 +94,8 @@ func (r *StorageRepository) GetS3Credentials(ctx context.Context, email string) 
 								fmt.Sprintf("users/%s/", email),
 								fmt.Sprintf("users/%s/*", email),
 								fmt.Sprintf("users/*/albums/shared/%s/*", email),
+								fmt.Sprintf("users/%s/albums/shared/", email),
+								fmt.Sprintf("users/%s/albums/shared/*", email),
 							},
 						},
 					},

@@ -84,5 +84,31 @@ test.describe('Album Sharing Flow', () => {
     const sharedPhotoItem = page.getByTestId('photo-item').first();
     await expect(sharedPhotoItem).toBeVisible({ timeout: 30000 });
     await page.screenshot({ path: 'e2e-screenshots/sharing-03-album-detail-dev2.png' });
+
+    // 8. Logout Dev 2, Login Dev 1, and delete the album
+    await page.goto('/#/gallery');
+    await page.getByTestId('menu-button').first().click();
+    await page.getByRole('button', { name: 'Déconnexion' }).click();
+    await page.getByRole('button', { name: /Dev 1/i }).click();
+    await expect(page).toHaveURL(/.*gallery/);
+
+    await page.goto('/#/albums');
+    await page.getByText(albumTitle).first().click();
+    await page.getByTestId('album-menu-button').click();
+    await page.getByTestId('delete-album-menu-item').click();
+    await page.getByTestId('confirm-delete-album-button').click();
+    await expect(page.getByText(albumTitle)).not.toBeVisible({ timeout: 30000 });
+
+    // 9. Logout Dev 1, Login Dev 2, verify it's gone
+    await page.goto('/#/gallery');
+    await page.getByTestId('menu-button').first().click();
+    await page.getByRole('button', { name: 'Déconnexion' }).click();
+    await page.getByRole('button', { name: /Dev 2/i }).click();
+
+    await page.goto('/#/albums');
+    // It might take a moment for S3 to reflect the deletion of the shared copy
+    await page.reload();
+    await expect(page.getByText(albumTitle)).not.toBeVisible({ timeout: 30000 });
+    await page.screenshot({ path: 'e2e-screenshots/sharing-04-deleted-from-dev2.png' });
   });
 });

@@ -394,8 +394,10 @@ export class AlbumRepository implements IAlbumRepository {
 
         // Delete shared copies
         if (album && album.sharedWith) {
+            console.log(`AlbumRepository: Deleting shared copies for ${album.sharedWith.length} recipients`);
             for (const recipient of album.sharedWith) {
                 const sharedPath = this.getSharedAlbumPath(recipient, email, albumId);
+                console.log(`AlbumRepository: Deleting shared copy at ${sharedPath}`);
                 await this.s3Repo.deleteFolder(bucket, sharedPath).catch(e => console.error(`Failed to delete shared copy for ${recipient}`, e));
             }
         }
