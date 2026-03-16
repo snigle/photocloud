@@ -57,17 +57,17 @@ export class AlbumRepository implements IAlbumRepository {
   }
 
   private async discoverSharedAlbums(bucket: string, email: string): Promise<Album[]> {
-    const sharedAlbums: Album[] = [];
     try {
         const sharedPath = this.getAlbumsSharedWithMePath(email);
         console.log(`AlbumRepository: Scanning for shared albums in ${sharedPath}`);
         const owners = await this.s3Repo.listFolders(bucket, sharedPath);
-        for (const ownerPrefix of owners) {
+
+        const ownerTasks = owners.map(ownerPrefix => async () => {
             const ownerEmail = ownerPrefix.split('/').filter(Boolean).pop()!;
             const ownerAlbumsPath = `${sharedPath}${ownerEmail}/`;
             const albumFolders = await this.s3Repo.listFolders(bucket, ownerAlbumsPath);
 
-            for (const albumFolderPrefix of albumFolders) {
+            const albumTasks = albumFolders.map(albumFolderPrefix => async () => {
                 try {
                     const albumId = albumFolderPrefix.split('/').filter(Boolean).pop()!;
                     const keyPath = `${albumFolderPrefix}key.txt`;
@@ -81,26 +81,31 @@ export class AlbumRepository implements IAlbumRepository {
                     sharedAlbum.ownerEmail = ownerEmail;
 
                     // Rewrite keys to point to the shared location in recipient's space
-                    const sharedPath = albumFolderPrefix;
                     sharedAlbum.photoKeys = sharedAlbum.photoKeys?.map(pk => {
                         const photoId = this.extractPhotoIdFromKey(pk);
-                        return `${sharedPath}thumbnails/${photoId}.jpg.enc`;
+                        return `${albumFolderPrefix}thumbnails/${photoId}.jpg.enc`;
                     });
                     if (sharedAlbum.coverPhotoKey) {
                         const coverId = this.extractPhotoIdFromKey(sharedAlbum.coverPhotoKey);
-                        sharedAlbum.coverPhotoKey = `${sharedPath}thumbnails/${coverId}.jpg.enc`;
+                        sharedAlbum.coverPhotoKey = `${albumFolderPrefix}thumbnails/${coverId}.jpg.enc`;
                     }
 
-                    sharedAlbums.push(sharedAlbum);
+                    return sharedAlbum;
                 } catch (e) {
-                    // Skip if error reading this shared album
+                    return null;
                 }
-            }
-        }
+            });
+            return await limitConcurrency(albumTasks, 5);
+        });
+
+        const results = await limitConcurrency(ownerTasks, 3);
+        const allShared = results.flat().filter((a): a is Album => a !== null);
+        console.log(`AlbumRepository: Discovered ${allShared.length} shared albums`);
+        return allShared;
     } catch (e) {
         console.error('Failed to discover shared albums', e);
+        return [];
     }
-    return sharedAlbums;
   }
 
   async listAlbums(bucket: string, email: string, skipCache = false): Promise<Album[]> {
