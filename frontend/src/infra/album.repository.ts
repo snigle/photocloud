@@ -61,7 +61,7 @@ export class AlbumRepository implements IAlbumRepository {
   }
 
   private getAlbumsSharedWithMePath(email: string): string {
-    return `users/${email}/albums/shared`;
+    return `users/${email}/albums/shared/`;
   }
 
   private async discoverSharedAlbums(bucket: string, email: string): Promise<Album[]> {
@@ -72,8 +72,8 @@ export class AlbumRepository implements IAlbumRepository {
 
         const ownerTasks = owners.map(ownerPrefix => async () => {
             const ownerEmail = ownerPrefix.split('/').filter(Boolean).pop()!;
-            const ownerAlbumsPath = `${sharedPath}${ownerEmail}/`;
-            const albumFolders = await this.s3Repo.listFolders(bucket, ownerAlbumsPath);
+            // ownerPrefix already includes the full path with trailing slash from listFolders
+            const albumFolders = await this.s3Repo.listFolders(bucket, ownerPrefix);
 
             const albumTasks = albumFolders.map(albumFolderPrefix => async () => {
                 try {

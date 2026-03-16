@@ -229,6 +229,7 @@ export class S3Repository implements IS3Repository {
     contentType: string,
     customSSEKey?: string | null
   ): Promise<void> {
+    console.log(`S3: uploadFile ${key} (SSE: ${customSSEKey ? 'yes' : 'no'})`);
     const sse = await this.getSSE(customSSEKey);
     const command = new PutObjectCommand({
       Bucket: bucket,
@@ -246,6 +247,7 @@ export class S3Repository implements IS3Repository {
   }
 
   async getFile(bucket: string, key: string, customSSEKey?: string | null): Promise<Uint8Array> {
+    console.log(`S3: getFile ${key} (SSE: ${customSSEKey ? 'yes' : 'no'})`);
     const isThumbnail = key.includes('/thumbnail/');
     if (isThumbnail && customSSEKey === undefined) {
         const cached = ThumbnailCache.get(key);
@@ -313,6 +315,7 @@ export class S3Repository implements IS3Repository {
   }
 
   async exists(bucket: string, key: string, customSSEKey?: string | null): Promise<boolean> {
+    console.log(`S3: exists ${key}`);
     const sse = await this.getSSE(customSSEKey);
     try {
       const command = new HeadObjectCommand({
@@ -361,6 +364,7 @@ export class S3Repository implements IS3Repository {
   }
 
   async listFolders(bucket: string, prefix: string): Promise<string[]> {
+    console.log(`S3: listFolders ${prefix}`);
     let folders: string[] = [];
     let continuationToken: string | undefined = undefined;
 
