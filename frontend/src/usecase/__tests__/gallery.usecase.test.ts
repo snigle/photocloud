@@ -24,6 +24,7 @@ describe('GalleryUseCase', () => {
       getDownloadUrl: jest.fn(),
       exists: jest.fn(),
       deleteFile: jest.fn(),
+      deleteFolder: jest.fn(),
       listKeys: jest.fn(),
       listFolders: jest.fn(),
       copyObject: jest.fn(),
