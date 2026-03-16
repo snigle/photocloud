@@ -24,9 +24,10 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
     const theme = useTheme();
     const isStaging = getIsStaging();
     const { width } = useWindowDimensions();
-    const { getAlbum, removePhotosFromAlbum, deleteAlbum, shareAlbum, loading: albumLoading } = useAlbums(creds, email);
+    const { getAlbum, removePhotosFromAlbum, deleteAlbum, shareAlbum, listPhotos: listAlbumPhotos, loading: albumLoading } = useAlbums(creds, email);
 
     const [album, setAlbum] = useState<Album | null>(initialAlbum || null);
+    const [albumPhotos, setAlbumPhotos] = useState<UploadedPhoto[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
     const [coverUrl, setCoverUrl] = useState<string | null>(null);
@@ -39,14 +40,16 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
 
     const loadAlbum = useCallback(async () => {
         try {
-            const data = await getAlbum(albumId);
+            const [data, photosData] = await Promise.all([
+                getAlbum(albumId),
+                listAlbumPhotos(albumId)
+            ]);
             setAlbum(data);
+            setAlbumPhotos(photosData);
         } catch (err) {
             console.error('Failed to load album', err);
-            // If it's a shared album, we might need to get it via discovery logic if direct fetch fails
-            // but for now let's just log.
         }
-    }, [albumId, getAlbum]);
+    }, [albumId, getAlbum, listAlbumPhotos]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -55,31 +58,14 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
     }, [loadAlbum]);
 
     useEffect(() => {
-        if (!album || !album.photoKeys) {
+        if (!album || !album.photoKeys || albumPhotos.length === 0) {
             loadAlbum();
         }
     }, [album?.id, album?.photoKeys, loadAlbum]);
 
     const photos = useMemo(() => {
-        if (!album || !album.photoKeys) return [];
-        const reconstructedPhotos: UploadedPhoto[] = album.photoKeys.map(key => {
-            const parts = key.split('/');
-            const filename = parts.pop()!;
-            const namePart = filename.replace('.enc', '').replace('.json', '').replace('.jpg', '');
-            const timestampMatch = namePart.match(/^(\d+)-/);
-            const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0;
-            const id = timestampMatch ? namePart.substring(timestampMatch[0].length) : namePart;
-
-            return {
-                id: id,
-                key: key,
-                creationDate: timestamp,
-                size: 0,
-                width: 0,
-                height: 0,
-                type: 'cloud' as const,
-            };
-        });
+        if (!album) return [];
+        const reconstructedPhotos = [...albumPhotos];
 
         // Sort photos based on album order
         if (album.order === 'date-desc') {
@@ -88,7 +74,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
             reconstructedPhotos.sort((a, b) => a.creationDate - b.creationDate);
         }
         return reconstructedPhotos;
-    }, [album]);
+    }, [album, albumPhotos]);
 
     useEffect(() => {
         let isMounted = true;

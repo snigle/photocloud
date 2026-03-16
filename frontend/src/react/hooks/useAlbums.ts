@@ -124,6 +124,18 @@ export function useAlbums(creds: S3Credentials, email: string) {
         }
     }, [creds.bucket, email, shareAlbumUseCase]);
 
+    const listPhotos = useCallback(async (albumId: string) => {
+        setLoading(true);
+        try {
+            return await albumRepo.listPhotos(creds.bucket, email, albumId);
+        } catch (err: any) {
+            setError(err.message || 'Failed to list album photos');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [creds.bucket, email, albumRepo]);
+
     useEffect(() => {
         loadAlbums();
     }, [loadAlbums]);
@@ -140,5 +152,6 @@ export function useAlbums(creds: S3Credentials, email: string) {
         getAlbum,
         deleteAlbum,
         shareAlbum,
+        listPhotos,
     };
 }

@@ -381,4 +381,28 @@ export class AlbumRepository implements IAlbumRepository {
     }
     return album;
   }
+
+  async listPhotos(bucket: string, email: string, albumId: string): Promise<UploadedPhoto[]> {
+    const album = await this.getAlbum(bucket, email, albumId);
+    if (!album || !album.photoKeys) return [];
+
+    return album.photoKeys.map(key => {
+        const parts = key.split('/');
+        const filename = parts.pop()!;
+        const namePart = filename.replace('.enc', '').replace('.json', '').replace('.jpg', '');
+        const timestampMatch = namePart.match(/^(\d+)-/);
+        const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0;
+        const id = timestampMatch ? namePart.substring(timestampMatch[0].length) : namePart;
+
+        return {
+            id: id,
+            key: key,
+            creationDate: timestamp,
+            size: 0,
+            width: 0,
+            height: 0,
+            type: 'cloud' as const,
+        };
+    });
+  }
 }
