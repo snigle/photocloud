@@ -5,6 +5,7 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   CopyObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -339,6 +340,24 @@ export class S3Repository implements IS3Repository {
           Key: key,
       });
       await this.s3.send(command);
+  }
+
+  async deleteFolder(bucket: string, prefix: string): Promise<void> {
+      const keys = await this.listKeys(bucket, prefix);
+      if (keys.length === 0) return;
+
+      // Delete in batches of 1000
+      for (let i = 0; i < keys.length; i += 1000) {
+          const batch = keys.slice(i, i + 1000);
+          const command = new DeleteObjectsCommand({
+              Bucket: bucket,
+              Delete: {
+                  Objects: batch.map(k => ({ Key: k })),
+                  Quiet: true,
+              }
+          });
+          await this.s3.send(command);
+      }
   }
 
   async listFolders(bucket: string, prefix: string): Promise<string[]> {

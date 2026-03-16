@@ -44,16 +44,24 @@ export class AlbumRepository implements IAlbumRepository {
   }
 
   private extractPhotoIdFromKey(key: string): string {
+    if (!key) return '';
     const filename = key.split('/').pop()!;
+    // Handle both formats: {timestamp}-{id}.enc and {id}.jpg.enc
     return filename.replace('.enc', '').replace('.jpg', '').split('-').pop()!;
   }
 
+  private joinPath(...parts: string[]): string {
+      return parts.map(p => p.endsWith('/') ? p.slice(0, -1) : p)
+                  .filter(Boolean)
+                  .join('/');
+  }
+
   private getSharedAlbumPath(recipientEmail: string, ownerEmail: string, albumId: string): string {
-    return `users/${recipientEmail}/albums/shared/${ownerEmail}/${albumId}/`;
+    return `users/${recipientEmail}/albums/shared/${ownerEmail}/${albumId}`;
   }
 
   private getAlbumsSharedWithMePath(email: string): string {
-    return `users/${email}/albums/shared/`;
+    return `users/${email}/albums/shared`;
   }
 
   private async discoverSharedAlbums(bucket: string, email: string): Promise<Album[]> {
@@ -70,24 +78,25 @@ export class AlbumRepository implements IAlbumRepository {
             const albumTasks = albumFolders.map(albumFolderPrefix => async () => {
                 try {
                     const albumId = albumFolderPrefix.split('/').filter(Boolean).pop()!;
-                    const keyPath = `${albumFolderPrefix}key.txt`;
+                    const keyPath = this.joinPath(albumFolderPrefix, 'key.txt');
                     const albumKeyData = await this.s3Repo.getFile(bucket, keyPath, null); // key.txt is in plain text
                     const albumKey = decodeText(albumKeyData);
 
-                    const albumJsonPath = `${albumFolderPrefix}album.json`;
+                    const albumJsonPath = this.joinPath(albumFolderPrefix, 'album.json');
                     const albumData = await this.s3Repo.getFile(bucket, albumJsonPath, albumKey);
                     const sharedAlbum = JSON.parse(decodeText(albumData)) as Album;
                     sharedAlbum.albumKey = albumKey;
                     sharedAlbum.ownerEmail = ownerEmail;
 
                     // Rewrite keys to point to the shared location in recipient's space
+                    const thumbnailsPath = this.joinPath(albumFolderPrefix, 'thumbnails');
                     sharedAlbum.photoKeys = sharedAlbum.photoKeys?.map(pk => {
                         const photoId = this.extractPhotoIdFromKey(pk);
-                        return `${albumFolderPrefix}thumbnails/${photoId}.jpg.enc`;
+                        return `${thumbnailsPath}/${photoId}.jpg.enc`;
                     });
                     if (sharedAlbum.coverPhotoKey) {
                         const coverId = this.extractPhotoIdFromKey(sharedAlbum.coverPhotoKey);
-                        sharedAlbum.coverPhotoKey = `${albumFolderPrefix}thumbnails/${coverId}.jpg.enc`;
+                        sharedAlbum.coverPhotoKey = `${thumbnailsPath}/${coverId}.jpg.enc`;
                     }
 
                     return sharedAlbum;
@@ -220,9 +229,20 @@ export class AlbumRepository implements IAlbumRepository {
   }
 
   async getAlbum(bucket: string, email: string, albumId: string): Promise<Album> {
-    const key = this.getAlbumKey(email, albumId);
-    const data = await this.s3Repo.getFile(bucket, key);
-    return JSON.parse(decodeText(data));
+    try {
+        const key = this.getAlbumKey(email, albumId);
+        const data = await this.s3Repo.getFile(bucket, key);
+        const album = JSON.parse(decodeText(data)) as Album;
+        // Local albums should have their albumKey (already present if migrated)
+        return album;
+    } catch (e) {
+        // Fallback: search in shared albums
+        console.log(`AlbumRepository: Album ${albumId} not found locally, searching in shared albums...`);
+        const shared = await this.discoverSharedAlbums(bucket, email);
+        const found = shared.find(a => a.id === albumId);
+        if (found) return found;
+        throw e;
+    }
   }
 
   async saveAlbum(bucket: string, email: string, album: Album): Promise<void> {
@@ -246,16 +266,17 @@ export class AlbumRepository implements IAlbumRepository {
                 const albumThumbnailKey = this.getAlbumThumbnailKey(email, album.id, photoId);
                 albumPhotoKeys[idx] = albumThumbnailKey;
 
-                if (!(await this.s3Repo.exists(bucket, albumThumbnailKey, album.albumKey))) {
-                    console.log(`AlbumRepository: Cloning thumbnail ${photoKey} to ${albumThumbnailKey} with albumKey`);
-                    try {
+                try {
+                    if (!(await this.s3Repo.exists(bucket, albumThumbnailKey, album.albumKey))) {
+                        console.log(`AlbumRepository: Cloning thumbnail ${photoKey} to ${albumThumbnailKey} with albumKey`);
                         // Determine source encryption key: if photoKey is already an album path, use albumKey
                         const sourceKey = photoKey.includes('/albums/') ? album.albumKey : undefined;
                         const thumbnailData = await this.s3Repo.getFile(bucket, photoKey, sourceKey);
                         await this.s3Repo.uploadFile(bucket, albumThumbnailKey, thumbnailData, 'application/octet-stream', album.albumKey);
-                    } catch (e) {
-                        console.error(`Failed to clone thumbnail ${photoKey}`, e);
                     }
+                } catch (e) {
+                    console.error(`Failed to clone thumbnail ${photoKey}`, e);
+                    albumPhotoKeys[idx] = null as any;
                 }
             });
             await limitConcurrency(tasks, 5);
@@ -263,7 +284,7 @@ export class AlbumRepository implements IAlbumRepository {
 
         // Update the album object in place with new keys
         const albumCoverPhotoId = album.coverPhotoKey ? this.extractPhotoIdFromKey(album.coverPhotoKey) : undefined;
-        album.photoKeys = albumPhotoKeys;
+        album.photoKeys = albumPhotoKeys.filter(k => k !== null);
         if (albumCoverPhotoId) {
             album.coverPhotoKey = this.getAlbumThumbnailKey(email, album.id, albumCoverPhotoId);
         }
@@ -275,29 +296,30 @@ export class AlbumRepository implements IAlbumRepository {
         if (album.sharedWith && album.sharedWith.length > 0) {
             for (const sharedUser of album.sharedWith) {
                 const sharedPath = this.getSharedAlbumPath(sharedUser, email, album.id);
+                const sharedThumbnailsPath = this.joinPath(sharedPath, 'thumbnails');
 
                 // Write albumKey in plain text to recipient's folder
-                await this.s3Repo.uploadFile(bucket, `${sharedPath}key.txt`, encodeText(album.albumKey!), 'text/plain', null);
+                await this.s3Repo.uploadFile(bucket, this.joinPath(sharedPath, 'key.txt'), encodeText(album.albumKey!), 'text/plain', null);
 
                 // Clone thumbnails for shared user using client-side cloning
                 const sharedPhotoKeys: string[] = new Array(originalPhotoKeys.length);
                 if (originalPhotoKeys.length > 0) {
                     const tasks = originalPhotoKeys.map((photoKey, idx) => async () => {
                         const photoId = this.extractPhotoIdFromKey(photoKey);
-                        const destThumbnailKey = `${sharedPath}thumbnails/${photoId}.jpg.enc`;
+                        const destThumbnailKey = `${sharedThumbnailsPath}/${photoId}.jpg.enc`;
                         sharedPhotoKeys[idx] = destThumbnailKey;
 
-                        if (!(await this.s3Repo.exists(bucket, destThumbnailKey, album.albumKey))) {
-                            console.log(`AlbumRepository: Copying thumbnail ${photoKey} to ${destThumbnailKey}`);
-                            try {
+                        try {
+                            if (!(await this.s3Repo.exists(bucket, destThumbnailKey, album.albumKey))) {
+                                console.log(`AlbumRepository: Copying thumbnail ${photoKey} to ${destThumbnailKey}`);
                                 // Determine source encryption key: if photoKey is already an album path, use albumKey
                                 const sourceSSEKey = photoKey.includes('/albums/') ? album.albumKey : undefined;
                                 const thumbnailData = await this.s3Repo.getFile(bucket, photoKey, sourceSSEKey);
                                 await this.s3Repo.uploadFile(bucket, destThumbnailKey, thumbnailData, 'application/octet-stream', album.albumKey);
-                            } catch (e) {
-                                console.error(`Failed to copy thumbnail ${photoKey}`, e);
-                                throw e; // Re-throw to make the whole process fail
                             }
+                        } catch (e) {
+                            console.error(`Failed to copy thumbnail ${photoKey}`, e);
+                            sharedPhotoKeys[idx] = null as any;
                         }
                     });
                     await limitConcurrency(tasks, 5);
@@ -307,11 +329,11 @@ export class AlbumRepository implements IAlbumRepository {
                 const sharedAlbum = {
                     ...album,
                     ownerEmail: email,
-                    photoKeys: sharedPhotoKeys,
-                    coverPhotoKey: albumCoverPhotoId ? `${sharedPath}thumbnails/${albumCoverPhotoId}.jpg.enc` : undefined
+                    photoKeys: sharedPhotoKeys.filter(k => k !== null),
+                    coverPhotoKey: albumCoverPhotoId ? `${sharedThumbnailsPath}/${albumCoverPhotoId}.jpg.enc` : undefined
                 };
                 const sharedData = encodeText(JSON.stringify(sharedAlbum));
-                await this.s3Repo.uploadFile(bucket, `${sharedPath}album.json`, sharedData, 'application/octet-stream', album.albumKey);
+                await this.s3Repo.uploadFile(bucket, this.joinPath(sharedPath, 'album.json'), sharedData, 'application/octet-stream', album.albumKey);
             }
         }
 
@@ -356,9 +378,29 @@ export class AlbumRepository implements IAlbumRepository {
     console.log(`AlbumRepository: Deleting album ${albumId} for ${email}`);
     const release = await GlobalLock.acquire(`albums-${email}`);
     try {
+        // Fetch album to know sharing info before deleting
+        let album: Album | null = null;
+        try {
+            album = await this.getAlbum(bucket, email, albumId);
+        } catch (e) {
+            console.warn(`AlbumRepository: Could not fetch album ${albumId} before deletion`, e);
+        }
+
         const key = this.getAlbumKey(email, albumId);
         await this.s3Repo.deleteFile(bucket, key);
-        console.log(`AlbumRepository: Deleted album file ${key}`);
+
+        // Delete local thumbnails folder
+        await this.s3Repo.deleteFolder(bucket, `users/${email}/albums/${albumId}`).catch(e => console.error('Failed to delete local thumbnails', e));
+
+        // Delete shared copies
+        if (album && album.sharedWith) {
+            for (const recipient of album.sharedWith) {
+                const sharedPath = this.getSharedAlbumPath(recipient, email, albumId);
+                await this.s3Repo.deleteFolder(bucket, sharedPath).catch(e => console.error(`Failed to delete shared copy for ${recipient}`, e));
+            }
+        }
+
+        console.log(`AlbumRepository: Deleted album file and associated assets for ${key}`);
 
         // Update index
         try {
@@ -388,8 +430,18 @@ export class AlbumRepository implements IAlbumRepository {
   }
 
   async listPhotos(bucket: string, email: string, albumId: string): Promise<UploadedPhoto[]> {
-    const album = await this.getAlbum(bucket, email, albumId);
-    if (!album || !album.photoKeys) return [];
+    let album: Album;
+    try {
+        album = await this.getAlbum(bucket, email, albumId);
+    } catch (e) {
+        // If not owner, try to find in shared albums
+        const shared = await this.discoverSharedAlbums(bucket, email);
+        const found = shared.find(a => a.id === albumId);
+        if (!found) throw e;
+        album = found;
+    }
+
+    if (!album.photoKeys) return [];
 
     return album.photoKeys.map(key => {
         const parts = key.split('/');
