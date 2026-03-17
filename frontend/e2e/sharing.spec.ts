@@ -71,7 +71,8 @@ test.describe('Album Sharing Flow', () => {
     await expectWithReload(page, sharedAlbumItem, { timeout: 15000 });
 
     // Verify it shows as shared (has the emoji if we added it)
-    await expect(page.getByText('👥')).toBeVisible({ timeout: 10000 });
+    // We use .first() to avoid strict mode violation as multiple albums might be shared
+    await expect(sharedAlbumItem.getByText('👥')).toBeVisible({ timeout: 10000 });
 
     await page.screenshot({ path: 'e2e-screenshots/sharing-02-received-by-dev2.png' });
 
