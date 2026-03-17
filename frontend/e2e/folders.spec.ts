@@ -9,7 +9,7 @@ test.describe('Folders Screen', () => {
     await devButton.click();
 
     // Open drawer
-    const menuButton = page.getByLabel('Menu');
+    const menuButton = page.getByTestId('menu-button').first();
     await expect(menuButton).toBeVisible({ timeout: 15000 });
     await menuButton.click();
 
