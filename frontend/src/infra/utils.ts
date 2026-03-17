@@ -22,6 +22,15 @@ export function uint8ArrayToBase64(bytes: Uint8Array): string {
   return result;
 }
 
+export async function limitConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
+  const results: T[] = [];
+  for (let i = 0; i < tasks.length; i += limit) {
+      const chunk = tasks.slice(i, i + limit);
+      results.push(...(await Promise.all(chunk.map(t => t()))));
+  }
+  return results;
+}
+
 export function md5(data: Uint8Array): Uint8Array {
   const hashHex = md5Hex(data);
   const result = new Uint8Array(hashHex.length / 2);

@@ -18,7 +18,8 @@ export const PhotoItem = React.memo(({
     isSelectionMode,
     onDragStart,
     onDragEnter,
-    onDragEnd
+    onDragEnd,
+    customSSEKey
 }: {
     photo: Photo | null,
     creds: S3Credentials,
@@ -30,7 +31,8 @@ export const PhotoItem = React.memo(({
     isSelectionMode: boolean,
     onDragStart: (id: string) => void,
     onDragEnter: (id: string) => void,
-    onDragEnd: () => void
+    onDragEnd: () => void,
+    customSSEKey?: string
 }) => {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<boolean>(false);
@@ -63,7 +65,7 @@ export const PhotoItem = React.memo(({
 
     // Check cache first
     const cached = ThumbnailCache.get(photo.key);
-    if (cached?.displayUrl) {
+    if (cached?.displayUrl && !customSSEKey) {
         setUrl(cached.displayUrl);
         return;
     }
@@ -76,7 +78,7 @@ export const PhotoItem = React.memo(({
       const load = async () => {
           try {
               // SSE-C objects cannot be displayed via simple presigned URLs in browser <img> tags
-              const data = await s3Repo.getFile(creds.bucket, photo.key);
+              const data = await s3Repo.getFile(creds.bucket, photo.key, customSSEKey);
 
               if (isMounted) {
                   let displayUrl: string;
@@ -89,7 +91,9 @@ export const PhotoItem = React.memo(({
                   }
 
                   // Update cache with displayUrl
-                  ThumbnailCache.set(photo.key, { data, displayUrl });
+                  if (!customSSEKey) {
+                      ThumbnailCache.set(photo.key, { data, displayUrl });
+                  }
                   setUrl(displayUrl);
               }
           } catch (err) {

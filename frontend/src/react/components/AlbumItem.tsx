@@ -37,15 +37,18 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({ album, creds, size, onPres
             try {
                 // Ensure we use the thumbnail key for the cover
                 let coverKey = album.coverPhotoKey!;
-                if (!coverKey.includes('/thumbnail/')) {
+                const currentKey = album.albumKey || album.shareKey;
+                if (!coverKey.includes('/thumbnail/') && !currentKey) {
                     // If it's an original/1080p key, try to use the thumbnail one
                     coverKey = coverKey.replace('/original/', '/thumbnail/').replace('/1080p/', '/thumbnail/');
                 }
 
-                const data = await s3Repo.getFile(creds.bucket, coverKey);
+                const data = await s3Repo.getFile(creds.bucket, coverKey, currentKey);
                 const base64 = uint8ArrayToBase64(data);
                 const displayUrl = `data:image/jpeg;base64,${base64}`;
-                ThumbnailCache.set(album.coverPhotoKey!, { data, displayUrl });
+                if (!currentKey) {
+                    ThumbnailCache.set(album.coverPhotoKey!, { data, displayUrl });
+                }
                 if (isMounted) setThumbnailUrl(displayUrl);
             } catch (err) {
                 console.error('Failed to load album cover', err);
@@ -76,7 +79,10 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({ album, creds, size, onPres
                 </View>
                 <View style={styles.content}>
                     <Text variant="bodyMedium" numberOfLines={1} style={styles.title}>{album.title}</Text>
-                    <Text variant="bodySmall" style={styles.subtitle}>{album.photoCount ?? album.photoKeys?.length ?? 0} photos</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        {album.ownerEmail && <Text style={{ fontSize: 10, marginRight: 4 }}>👥</Text>}
+                        <Text variant="bodySmall" style={styles.subtitle}>{album.photoCount ?? album.photoKeys?.length ?? 0} photos</Text>
+                    </View>
                 </View>
             </Card>
         </TouchableOpacity>

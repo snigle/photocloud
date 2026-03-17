@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, Image, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity, Platform, RefreshControl } from 'react-native';
-import { Appbar, Text, useTheme, IconButton, Portal, Dialog, Button, Menu as PaperMenu } from 'react-native-paper';
+import { Appbar, Text, useTheme, IconButton, Portal, Dialog, Button, Menu as PaperMenu, TextInput } from 'react-native-paper';
 import { ArrowLeft, MoreVertical, X, Trash2, RefreshCw } from 'lucide-react-native';
 import { Album, S3Credentials, Photo, UploadedPhoto } from '../../domain/types';
 import { useAlbums } from '../hooks/useAlbums';
@@ -20,13 +20,14 @@ interface AlbumDetailScreenProps {
 }
 
 const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation, creds, email }) => {
-    const { albumId, album: initialAlbum } = route.params || {};
+    const { albumId, album: initialAlbum, shareKey: routeShareKey } = route.params || {};
     const theme = useTheme();
     const isStaging = getIsStaging();
     const { width } = useWindowDimensions();
-    const { getAlbum, removePhotosFromAlbum, deleteAlbum, loading: albumLoading } = useAlbums(creds, email);
+    const { getAlbum, removePhotosFromAlbum, deleteAlbum, shareAlbum, listPhotos: listAlbumPhotos, loading: albumLoading } = useAlbums(creds, email);
 
     const [album, setAlbum] = useState<Album | null>(initialAlbum || null);
+    const [albumPhotos, setAlbumPhotos] = useState<UploadedPhoto[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
     const [coverUrl, setCoverUrl] = useState<string | null>(null);
@@ -34,15 +35,21 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
     const [removeDialogVisible, setRemoveDialogVisible] = useState(false);
     const [menuVisible, setMenuVisible] = useState(false);
     const [deleteAlbumDialogVisible, setDeleteAlbumDialogVisible] = useState(false);
+    const [shareDialogVisible, setShareDialogVisible] = useState(false);
+    const [shareEmail, setShareEmail] = useState('');
 
     const loadAlbum = useCallback(async () => {
         try {
-            const data = await getAlbum(albumId);
+            const [data, photosData] = await Promise.all([
+                getAlbum(albumId),
+                listAlbumPhotos(albumId)
+            ]);
             setAlbum(data);
+            setAlbumPhotos(photosData);
         } catch (err) {
             console.error('Failed to load album', err);
         }
-    }, [albumId, getAlbum]);
+    }, [albumId, getAlbum, listAlbumPhotos]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -51,31 +58,14 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
     }, [loadAlbum]);
 
     useEffect(() => {
-        if (!album || !album.photoKeys) {
+        if (!album || !album.photoKeys || albumPhotos.length === 0) {
             loadAlbum();
         }
     }, [album?.id, album?.photoKeys, loadAlbum]);
 
     const photos = useMemo(() => {
-        if (!album || !album.photoKeys) return [];
-        const reconstructedPhotos: UploadedPhoto[] = album.photoKeys.map(key => {
-            const parts = key.split('/');
-            const filename = parts.pop()!;
-            const namePart = filename.replace('.enc', '').replace('.json', '');
-            const timestampMatch = namePart.match(/^(\d+)-/);
-            const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0;
-            const id = timestampMatch ? namePart.substring(timestampMatch[0].length) : namePart;
-
-            return {
-                id: id,
-                key: key,
-                creationDate: timestamp,
-                size: 0,
-                width: 0,
-                height: 0,
-                type: 'cloud' as const,
-            };
-        });
+        if (!album) return [];
+        const reconstructedPhotos = [...albumPhotos];
 
         // Sort photos based on album order
         if (album.order === 'date-desc') {
@@ -84,10 +74,11 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
             reconstructedPhotos.sort((a, b) => a.creationDate - b.creationDate);
         }
         return reconstructedPhotos;
-    }, [album]);
+    }, [album, albumPhotos]);
 
     useEffect(() => {
         let isMounted = true;
+        const currentKey = album?.albumKey || album?.shareKey || routeShareKey;
         const coverKey = album?.coverPhotoKey || (photos.length > 0 ? photos[0].key : null);
 
         if (!coverKey) {
@@ -96,7 +87,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
         }
 
         const cached = ThumbnailCache.get(coverKey);
-        if (cached?.displayUrl) {
+        if (cached?.displayUrl && !currentKey) {
             setCoverUrl(cached.displayUrl);
             return;
         }
@@ -107,13 +98,13 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
             try {
                 // Try to get 1080p for better quality if possible, but fallback to thumbnail
                 let keyToLoad = coverKey;
-                if (keyToLoad.includes('/thumbnail/')) {
+                if (keyToLoad.includes('/thumbnail/') && !currentKey) {
                     const p1080 = S3Repository.get1080pKey(keyToLoad);
                     const exists = await s3Repo.exists(creds.bucket, p1080);
                     if (exists) keyToLoad = p1080;
                 }
 
-                const data = await s3Repo.getFile(creds.bucket, keyToLoad);
+                const data = await s3Repo.getFile(creds.bucket, keyToLoad, currentKey);
                 const base64 = uint8ArrayToBase64(data);
                 const url = `data:image/jpeg;base64,${base64}`;
                 if (isMounted) setCoverUrl(url);
@@ -126,7 +117,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
 
         loadCover();
         return () => { isMounted = false; };
-    }, [album, photos, creds]);
+    }, [album, photos, creds, routeShareKey]);
 
     const {
         selectedIds,
@@ -161,6 +152,18 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
 
     const handleRemoveSelected = () => {
         setRemoveDialogVisible(true);
+    };
+
+    const handleShare = async () => {
+        if (!album || !shareEmail) return;
+        setShareDialogVisible(false);
+        try {
+            const updatedAlbum = await shareAlbum(album.id, shareEmail);
+            setAlbum(updatedAlbum);
+            setShareEmail('');
+        } catch (err) {
+            console.error('Failed to share album', err);
+        }
     };
 
     const confirmRemove = async () => {
@@ -242,7 +245,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                     </>
                 ) : (
                     <>
-                        <Appbar.BackAction onPress={() => navigation.goBack()} />
+                        <Appbar.BackAction onPress={() => navigation.goBack()} testID="back-button" />
                         <Appbar.Content title={album.title} subtitle={refreshing ? 'Mise à jour...' : undefined} />
                         <Appbar.Action icon={() => <RefreshCw size={24} />} onPress={handleRefresh} disabled={refreshing} />
                         <PaperMenu
@@ -256,6 +259,15 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                                 />
                             }
                         >
+                            <PaperMenu.Item
+                                onPress={() => {
+                                    setMenuVisible(false);
+                                    setShareDialogVisible(true);
+                                }}
+                                title="Partager l'album"
+                                leadingIcon="share-variant"
+                                testID="share-album-menu-item"
+                            />
                             <PaperMenu.Item
                                 onPress={() => {
                                     setMenuVisible(false);
@@ -300,6 +312,7 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                         onDragStart={startDragging}
                         onDragEnter={handleDragEnter}
                         onDragEnd={stopDragging}
+                        customSSEKey={album?.albumKey || album?.shareKey || routeShareKey}
                     />
                 )}
                 contentContainerStyle={styles.listContent}
@@ -336,6 +349,26 @@ const AlbumDetailScreen: React.FC<AlbumDetailScreenProps> = ({ route, navigation
                     <Dialog.Actions>
                         <Button onPress={() => setDeleteAlbumDialogVisible(false)}>Annuler</Button>
                         <Button onPress={handleDeleteAlbum} textColor={theme.colors.error} testID="confirm-delete-album-button">Supprimer</Button>
+                    </Dialog.Actions>
+                </Dialog>
+
+                <Dialog visible={shareDialogVisible} onDismiss={() => setShareDialogVisible(false)}>
+                    <Dialog.Title>Partager l'album</Dialog.Title>
+                    <Dialog.Content>
+                        <Text>Entrez l'adresse email de la personne avec qui vous souhaitez partager cet album.</Text>
+                        <TextInput
+                            label="Email"
+                            value={shareEmail}
+                            onChangeText={setShareEmail}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            style={{ marginTop: 16 }}
+                            testID="share-email-input"
+                        />
+                    </Dialog.Content>
+                    <Dialog.Actions>
+                        <Button onPress={() => setShareDialogVisible(false)}>Annuler</Button>
+                        <Button onPress={handleShare} disabled={!shareEmail} testID="confirm-share-button">Partager</Button>
                     </Dialog.Actions>
                 </Dialog>
             </Portal>

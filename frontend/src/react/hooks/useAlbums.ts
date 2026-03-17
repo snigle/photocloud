@@ -7,6 +7,7 @@ import { AddPhotosToAlbumUseCase } from '../../usecase/add-photos-to-album.useca
 import { RemovePhotosFromAlbumUseCase } from '../../usecase/remove-photos-from-album.usecase';
 import { GetAlbumUseCase } from '../../usecase/get-album.usecase';
 import { DeleteAlbumUseCase } from '../../usecase/delete-album.usecase';
+import { ShareAlbumUseCase } from '../../usecase/share-album.usecase';
 import { Album, S3Credentials } from '../../domain/types';
 
 export function useAlbums(creds: S3Credentials, email: string) {
@@ -24,6 +25,7 @@ export function useAlbums(creds: S3Credentials, email: string) {
     const removePhotosFromAlbumUseCase = useMemo(() => new RemovePhotosFromAlbumUseCase(albumRepo), [albumRepo]);
     const getAlbumUseCase = useMemo(() => new GetAlbumUseCase(albumRepo), [albumRepo]);
     const deleteAlbumUseCase = useMemo(() => new DeleteAlbumUseCase(albumRepo), [albumRepo]);
+    const shareAlbumUseCase = useMemo(() => new ShareAlbumUseCase(albumRepo), [albumRepo]);
 
     const loadAlbums = useCallback(async (isManualRefresh = false) => {
         if (isManualRefresh) setRefreshing(true);
@@ -108,6 +110,32 @@ export function useAlbums(creds: S3Credentials, email: string) {
         }
     }, [creds.bucket, email, deleteAlbumUseCase]);
 
+    const shareAlbum = useCallback(async (albumId: string, shareEmail: string) => {
+        setLoading(true);
+        try {
+            const updatedAlbum = await shareAlbumUseCase.execute(creds.bucket, email, albumId, shareEmail);
+            setAlbums(prev => prev.map(a => a.id === albumId ? updatedAlbum : a));
+            return updatedAlbum;
+        } catch (err: any) {
+            setError(err.message || 'Failed to share album');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [creds.bucket, email, shareAlbumUseCase]);
+
+    const listPhotos = useCallback(async (albumId: string) => {
+        setLoading(true);
+        try {
+            return await albumRepo.listPhotos(creds.bucket, email, albumId);
+        } catch (err: any) {
+            setError(err.message || 'Failed to list album photos');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [creds.bucket, email, albumRepo]);
+
     useEffect(() => {
         loadAlbums();
     }, [loadAlbums]);
@@ -123,5 +151,7 @@ export function useAlbums(creds: S3Credentials, email: string) {
         removePhotosFromAlbum,
         getAlbum,
         deleteAlbum,
+        shareAlbum,
+        listPhotos,
     };
 }

@@ -5,6 +5,8 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
+  CopyObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { IS3Repository, S3Credentials, UploadedPhoto } from '../domain/types';
@@ -38,7 +40,19 @@ export class S3Repository implements IS3Repository {
     this.s3 = s3Clients.get(clientKey)!;
   }
 
-  private async getSSE() {
+  private async getSSE(customKey?: string | null) {
+    if (customKey === null) return null;
+    if (customKey) {
+        const binaryKey = base64ToUint8Array(customKey);
+        const hash = md5(binaryKey);
+        const keyMD5 = uint8ArrayToBase64(hash);
+        return {
+            algorithm: 'AES256',
+            key: customKey,
+            keyMD5: keyMD5
+        };
+    }
+
     if (this.sseParams) return this.sseParams;
 
     const key = this.creds.user_key; // already base64
@@ -85,48 +99,50 @@ export class S3Repository implements IS3Repository {
     const basePrefix = `users/${email}/`;
 
     try {
-        // 1. Discover all top-level folders for parallelism
-        const folders = await this.listFolders(bucket, basePrefix);
+        // 1. Discover all top-level folders for parallelism, excluding 'albums/' and 'config/'
+        const folders = (await this.listFolders(bucket, basePrefix))
+            .filter(f => !f.endsWith('/albums/') && !f.endsWith('/config/'));
 
-        // 2. List each discovered folder recursively in parallel
+        // Helper to add photos with filtering
+        const addPhotos = (photos: UploadedPhoto[]) => {
+            const albumsPrefix = `${basePrefix}albums/`;
+            const configPrefix = `${basePrefix}config/`;
+            for (const p of photos) {
+                // Ignore photos in albums or config folders
+                if (p.key.startsWith(albumsPrefix) || p.key.startsWith(configPrefix)) continue;
+                // Exclude any keys that don't match our expected photo structure to avoid orphans
+                if (!p.key.includes('/thumbnail/') && !p.key.includes('/original/') && !p.key.includes('/1080p/')) continue;
+
+                const existing = allPhotosMap.get(p.id);
+                // Prefer thumbnail keys for better gallery performance
+                if (!existing || p.key.includes('/thumbnail/')) {
+                    allPhotosMap.set(p.id, p);
+                }
+            }
+        };
+
+        // 2. List the 'thumbnail/' subfolder of each year in parallel
         if (folders.length > 0) {
-            console.log(`S3Repository: Parallel recursive listing for ${folders.length} folders`);
+            console.log(`S3Repository: Parallel thumbnail listing for ${folders.length} folders`);
             const concurrency = 5;
             for (let i = 0; i < folders.length; i += concurrency) {
                 const chunk = folders.slice(i, i + concurrency);
-                const results = await Promise.all(chunk.map(t => this.listFolder(bucket, t)));
+                const results = await Promise.all(chunk.map(t => this.listFolder(bucket, `${t}thumbnail/`)));
                 for (const photos of results) {
-                    for (const p of photos) {
-                        const existing = allPhotosMap.get(p.id);
-                        // Prefer thumbnail keys for better gallery performance
-                        if (!existing || p.key.includes('/thumbnail/')) {
-                            allPhotosMap.set(p.id, p);
-                        }
-                    }
+                    addPhotos(photos);
                 }
             }
         }
 
         // 3. Also check for any files directly at the root of the user's directory
         const rootFiles = await this.listFolder(bucket, basePrefix, '/');
-        for (const p of rootFiles) {
-            const existing = allPhotosMap.get(p.id);
-            if (!existing || p.key.includes('/thumbnail/')) {
-                allPhotosMap.set(p.id, p);
-            }
-        }
+        addPhotos(rootFiles);
 
         // 4. Final safety fallback: if still empty, do one full broad recursive scan
-        // This handles cases where folder discovery might have failed
         if (allPhotosMap.size === 0) {
             console.log('S3Repository: Still empty after targeted scans, performing full broad recursive fallback');
             const broad = await this.listFolder(bucket, basePrefix);
-            for (const p of broad) {
-                const existing = allPhotosMap.get(p.id);
-                if (!existing || p.key.includes('/thumbnail/')) {
-                    allPhotosMap.set(p.id, p);
-                }
-            }
+            addPhotos(broad);
         }
 
     } catch (err) {
@@ -190,14 +206,16 @@ export class S3Repository implements IS3Repository {
     return folderPhotos;
   }
 
-  async getDownloadUrl(bucket: string, key: string): Promise<string> {
-    const sse = await this.getSSE();
+  async getDownloadUrl(bucket: string, key: string, customSSEKey?: string | null): Promise<string> {
+    const sse = await this.getSSE(customSSEKey);
     const getObjectCommand = new GetObjectCommand({
         Bucket: bucket,
         Key: key,
-        SSECustomerAlgorithm: sse.algorithm,
-        SSECustomerKey: sse.key,
-        SSECustomerKeyMD5: sse.keyMD5,
+        ...(sse ? {
+            SSECustomerAlgorithm: sse.algorithm,
+            SSECustomerKey: sse.key,
+            SSECustomerKeyMD5: sse.keyMD5,
+        } : {}),
       });
       return await getSignedUrl(this.s3, getObjectCommand, {
         expiresIn: 3600,
@@ -208,36 +226,43 @@ export class S3Repository implements IS3Repository {
     bucket: string,
     key: string,
     data: Uint8Array,
-    contentType: string
+    contentType: string,
+    customSSEKey?: string | null
   ): Promise<void> {
-    const sse = await this.getSSE();
+    console.log(`S3: uploadFile ${key} (SSE: ${customSSEKey ? 'yes' : 'no'})`);
+    const sse = await this.getSSE(customSSEKey);
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
       Body: data,
       ContentType: contentType,
-      SSECustomerAlgorithm: sse.algorithm,
-      SSECustomerKey: sse.key,
-      SSECustomerKeyMD5: sse.keyMD5,
+      ...(sse ? {
+        SSECustomerAlgorithm: sse.algorithm,
+        SSECustomerKey: sse.key,
+        SSECustomerKeyMD5: sse.keyMD5,
+      } : {}),
     });
 
     await this.s3.send(command);
   }
 
-  async getFile(bucket: string, key: string): Promise<Uint8Array> {
+  async getFile(bucket: string, key: string, customSSEKey?: string | null): Promise<Uint8Array> {
+    console.log(`S3: getFile ${key} (SSE: ${customSSEKey ? 'yes' : 'no'})`);
     const isThumbnail = key.includes('/thumbnail/');
-    if (isThumbnail) {
+    if (isThumbnail && customSSEKey === undefined) {
         const cached = ThumbnailCache.get(key);
         if (cached) return cached.data;
     }
 
-    const sse = await this.getSSE();
+    const sse = await this.getSSE(customSSEKey);
     const command = new GetObjectCommand({
       Bucket: bucket,
       Key: key,
-      SSECustomerAlgorithm: sse.algorithm,
-      SSECustomerKey: sse.key,
-      SSECustomerKeyMD5: sse.keyMD5,
+      ...(sse ? {
+        SSECustomerAlgorithm: sse.algorithm,
+        SSECustomerKey: sse.key,
+        SSECustomerKeyMD5: sse.keyMD5,
+      } : {}),
     });
 
     const data = await this.s3.send(command);
@@ -289,15 +314,18 @@ export class S3Repository implements IS3Repository {
     throw new Error('Unsupported S3 body type');
   }
 
-  async exists(bucket: string, key: string): Promise<boolean> {
-    const sse = await this.getSSE();
+  async exists(bucket: string, key: string, customSSEKey?: string | null): Promise<boolean> {
+    console.log(`S3: exists ${key}`);
+    const sse = await this.getSSE(customSSEKey);
     try {
       const command = new HeadObjectCommand({
         Bucket: bucket,
         Key: key,
-        SSECustomerAlgorithm: sse.algorithm,
-        SSECustomerKey: sse.key,
-        SSECustomerKeyMD5: sse.keyMD5,
+        ...(sse ? {
+            SSECustomerAlgorithm: sse.algorithm,
+            SSECustomerKey: sse.key,
+            SSECustomerKeyMD5: sse.keyMD5,
+        } : {}),
       });
       await this.s3.send(command);
       return true;
@@ -317,7 +345,26 @@ export class S3Repository implements IS3Repository {
       await this.s3.send(command);
   }
 
+  async deleteFolder(bucket: string, prefix: string): Promise<void> {
+      const keys = await this.listKeys(bucket, prefix);
+      if (keys.length === 0) return;
+
+      // Delete in batches of 1000
+      for (let i = 0; i < keys.length; i += 1000) {
+          const batch = keys.slice(i, i + 1000);
+          const command = new DeleteObjectsCommand({
+              Bucket: bucket,
+              Delete: {
+                  Objects: batch.map(k => ({ Key: k })),
+                  Quiet: true,
+              }
+          });
+          await this.s3.send(command);
+      }
+  }
+
   async listFolders(bucket: string, prefix: string): Promise<string[]> {
+    console.log(`S3: listFolders ${prefix}`);
     let folders: string[] = [];
     let continuationToken: string | undefined = undefined;
 
@@ -342,7 +389,7 @@ export class S3Repository implements IS3Repository {
     return folders;
   }
 
-  async listKeys(bucket: string, prefix: string): Promise<string[]> {
+  async listKeys(bucket: string, prefix: string, delimiter?: string): Promise<string[]> {
     let keys: string[] = [];
     let continuationToken: string | undefined = undefined;
 
@@ -351,6 +398,7 @@ export class S3Repository implements IS3Repository {
             const command: ListObjectsV2Command = new ListObjectsV2Command({
               Bucket: bucket,
               Prefix: prefix,
+              Delimiter: delimiter,
               ContinuationToken: continuationToken,
             });
 
@@ -372,6 +420,39 @@ export class S3Repository implements IS3Repository {
     }
 
     return keys;
+  }
+
+  async copyObject(
+      bucket: string,
+      sourceKey: string,
+      destKey: string,
+      sourceSSEKey?: string | null,
+      destSSEKey?: string | null
+  ): Promise<void> {
+      const sourceSSE = await this.getSSE(sourceSSEKey);
+      const destSSE = await this.getSSE(destSSEKey);
+
+      // CopySource must be URL-encoded, but the bucket and key separator should be a slash.
+      // S3 expects the format: /bucket/key
+      const encodedSourceKey = sourceKey.split('/').map(part => encodeURIComponent(part)).join('/');
+      const command = new CopyObjectCommand({
+          Bucket: bucket,
+          CopySource: `${bucket}/${encodedSourceKey}`,
+          Key: destKey,
+          ...(sourceSSE ? {
+              CopySourceSSECustomerAlgorithm: sourceSSE.algorithm,
+              CopySourceSSECustomerKey: sourceSSE.key,
+              CopySourceSSECustomerKeyMD5: sourceSSE.keyMD5,
+          } : {}),
+          ...(destSSE ? {
+              SSECustomerAlgorithm: destSSE.algorithm,
+              SSECustomerKey: destSSE.key,
+              SSECustomerKeyMD5: destSSE.keyMD5,
+          } : {}),
+          MetadataDirective: 'COPY',
+      });
+
+      await this.s3.send(command);
   }
 
   static get1080pKey(thumbnailKey: string): string {

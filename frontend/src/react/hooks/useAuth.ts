@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { S3Credentials, UserSession } from '../../domain/types';
+import { albumsCache } from '../../infra/album.repository';
 
 const SESSION_KEY = '@photocloud_session';
 
@@ -37,6 +38,7 @@ export const useAuth = () => {
 
   const logout = async () => {
     setSession(null);
+    albumsCache.clear(); // Clear album cache on logout
     try {
       await AsyncStorage.removeItem(SESSION_KEY);
     } catch (e) {
