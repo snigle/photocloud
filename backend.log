@@ -1,12 +1,46 @@
-2026/03/05 12:04:48 Server starting on :8080
-2026/03/05 12:04:56 Error getting user key for dev@photocloud.local: failed to get user key from S3: operation error S3: GetObject, https response error StatusCode: 403, RequestID: txfd63d5d4513e4183b091f-0069a97168, HostID: txfd63d5d4513e4183b091f-0069a97168, api error AccessDenied: Requests specifying Server Side Encryption with Customer provided keys must provide the correct secret key.
-2026/03/05 12:06:38 Error getting user key for dev@photocloud.local: failed to get user key from S3: operation error S3: GetObject, https response error StatusCode: 403, RequestID: tx300f54fa98fa4864957e2-0069a971ce, HostID: tx300f54fa98fa4864957e2-0069a971ce, api error AccessDenied: Requests specifying Server Side Encryption with Customer provided keys must provide the correct secret key.
-2026/03/05 12:06:38 Error getting user key for dev@photocloud.local: failed to get user key from S3: operation error S3: GetObject, https response error StatusCode: 403, RequestID: txed1f9fb651da4a2492554-0069a971ce, HostID: txed1f9fb651da4a2492554-0069a971ce, api error AccessDenied: Requests specifying Server Side Encryption with Customer provided keys must provide the correct secret key.
-2026/03/05 12:42:26 Error getting user key for dev@photocloud.local: failed to get user key from S3: operation error S3: GetObject, https response error StatusCode: 403, RequestID: tx9fd6a4bb33d14f49a30b1-0069a97a31, HostID: tx9fd6a4bb33d14f49a30b1-0069a97a31, api error AccessDenied: Requests specifying Server Side Encryption with Customer provided keys must provide the correct secret key.
-2026/03/05 12:42:26 Error getting user key for dev@photocloud.local: failed to get user key from S3: operation error S3: GetObject, https response error StatusCode: 403, RequestID: txef35f4df838a4682ab46d-0069a97a31, HostID: txef35f4df838a4682ab46d-0069a97a31, api error AccessDenied: Requests specifying Server Side Encryption with Customer provided keys must provide the correct secret key.
-2026/03/05 13:53:43 Error getting user key for dev@photocloud.local: failed to get user key from S3: operation error S3: GetObject, https response error StatusCode: 403, RequestID: tx79b26bb8560d46aca050c-0069a98ae6, HostID: tx79b26bb8560d46aca050c-0069a98ae6, api error AccessDenied: Requests specifying Server Side Encryption with Customer provided keys must provide the correct secret key.
-2026/03/05 13:53:43 Error getting user key for dev@photocloud.local: failed to get user key from S3: operation error S3: GetObject, https response error StatusCode: 403, RequestID: tx1b432080ee574e17bd64b-0069a98ae6, HostID: tx1b432080ee574e17bd64b-0069a98ae6, api error AccessDenied: Requests specifying Server Side Encryption with Customer provided keys must provide the correct secret key.
-2026/03/05 13:55:52 Error getting user key for dev@photocloud.local: failed to get user key from S3: operation error S3: GetObject, https response error StatusCode: 403, RequestID: tx2017cf70e0f84268aa76f-0069a98b67, HostID: tx2017cf70e0f84268aa76f-0069a98b67, api error AccessDenied: Requests specifying Server Side Encryption with Customer provided keys must provide the correct secret key.
-2026/03/05 13:55:52 Error getting user key for dev@photocloud.local: failed to get user key from S3: operation error S3: GetObject, https response error StatusCode: 403, RequestID: tx18703626405240c09d4a9-0069a98b67, HostID: tx18703626405240c09d4a9-0069a98b67, api error AccessDenied: Requests specifying Server Side Encryption with Customer provided keys must provide the correct secret key.
-2026/03/05 13:57:41 Error getting user key for dev@photocloud.local: failed to get user key from S3: operation error S3: GetObject, https response error StatusCode: 403, RequestID: tx774a7f499c66435995b55-0069a98bd5, HostID: tx774a7f499c66435995b55-0069a98bd5, api error AccessDenied: Requests specifying Server Side Encryption with Customer provided keys must provide the correct secret key.
-2026/03/05 13:57:41 Error getting user key for dev@photocloud.local: failed to get user key from S3: operation error S3: GetObject, https response error StatusCode: 403, RequestID: tx764a85c0fa434df493d76-0069a98bd4, HostID: tx764a85c0fa434df493d76-0069a98bd4, api error AccessDenied: Requests specifying Server Side Encryption with Customer provided keys must provide the correct secret key.
+go: downloading github.com/go-webauthn/webauthn v0.15.0
+go: downloading github.com/ovh/go-ovh v1.1.0
+go: downloading github.com/rs/cors v1.11.1
+go: downloading github.com/golang-jwt/jwt/v4 v4.5.2
+go: downloading google.golang.org/api v0.58.0
+go: downloading github.com/aws/aws-sdk-go-v2 v1.41.2
+go: downloading github.com/aws/aws-sdk-go-v2/config v1.32.10
+go: downloading github.com/aws/aws-sdk-go-v2/credentials v1.19.10
+go: downloading github.com/aws/aws-sdk-go-v2/service/s3 v1.96.2
+go: downloading gopkg.in/ini.v1 v1.57.0
+go: downloading github.com/google/uuid v1.6.0
+go: downloading github.com/go-viper/mapstructure/v2 v2.4.0
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.0
+go: downloading github.com/google/go-tpm v0.9.6
+go: downloading github.com/aws/smithy-go v1.24.2
+go: downloading github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4
+go: downloading github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.18
+go: downloading github.com/aws/aws-sdk-go-v2/service/signin v1.0.6
+go: downloading github.com/aws/aws-sdk-go-v2/service/sso v1.30.11
+go: downloading github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.15
+go: downloading github.com/aws/aws-sdk-go-v2/service/sts v1.41.7
+go: downloading github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.5
+go: downloading github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.18
+go: downloading github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.18
+go: downloading github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.5
+go: downloading github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.10
+go: downloading github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.18
+go: downloading github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.18
+go: downloading github.com/go-webauthn/x v0.1.26
+go: downloading github.com/fxamacker/cbor/v2 v2.9.0
+go: downloading github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.18
+go: downloading golang.org/x/crypto v0.43.0
+go: downloading golang.org/x/sys v0.37.0
+go: downloading github.com/x448/float16 v0.8.4
+go: downloading google.golang.org/grpc v1.40.0
+go: downloading cloud.google.com/go v0.94.1
+go: downloading golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
+go: downloading go.opencensus.io v0.23.0
+go: downloading golang.org/x/net v0.45.0
+go: downloading github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
+go: downloading github.com/googleapis/gax-go/v2 v2.1.1
+go: downloading google.golang.org/genproto v0.0.0-20210917145530-b395a37504d4
+go: downloading google.golang.org/protobuf v1.28.0
+go: downloading github.com/golang/protobuf v1.5.2
+go: downloading golang.org/x/text v0.30.0
+2026/03/17 08:11:28 Server starting on :8080
