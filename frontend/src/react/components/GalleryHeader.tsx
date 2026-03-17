@@ -93,7 +93,12 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
                 accessibilityLabel="Upload"
             />
             <Appbar.Action icon={() => <RefreshCw size={24} color={theme.colors.onSurface} />} onPress={onRefresh} />
-            <Appbar.Action icon={() => <LogOut size={24} color={theme.colors.onSurface} />} onPress={onLogout} />
+            <Appbar.Action
+                icon={() => <LogOut size={24} color={theme.colors.onSurface} />}
+                onPress={onLogout}
+                testID="logout-button"
+                accessibilityLabel="Logout"
+            />
         </Appbar.Header>
     );
 };

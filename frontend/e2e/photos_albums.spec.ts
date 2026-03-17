@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
+import { expectWithReload, expectNotVisibleWithReload } from './utils';
 
 test.describe('Photos and Albums Flow', () => {
   test.beforeEach(async ({ page }) => {
-    page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
+    // page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
     page.on('pageerror', err => console.log('BROWSER ERROR:', err.message));
     page.on('dialog', async dialog => {
       console.log(`BROWSER DIALOG: [${dialog.type()}] ${dialog.message()}`);
@@ -53,15 +54,10 @@ test.describe('Photos and Albums Flow', () => {
     await expect(page.getByText('Ajouter aux albums')).not.toBeVisible({ timeout: 15000 });
 
     // 3. Go to Albums screen and verify
-    await page.goto('/#/albums');
+    await page.goto('/#');
+    await page.evaluate(() => window.location.hash = '#/albums');
     // Force a small wait and potential reload if not found to handle S3 eventual consistency in the index
-    try {
-        await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).toBeVisible({ timeout: 10000 });
-    } catch (e) {
-        console.log('Album not visible after navigation, retrying with reload...');
-        await page.reload();
-        await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).toBeVisible({ timeout: 30000 });
-    }
+    await expectWithReload(page, page.getByTestId('album-item').filter({ hasText: albumTitle }), { timeout: 10000 });
     await page.screenshot({ path: 'e2e-screenshots/05-albums-list.png' });
 
     // 4. Delete the album
@@ -76,17 +72,13 @@ test.describe('Photos and Albums Flow', () => {
     await expect(page).toHaveURL(/.*\/albums(\/|\?|$)/, { timeout: 30000 });
 
     // Should be back in Albums list and album should be gone
-    try {
-        await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).not.toBeVisible({ timeout: 10000 });
-    } catch (e) {
-        await page.reload();
-        await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).not.toBeVisible({ timeout: 20000 });
-    }
+    await expectNotVisibleWithReload(page, page.getByTestId('album-item').filter({ hasText: albumTitle }), { timeout: 10000 });
     await page.screenshot({ path: 'e2e-screenshots/06-album-deleted.png' });
 
     // 5. Delete the photo definitively from gallery
     console.log('Navigating to gallery...');
-    await page.goto('/#/gallery');
+    await page.goto('/#');
+    await page.evaluate(() => window.location.hash = '#/gallery');
     await expect(page).toHaveURL(/.*gallery/);
 
     // Wait for sync to stabilize

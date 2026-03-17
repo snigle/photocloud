@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
+import { expectWithReload, expectNotVisibleWithReload } from './utils';
 
 test.describe('Album Sharing Flow', () => {
   test.beforeEach(async ({ page }) => {
@@ -34,8 +35,9 @@ test.describe('Album Sharing Flow', () => {
     await page.getByTestId('confirm-create-album-button').click();
 
     // Verify on Albums screen
-    await page.goto('/#/albums');
-    await expect(page.getByTestId('album-item').filter({ hasText: albumTitle })).toBeVisible({ timeout: 30000 });
+    await page.goto('/#');
+    await page.evaluate(() => window.location.hash = '#/albums');
+    await expectWithReload(page, page.getByTestId('album-item').filter({ hasText: albumTitle }), { timeout: 15000 });
 
     // 4. Share the album with Dev 2
     await page.getByText(albumTitle).first().click();
@@ -50,9 +52,9 @@ test.describe('Album Sharing Flow', () => {
     await page.screenshot({ path: 'e2e-screenshots/sharing-01-shared-by-dev1.png' });
 
     // 5. Logout and login as User B (Dev 2)
-    await page.goto('/#/gallery'); // Navigate to a known state
-    await page.getByTestId('menu-button').first().click();
-    await page.getByRole('button', { name: 'Déconnexion' }).click();
+    await page.goto('/#');
+    await page.evaluate(() => window.location.hash = '#/gallery');
+    await page.getByTestId('logout-button').first().click();
     await page.getByRole('button', { name: /Dev 2/i }).click();
     await expect(page).toHaveURL(/.*gallery/, { timeout: 30000 });
 
@@ -60,18 +62,13 @@ test.describe('Album Sharing Flow', () => {
     await page.reload();
 
     // 6. Check Albums for the shared album
-    await page.goto('/#/albums');
+    await page.goto('/#');
+    await page.evaluate(() => window.location.hash = '#/albums');
 
     // The shared album should be visible in Dev 2's list
     console.log(`Waiting for shared album "${albumTitle}" to appear in recipient list...`);
     const sharedAlbumItem = page.getByTestId('album-item').filter({ hasText: albumTitle });
-    try {
-        await expect(sharedAlbumItem).toBeVisible({ timeout: 15000 });
-    } catch (e) {
-        console.log('Shared album not visible yet, retrying with reload...');
-        await page.reload();
-        await expect(sharedAlbumItem).toBeVisible({ timeout: 60000 });
-    }
+    await expectWithReload(page, sharedAlbumItem, { timeout: 15000 });
 
     // Verify it shows as shared (has the emoji if we added it)
     await expect(page.getByText('👥')).toBeVisible({ timeout: 10000 });
@@ -86,29 +83,30 @@ test.describe('Album Sharing Flow', () => {
     await page.screenshot({ path: 'e2e-screenshots/sharing-03-album-detail-dev2.png' });
 
     // 8. Logout Dev 2, Login Dev 1, and delete the album
-    await page.goto('/#/gallery');
-    await page.getByTestId('menu-button').first().click();
-    await page.getByRole('button', { name: 'Déconnexion' }).click();
+    await page.goto('/#');
+    await page.evaluate(() => window.location.hash = '#/gallery');
+    await page.getByTestId('logout-button').first().click();
     await page.getByRole('button', { name: /Dev 1/i }).click();
     await expect(page).toHaveURL(/.*gallery/);
 
-    await page.goto('/#/albums');
+    await page.goto('/#');
+    await page.evaluate(() => window.location.hash = '#/albums');
     await page.getByText(albumTitle).first().click();
     await page.getByTestId('album-menu-button').click();
     await page.getByTestId('delete-album-menu-item').click();
     await page.getByTestId('confirm-delete-album-button').click();
-    await expect(page.getByText(albumTitle)).not.toBeVisible({ timeout: 30000 });
+    await expectNotVisibleWithReload(page, page.getByText(albumTitle), { timeout: 15000 });
 
     // 9. Logout Dev 1, Login Dev 2, verify it's gone
-    await page.goto('/#/gallery');
-    await page.getByTestId('menu-button').first().click();
-    await page.getByRole('button', { name: 'Déconnexion' }).click();
+    await page.goto('/#');
+    await page.evaluate(() => window.location.hash = '#/gallery');
+    await page.getByTestId('logout-button').first().click();
     await page.getByRole('button', { name: /Dev 2/i }).click();
 
-    await page.goto('/#/albums');
+    await page.goto('/#');
+    await page.evaluate(() => window.location.hash = '#/albums');
     // It might take a moment for S3 to reflect the deletion of the shared copy
-    await page.reload();
-    await expect(page.getByText(albumTitle)).not.toBeVisible({ timeout: 30000 });
+    await expectNotVisibleWithReload(page, page.getByText(albumTitle), { timeout: 15000 });
     await page.screenshot({ path: 'e2e-screenshots/sharing-04-deleted-from-dev2.png' });
   });
 });

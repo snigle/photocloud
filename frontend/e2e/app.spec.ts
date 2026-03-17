@@ -25,6 +25,9 @@ test.describe('Photo Cloud App', () => {
     // Wait for the gallery to at least start showing something
     await expect(galleryItems.first().or(errorItems.first()).or(emptyMessage)).toBeVisible({ timeout: 60000 });
 
+    // Wait for synchronization to complete
+    await expect(page.getByText('Mise à jour...')).not.toBeVisible({ timeout: 60000 });
+
     // If there are photos, wait for them to finish loading (no more activity indicators)
     if (await galleryItems.count() > 0) {
         console.log('Photos found, waiting for thumbnails to load...');
