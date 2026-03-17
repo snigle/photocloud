@@ -37,10 +37,11 @@ test.describe('Album Sharing Flow', () => {
     // Verify on Albums screen
     await page.goto('/#');
     await page.evaluate(() => window.location.hash = '#/albums');
-    await expectWithReload(page, page.getByTestId('album-item').filter({ hasText: albumTitle }), { timeout: 15000 });
+    const albumInList = page.getByTestId('album-item').filter({ hasText: albumTitle });
+    await expectWithReload(page, albumInList, { timeout: 15000 });
 
     // 4. Share the album with Dev 2
-    await page.getByText(albumTitle).first().click();
+    await albumInList.first().click();
     await expect(page.getByRole('heading', { name: albumTitle })).toBeVisible();
     await page.getByTestId('album-menu-button').click();
     await page.getByTestId('share-album-menu-item').click();
@@ -72,12 +73,12 @@ test.describe('Album Sharing Flow', () => {
 
     // Verify it shows as shared (has the emoji if we added it)
     // We use .first() to avoid strict mode violation as multiple albums might be shared
-    await expect(sharedAlbumItem.getByText('👥')).toBeVisible({ timeout: 10000 });
+    await expect(sharedAlbumItem.first().getByText('👥')).toBeVisible({ timeout: 10000 });
 
     await page.screenshot({ path: 'e2e-screenshots/sharing-02-received-by-dev2.png' });
 
     // 7. Verify thumbnails in the shared album
-    await page.getByText(albumTitle).first().click();
+    await sharedAlbumItem.first().click();
     await expect(page.getByRole('heading', { name: albumTitle })).toBeVisible({ timeout: 20000 });
     const sharedPhotoItem = page.getByTestId('photo-item').first();
     await expect(sharedPhotoItem).toBeVisible({ timeout: 30000 });
@@ -92,11 +93,15 @@ test.describe('Album Sharing Flow', () => {
 
     await page.goto('/#');
     await page.evaluate(() => window.location.hash = '#/albums');
-    await page.getByText(albumTitle).first().click();
+    const albumToDelete = page.getByTestId('album-item').filter({ hasText: albumTitle });
+    await albumToDelete.first().click();
     await page.getByTestId('album-menu-button').click();
     await page.getByTestId('delete-album-menu-item').click();
     await page.getByTestId('confirm-delete-album-button').click();
-    await expectNotVisibleWithReload(page, page.getByText(albumTitle), { timeout: 15000 });
+
+    // Wait to be back on Albums screen
+    await expect(page).toHaveURL(/.*\/albums(\/|\?|$)/, { timeout: 30000 });
+    await expectNotVisibleWithReload(page, albumToDelete, { timeout: 15000 });
 
     // 9. Logout Dev 1, Login Dev 2, verify it's gone
     await page.goto('/#');
@@ -107,7 +112,8 @@ test.describe('Album Sharing Flow', () => {
     await page.goto('/#');
     await page.evaluate(() => window.location.hash = '#/albums');
     // It might take a moment for S3 to reflect the deletion of the shared copy
-    await expectNotVisibleWithReload(page, page.getByText(albumTitle), { timeout: 15000 });
+    const sharedAlbumInList = page.getByTestId('album-item').filter({ hasText: albumTitle });
+    await expectNotVisibleWithReload(page, sharedAlbumInList, { timeout: 15000 });
     await page.screenshot({ path: 'e2e-screenshots/sharing-04-deleted-from-dev2.png' });
   });
 });
