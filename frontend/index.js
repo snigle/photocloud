@@ -4,6 +4,8 @@ import { registerRootComponent } from 'expo';
 import 'react-native-get-random-values';
 import { Buffer } from 'buffer';
 global.Buffer = Buffer;
+import process from 'process';
+global.process = process;
 
 import * as TaskManager from 'expo-task-manager';
 import { SyncPhotosUseCase } from './src/usecase/sync-photos.usecase';
