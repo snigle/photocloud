@@ -33,8 +33,10 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
   useEffect(() => {
     const token = route?.params?.token;
     if (token) {
-        console.log('Token detected in route params, validating...');
+        console.log('AuthScreen: Token detected in route params, validating...');
         handleMagicLinkValidation(token);
+    } else {
+        console.log('AuthScreen: No token detected in route params');
     }
   }, [route?.params?.token]);
 
