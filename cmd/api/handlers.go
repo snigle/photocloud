@@ -88,9 +88,13 @@ func isAllowedRedirect(redirectURL string) bool {
 	if frontendURL == "" {
 		frontendURL = "http://localhost:8081"
 	}
-	allowedOrigins := []string{frontendURL, "photocloud://", "http://localhost:8081", "exp://", "https://photocloud.ovh"}
+	allowedOrigins := []string{frontendURL, "photocloud://", "photocloud://login", "http://localhost:8081", "exp://", "https://photocloud.ovh"}
 	for _, origin := range allowedOrigins {
 		if redirectURL == origin || strings.HasPrefix(redirectURL, origin+"/") || strings.HasPrefix(redirectURL, origin+"?") {
+			return true
+		}
+		// Special case for custom schemes that might not have a trailing slash in the whitelist
+		if strings.HasSuffix(origin, "://") && strings.HasPrefix(redirectURL, origin) {
 			return true
 		}
 	}
