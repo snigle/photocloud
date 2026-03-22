@@ -60,18 +60,18 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "./plugins/withAndroidSDK35",
       [
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
-            "buildToolsVersion": "35.0.0",
-            "kotlinVersion": "1.9.24"
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "36.0.0",
+            "kotlinVersion": "2.2.21"
           }
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "extra": {
       "eas": {

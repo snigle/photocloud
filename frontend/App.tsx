@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, createContext, useContext } from 'react';
 import { StyleSheet, View, Platform, Text, Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider, ActivityIndicator, MD3LightTheme, Button } from 'react-native-paper';
@@ -21,17 +21,17 @@ import { AuthUseCase } from './src/usecase/auth.usecase';
 import { BACKGROUND_SYNC_TASK } from './src/domain/constants';
 import { S3Repository } from './src/infra/s3.repository';
 
+const AppContext = createContext<any>(null);
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
-
 const isStaging = getIsStaging();
 
 const APP_THEME = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
-    primary: isStaging ? '#e65100' : '#005bbb', // Orange for staging, OVHcloud Blue for prod
-    secondary: '#001932', // OVHcloud Dark Blue
+    primary: isStaging ? '#e65100' : '#005bbb',
+    secondary: '#001932',
     background: '#ffffff',
     surface: '#ffffff',
   },
@@ -61,178 +61,203 @@ const linking = {
     },
   },
   getStateFromPath: (path: string, options: any) => {
-    if (Platform.OS === 'web') {
-      const hash = window.location.hash.replace(/^#\/?/, '');
-      const search = window.location.search;
-
-      // Combine hash path and search params so tokens are parsed
-      // We also check if the hash itself contains query params (e.g. #/login?token=...)
-      let fullPath = hash || 'login';
-      if (search && !fullPath.includes('?')) {
-        fullPath += search;
-      }
-      return getStateFromPath(fullPath, options);
+    let state: any;
+    try {
+        if (Platform.OS === 'web') {
+          const hash = window.location.hash.replace(/^#\/?/, '');
+          const search = window.location.search;
+          let fullPath = hash || 'login';
+          if (search && !fullPath.includes('?')) {
+            fullPath += search;
+          }
+          state = getStateFromPath(fullPath, options);
+        } else {
+          state = getStateFromPath(path, options);
+        }
+    } catch (e) {
+        console.error('getStateFromPath error', e);
     }
-    return getStateFromPath(path, options);
+
+    const fixParams = (s: any): any => {
+      if (!s) return s;
+      return {
+        ...s,
+        routes: s.routes?.map((r: any) => {
+          const route: any = {
+            ...r,
+            params: r.params || {},
+          };
+          if (r.state) {
+            route.state = fixParams(r.state);
+          }
+          return route;
+        }) || []
+      };
+    };
+
+    const finalState = fixParams(state);
+    if (!finalState?.routes || finalState.routes.length === 0) {
+        return { routes: [{ name: 'Auth', params: {} }] };
+    }
+    return finalState;
   },
   getPathFromState: (state: any, options: any) => {
     const path = getPathFromState(state, options);
-    if (Platform.OS === 'web') {
-      // By returning absolute path with hash, we ensure the browser's pathname
-      // is reset to the base directory on every navigation.
-      return getBaseDir() + '#' + path;
-    }
-    return path;
+    return Platform.OS === 'web' ? getBaseDir() + '#' + path : path;
   },
+};
+
+// Static Wrappers to avoid re-renders and param loss
+const GalleryWrapper = (props: any) => {
+  const { session, logout } = useContext(AppContext);
+  if (!session) return null;
+  return (
+    <GalleryScreen
+      {...props}
+      creds={session.creds}
+      email={session.email}
+      onLogout={logout}
+      onMenu={() => (props.navigation as any).openDrawer()}
+    />
+  );
+};
+
+const AlbumsWrapper = (props: any) => {
+  const { session } = useContext(AppContext);
+  if (!session) return null;
+  return <AlbumsScreen {...props} creds={session.creds} email={session.email} />;
+};
+
+const AlbumDetailWrapper = (props: any) => {
+  const { session } = useContext(AppContext);
+  if (!session) return null;
+  return <AlbumDetailScreen {...props} creds={session.creds} email={session.email} />;
+};
+
+const AuthWrapper = (props: any) => {
+  const { login, authUseCase } = useContext(AppContext);
+  return <AuthScreen {...props} onLogin={login} authUseCase={authUseCase} />;
+};
+
+const MainDrawerNavigator = () => {
+  const { renderDrawerContent } = useContext(AppContext);
+  return (
+    <Drawer.Navigator
+      initialRouteName="Gallery"
+      drawerContent={renderDrawerContent}
+      screenOptions={{
+        headerShown: false,
+        drawerActiveTintColor: APP_THEME.colors.primary,
+        headerStyle: {
+          backgroundColor: isStaging ? '#fff3e0' : undefined,
+        }
+      }}
+    >
+      <Drawer.Screen name="Gallery" component={GalleryWrapper} initialParams={{}} />
+      <Drawer.Screen name="Albums" component={AlbumsWrapper} initialParams={{}} />
+      <Drawer.Screen name="Dossiers" component={FoldersScreen} initialParams={{}} />
+    </Drawer.Navigator>
+  );
 };
 
 export default function App() {
   const { session, loading, login, logout } = useAuth();
   const [backendVersion, setBackendVersion] = React.useState('...');
-
   const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
 
   useEffect(() => {
-      authUseCase.getVersion().then(setBackendVersion).catch(() => setBackendVersion('err'));
+    authUseCase.getVersion().then(setBackendVersion).catch(() => setBackendVersion('err'));
   }, [authUseCase]);
 
   const processedTokens = useRef(new Set<string>());
 
   useEffect(() => {
     const handleDeepLink = async (url: string) => {
-      console.log('App: Handling deep link:', url);
       const parsed = Linking.parse(url);
       const token = (parsed.queryParams?.token as string);
-
       if (token && token !== 'login' && !processedTokens.current.has(token)) {
-          processedTokens.current.add(token);
-          console.log('App: Validating token from deep link...');
-          try {
-              const res = await authUseCase.validateMagicLink(token);
-              login(res, res.email);
-
-              if (Platform.OS === 'web') {
-                  // Clean up URL: remove search params (like ?token=...) to avoid polluting future hash-based navigation
-                  const newUrl = window.location.origin + window.location.pathname + window.location.hash;
-                  window.history.replaceState(null, '', newUrl);
-              }
-          } catch (err) {
-              console.error('App: Failed to validate magic link from deep link:', err);
-          }
+        processedTokens.current.add(token);
+        try {
+          const res = await authUseCase.validateMagicLink(token);
+          login(res, res.email);
+        } catch (err) {
+          console.error('App: Magic link validation failed', err);
+        }
       }
     };
-
-    // Initial check for initial URL
-    Linking.getInitialURL().then((url) => {
-        if (url) handleDeepLink(url);
-    });
-
-    // Listen for incoming links
-    const subscription = Linking.addEventListener('url', (event) => {
-        handleDeepLink(event.url);
-    });
-
+    Linking.getInitialURL().then((url) => { if (url) handleDeepLink(url); });
+    const subscription = Linking.addEventListener('url', (event) => { handleDeepLink(event.url); });
     return () => subscription.remove();
   }, [authUseCase, login]);
-
-  useEffect(() => {
-    if (session && Platform.OS !== 'web') {
-        BackgroundFetch.registerTaskAsync(BACKGROUND_SYNC_TASK, {
-            minimumInterval: 15 * 60, // 15 minutes
-            stopOnTerminate: false,
-            startOnBoot: true,
-        }).catch(err => console.error('Failed to register background task', err));
-    }
-  }, [session]);
 
   const renderDrawerContent = useCallback((props: any) => {
     const isDev = session?.email === 'dev@photocloud.local' || session?.email === 'dev2@photocloud.local';
 
     const handleRegisterPasskey = async () => {
-        if (!session) return;
-        try {
-            await authUseCase.registerPasskey(session.email);
-            Alert.alert('Succès', 'Passkey enregistrée avec succès !');
-        } catch (err: any) {
-            console.error('Passkey registration failed:', err);
-            Alert.alert('Erreur', 'Échec de l\'enregistrement de la passkey : ' + err.message);
-        }
+      if (!session) return;
+      try {
+        await authUseCase.registerPasskey(session.email);
+        Alert.alert('Succès', 'Passkey enregistrée avec succès !');
+      } catch (err: any) {
+        Alert.alert('Erreur', 'Échec : ' + err.message);
+      }
     };
 
     const handleClearDev = async () => {
-        if (!session || !isDev) return;
-
-        const performClear = async () => {
-            try {
-                const s3 = new S3Repository(session.creds);
-                const prefix = `users/${session.email}/`;
-                const keys = await s3.listKeys(session.creds.bucket, prefix);
-                console.log(`Clearing ${keys.length} objects for dev account...`);
-                for (const key of keys) {
-                    await s3.deleteFile(session.creds.bucket, key);
-                }
-                console.log('Dev account cleared, logging out...');
-                logout();
-            } catch (err) {
-                console.error('Failed to clear dev account:', err);
-                Alert.alert('Erreur', 'Impossible de nettoyer le compte : ' + (err as any).message);
-            }
-        };
-
-        if (Platform.OS === 'web') {
-            if (window.confirm('Es-tu sûr de vouloir nettoyer le compte de dev ? Toutes les photos et ta clé seront supprimées.')) {
-                await performClear();
-            }
-        } else {
-            Alert.alert(
-                'Nettoyer compte Dev',
-                'Es-tu sûr de vouloir nettoyer le compte de dev ? Toutes les photos et ta clé seront supprimées.',
-                [
-                    { text: 'Annuler', style: 'cancel' },
-                    { text: 'Supprimer tout', style: 'destructive', onPress: performClear }
-                ]
-            );
+      if (!session || !isDev) return;
+      const performClear = async () => {
+        try {
+          const s3 = new S3Repository(session.creds);
+          const prefix = `users/${session.email}/`;
+          const keys = await s3.listKeys(session.creds.bucket, prefix);
+          for (const key of keys) await s3.deleteFile(session.creds.bucket, key);
+          logout();
+        } catch (err) {
+          Alert.alert('Erreur', 'Impossible de nettoyer : ' + (err as any).message);
         }
+      };
+
+      if (Platform.OS === 'web') {
+        if (window.confirm('Nettoyer le compte de dev ?')) await performClear();
+      } else {
+        Alert.alert('Nettoyer compte Dev', 'Confirmer ?', [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Supprimer', style: 'destructive', onPress: performClear }
+        ]);
+      }
     };
 
     return (
-        <View style={{ flex: 1 }}>
-            <DrawerContentScrollView {...props}>
-                <DrawerItemList {...props} />
-                <Button
-                    icon="fingerprint"
-                    mode="text"
-                    onPress={handleRegisterPasskey}
-                    style={{ marginTop: 10, marginHorizontal: 10 }}
-                    contentStyle={{ justifyContent: 'flex-start' }}
-                >
-                    Enregistrer Passkey
-                </Button>
-                {isDev && (
-                    <Button
-                        icon="delete-forever"
-                        mode="text"
-                        textColor={APP_THEME.colors.error}
-                        onPress={handleClearDev}
-                        style={{ marginTop: 10, marginHorizontal: 10 }}
-                        contentStyle={{ justifyContent: 'flex-start' }}
-                    >
-                        Nettoyer compte Dev
-                    </Button>
-                )}
-            </DrawerContentScrollView>
-            <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#eee', opacity: 0.5 }}>
-                <Text style={{ fontSize: 10 }}>
-                    v-front: {process.env.EXPO_PUBLIC_VERSION || 'dev'}
-                </Text>
-                <Text style={{ fontSize: 10 }}>
-                    v-back: {backendVersion}
-                </Text>
-                {isStaging && <Text style={{ fontSize: 10, color: '#e65100', fontWeight: 'bold' }}>STAGING</Text>}
-            </View>
+      <View style={{ flex: 1 }}>
+        <DrawerContentScrollView {...props}>
+          <DrawerItemList {...props} />
+          <Button icon="fingerprint" mode="text" onPress={handleRegisterPasskey} style={{ marginTop: 10, marginHorizontal: 10 }} contentStyle={{ justifyContent: 'flex-start' }}>
+            Enregistrer Passkey
+          </Button>
+          {isDev && (
+            <Button icon="delete-forever" mode="text" textColor={APP_THEME.colors.error} onPress={handleClearDev} style={{ marginTop: 10, marginHorizontal: 10 }} contentStyle={{ justifyContent: 'flex-start' }}>
+              Nettoyer compte Dev
+            </Button>
+          )}
+        </DrawerContentScrollView>
+        <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#eee', opacity: 0.5 }}>
+          <Text style={{ fontSize: 10 }}>v-front: {process.env.EXPO_PUBLIC_VERSION || 'dev'}</Text>
+          <Text style={{ fontSize: 10 }}>v-back: {backendVersion}</Text>
+          {isStaging && <Text style={{ fontSize: 10, color: '#e65100', fontWeight: 'bold' }}>STAGING</Text>}
         </View>
+      </View>
     );
   }, [backendVersion, authUseCase, session, logout]);
+
+  useEffect(() => {
+    if (session && Platform.OS !== 'web') {
+      BackgroundFetch.registerTaskAsync(BACKGROUND_SYNC_TASK, {
+        minimumInterval: 15 * 60,
+        stopOnTerminate: false,
+        startOnBoot: true,
+      }).catch(err => console.error('Failed to register background task', err));
+    }
+  }, [session]);
 
   if (loading) {
     return (
@@ -244,80 +269,30 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppContext.Provider value={{ session, login, logout, authUseCase, renderDrawerContent, isStaging }}>
         <PaperProvider theme={APP_THEME}>
-        <StatusBar style="auto" />
-        <View style={styles.container}>
+          <StatusBar style="auto" />
+          <View style={styles.container}>
             <NavigationContainer linking={linking}>
-                <Stack.Navigator screenOptions={{ headerShown: false }}>
-                    {session ? (
-                        <>
-                        <Stack.Screen name="App">
-                            {() => (
-                                <Drawer.Navigator
-                                    initialRouteName="Gallery"
-                                    drawerContent={renderDrawerContent}
-                                    screenOptions={{
-                                        headerShown: false,
-                                        drawerActiveTintColor: APP_THEME.colors.primary,
-                                        headerStyle: {
-                                            backgroundColor: isStaging ? '#fff3e0' : undefined,
-                                        }
-                                    }}
-                                >
-                                    <Drawer.Screen name="Gallery">
-                                        {(props) => (
-                                            <GalleryScreen
-                                                {...props}
-                                                creds={session.creds}
-                                                email={session.email}
-                                                onLogout={logout}
-                                                onMenu={() => (props.navigation as any).openDrawer()}
-                                            />
-                                        )}
-                                    </Drawer.Screen>
-                                    <Drawer.Screen name="Albums">
-                                        {(props) => (
-                                            <AlbumsScreen
-                                                {...props}
-                                                creds={session.creds}
-                                                email={session.email}
-                                            />
-                                        )}
-                                    </Drawer.Screen>
-                                    <Drawer.Screen name="Dossiers" component={FoldersScreen} />
-                                </Drawer.Navigator>
-                            )}
-                        </Stack.Screen>
-                        <Stack.Screen name="AlbumDetail">
-                            {(props) => (
-                                <AlbumDetailScreen
-                                    {...props}
-                                    creds={session.creds}
-                                    email={session.email}
-                                />
-                            )}
-                        </Stack.Screen>
-                        </>
-                    ) : (
-                        <Stack.Screen name="Auth">
-                            {(props) => <AuthScreen {...props} onLogin={login} authUseCase={authUseCase} />}
-                        </Stack.Screen>
-                    )}
-                </Stack.Navigator>
+              <Stack.Navigator screenOptions={{ headerShown: false }}>
+                {!session ? (
+                  <Stack.Screen name="Auth" component={AuthWrapper} initialParams={{}} />
+                ) : (
+                  <>
+                    <Stack.Screen name="App" component={MainDrawerNavigator} initialParams={{}} />
+                    <Stack.Screen name="AlbumDetail" component={AlbumDetailWrapper} initialParams={{}} />
+                  </>
+                )}
+              </Stack.Navigator>
             </NavigationContainer>
-        </View>
+          </View>
         </PaperProvider>
+      </AppContext.Provider>
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  container: { flex: 1 },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });
