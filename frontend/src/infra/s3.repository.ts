@@ -303,8 +303,19 @@ export class S3Repository implements IS3Repository {
     }
 
     // Handle Blob (common in React Native fetch)
-    if (typeof (data.Body as any).arrayBuffer === 'function') {
-        const buffer = await (data.Body as any).arrayBuffer();
+    if (data.Body && (typeof (data.Body as any).arrayBuffer === 'function' || data.Body instanceof Blob)) {
+        let buffer: ArrayBuffer;
+        if (typeof (data.Body as any).arrayBuffer === 'function') {
+            buffer = await (data.Body as any).arrayBuffer();
+        } else {
+            // Fallback for environments where Blob.arrayBuffer() is missing
+            buffer = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as ArrayBuffer);
+                reader.onerror = () => reject(new Error('Failed to read Blob as ArrayBuffer'));
+                reader.readAsArrayBuffer(data.Body as Blob);
+            });
+        }
         const result = new Uint8Array(buffer);
         if (isThumbnail) {
             ThumbnailCache.set(key, { data: result });

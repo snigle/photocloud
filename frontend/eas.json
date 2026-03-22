@@ -9,7 +9,9 @@
     },
     "preview": {
       "distribution": "internal",
-      "gradleCommand": ":app:assembleDebug",
+      "android": {
+        "gradleCommand": ":app:assembleDebug"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://photocloud.alwaysdata.net"
       }
