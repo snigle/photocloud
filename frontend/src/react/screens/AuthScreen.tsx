@@ -120,6 +120,10 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
       if (Platform.OS === 'web') {
         const base = getBaseDir();
         redirectUrl = window.location.origin + base + '#/login';
+      } else if (redirectUrl.startsWith('photocloud://')) {
+        // Use HTTPS link on mobile so it's clickable in email clients
+        // Android is configured to handle this host via App Links
+        redirectUrl = 'https://photocloud.ovh/#/login';
       }
 
       console.log('Requesting magic link with redirect:', redirectUrl);
