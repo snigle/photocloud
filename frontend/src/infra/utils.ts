@@ -36,9 +36,13 @@ export async function limitConcurrency<T>(tasks: (() => Promise<T>)[], limit: nu
 
 export function md5(data: Uint8Array): Uint8Array {
     if (typeof Buffer !== 'undefined') {
-        const crypto = require('crypto');
-        const hash = crypto.createHash('md5').update(Buffer.from(data)).digest();
-        return new Uint8Array(hash);
+        try {
+            const crypto = require('crypto');
+            const hash = crypto.createHash('md5').update(Buffer.from(data)).digest();
+            return new Uint8Array(hash);
+        } catch (e) {
+            console.warn('Crypto module not available, falling back to manual MD5', e);
+        }
     }
     const hashHex = md5Hex(data);
     const result = new Uint8Array(hashHex.length / 2);
@@ -50,8 +54,12 @@ export function md5(data: Uint8Array): Uint8Array {
 
 export function md5Hex(data: Uint8Array): string {
     if (typeof Buffer !== 'undefined') {
-        const crypto = require('crypto');
-        return crypto.createHash('md5').update(Buffer.from(data)).digest('hex');
+        try {
+            const crypto = require('crypto');
+            return crypto.createHash('md5').update(Buffer.from(data)).digest('hex');
+        } catch (e) {
+            console.warn('Crypto module not available, falling back to SparkMD5', e);
+        }
     }
     const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
     return SparkMD5.ArrayBuffer.hash(buffer as any);

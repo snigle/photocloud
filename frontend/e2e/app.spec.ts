@@ -23,7 +23,8 @@ test.describe('Photo Cloud App', () => {
     const emptyMessage = page.getByText('No photos found.');
 
     // Wait for the gallery to at least start showing something
-    await expect(galleryItems.first().or(errorItems.first()).or(emptyMessage)).toBeVisible({ timeout: 60000 });
+    // We only check for gallery items or empty message. Error items (⚠️) are inside photo items now.
+    await expect(galleryItems.first().or(emptyMessage)).toBeVisible({ timeout: 60000 });
 
     // Wait for synchronization to complete
     await expect(page.getByText('Mise à jour...')).not.toBeVisible({ timeout: 60000 });
