@@ -3,6 +3,9 @@ import SparkMD5 from 'spark-md5';
 const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 export function uint8ArrayToBase64(bytes: Uint8Array): string {
+  if (typeof Buffer !== 'undefined') {
+      return Buffer.from(bytes).toString('base64');
+  }
   let result = '';
   const len = bytes.length;
   for (let i = 0; i < len; i += 3) {
@@ -46,6 +49,10 @@ export function md5Hex(data: Uint8Array): string {
 }
 
 export function base64ToUint8Array(base64: string): Uint8Array {
+  if (typeof Buffer !== 'undefined') {
+      const buf = Buffer.from(base64, 'base64');
+      return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+  }
   const binaryString = base64.replace(/=/g, '');
   const len = binaryString.length;
   const bytes = new Uint8Array(Math.floor((len * 3) / 4));

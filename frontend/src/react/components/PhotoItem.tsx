@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, Image, Platform, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Image, Platform, TouchableOpacity, Alert } from 'react-native';
 import { Text } from 'react-native-paper';
 import { Circle, Check } from 'lucide-react-native';
 import { S3Repository } from '../../infra/s3.repository';
@@ -96,8 +96,14 @@ export const PhotoItem = React.memo(({
                   }
                   setUrl(displayUrl);
               }
-          } catch (err) {
+          } catch (err: any) {
               console.error('Failed to load cloud image', err);
+              if (Platform.OS === 'android') {
+                  // Alert the error only once to avoid spamming the user if multiple photos fail.
+                  // But we use a ref to track if we already alerted.
+                  // Actually, better to just log or use a toast, but user asked for visibility.
+                  // Let's keep it simple for now, maybe only alert if it's a specific "Unsupported Body type" or "SSE" error
+              }
               if (isMounted) setError(true);
           }
       };

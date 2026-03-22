@@ -2,8 +2,8 @@ import 'react-native-gesture-handler';
 import 'react-native-reanimated'; 
 import { registerRootComponent } from 'expo';
 import 'react-native-get-random-values';
-//import { Buffer } from 'buffer';
-//global.Buffer = Buffer;
+import { Buffer } from 'buffer';
+global.Buffer = Buffer;
 
 import * as TaskManager from 'expo-task-manager';
 import { SyncPhotosUseCase } from './src/usecase/sync-photos.usecase';

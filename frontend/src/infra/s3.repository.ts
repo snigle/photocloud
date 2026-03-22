@@ -302,6 +302,16 @@ export class S3Repository implements IS3Repository {
         return result;
     }
 
+    // Handle Blob (common in React Native fetch)
+    if (typeof (data.Body as any).arrayBuffer === 'function') {
+        const buffer = await (data.Body as any).arrayBuffer();
+        const result = new Uint8Array(buffer);
+        if (isThumbnail) {
+            ThumbnailCache.set(key, { data: result });
+        }
+        return result;
+    }
+
     // Last resort: if it's already a Uint8Array or similar
     if (data.Body instanceof Uint8Array) {
         const result = data.Body as Uint8Array;
@@ -311,7 +321,7 @@ export class S3Repository implements IS3Repository {
         return result;
     }
 
-    throw new Error('Unsupported S3 body type');
+    throw new Error(`Unsupported S3 body type: ${typeof data.Body}`);
   }
 
   async exists(bucket: string, key: string, customSSEKey?: string | null): Promise<boolean> {

@@ -1,5 +1,6 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 import { IS3Repository, ILocalGalleryRepository, S3Credentials, UploadedPhoto } from '../domain/types';
 import { encodeText, decodeText, md5Hex } from '../infra/utils';
@@ -133,6 +134,16 @@ export class UploadUseCase {
   }
 
   private async uriToUint8Array(uri: string): Promise<Uint8Array> {
+    if (Platform.OS !== 'web' && (uri.startsWith('file://') || uri.startsWith('content://'))) {
+        try {
+            const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
+            const binary = Buffer.from(base64, 'base64');
+            return new Uint8Array(binary);
+        } catch (e) {
+            console.error('Failed to read local file with FileSystem', e);
+            // Fallback to fetch
+        }
+    }
     const response = await fetch(uri);
     const buffer = await response.arrayBuffer();
     return new Uint8Array(buffer);
