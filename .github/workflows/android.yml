@@ -29,6 +29,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: false
 
       - name: Setup Expo
         uses: expo/expo-github-action@v8

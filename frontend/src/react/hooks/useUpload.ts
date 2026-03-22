@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { S3Repository } from '../../infra/s3.repository';
 import { LocalGalleryRepository } from '../../infra/local-gallery.repository';
 import { UploadUseCase } from '../../usecase/upload.usecase';
@@ -44,7 +45,12 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
 
           try {
                         let creationDate: number | undefined;
-              if (asset.file) {
+              if (Platform.OS !== 'web' && (asset.uri.startsWith('file://') || asset.uri.startsWith('content://'))) {
+                const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' as any });
+                const binary = Buffer.from(base64, 'base64');
+                const result = ExifParserFactory.create(binary.buffer).parse();
+                creationDate = result.tags?.CreateDate ? new Date(result.tags.CreateDate * 1000).getTime() / 1000 : new Date().getTime() / 1000;
+              } else if (asset.file) {
                 const bytes = await asset.file.bytes()
                 const result = ExifParserFactory.create(bytes.buffer).parse();
                 creationDate = result.tags?.CreateDate ? new Date(result.tags.CreateDate * 1000).getTime() / 1000 : new Date().getTime() / 1000;

@@ -134,17 +134,19 @@ export class UploadUseCase {
   }
 
   private async uriToUint8Array(uri: string): Promise<Uint8Array> {
-    if (Platform.OS !== 'web' && (uri.startsWith('file://') || uri.startsWith('content://'))) {
+    if (Platform.OS !== 'web' && (uri.startsWith('file:') || uri.startsWith('content:'))) {
         try {
             const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
-            const binary = Buffer.from(base64, 'base64');
-            return new Uint8Array(binary);
-        } catch (e) {
-            console.error('Failed to read local file with FileSystem', e);
-            // Fallback to fetch
+            return new Uint8Array(Buffer.from(base64, 'base64'));
+        } catch (e: any) {
+            console.error(`Failed to read local file with FileSystem: ${uri}`, e);
+            throw new Error(`Failed to read local file: ${e.message}`);
         }
     }
     const response = await fetch(uri);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch URI: ${uri} (status: ${response.status})`);
+    }
     const buffer = await response.arrayBuffer();
     return new Uint8Array(buffer);
   }

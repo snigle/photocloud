@@ -35,17 +35,26 @@ export async function limitConcurrency<T>(tasks: (() => Promise<T>)[], limit: nu
 }
 
 export function md5(data: Uint8Array): Uint8Array {
-  const hashHex = md5Hex(data);
-  const result = new Uint8Array(hashHex.length / 2);
-  for (let i = 0; i < hashHex.length; i += 2) {
-    result[i / 2] = parseInt(hashHex.substring(i, i + 2), 16);
-  }
-  return result;
+    if (typeof Buffer !== 'undefined') {
+        const crypto = require('crypto');
+        const hash = crypto.createHash('md5').update(Buffer.from(data)).digest();
+        return new Uint8Array(hash);
+    }
+    const hashHex = md5Hex(data);
+    const result = new Uint8Array(hashHex.length / 2);
+    for (let i = 0; i < hashHex.length; i += 2) {
+        result[i / 2] = parseInt(hashHex.substring(i, i + 2), 16);
+    }
+    return result;
 }
 
 export function md5Hex(data: Uint8Array): string {
-  const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-  return SparkMD5.ArrayBuffer.hash(buffer as any);
+    if (typeof Buffer !== 'undefined') {
+        const crypto = require('crypto');
+        return crypto.createHash('md5').update(Buffer.from(data)).digest('hex');
+    }
+    const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    return SparkMD5.ArrayBuffer.hash(buffer as any);
 }
 
 export function base64ToUint8Array(base64: string): Uint8Array {
@@ -76,6 +85,9 @@ export function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 export function encodeText(text: string): Uint8Array {
+  if (typeof Buffer !== 'undefined') {
+      return new Uint8Array(Buffer.from(text, 'utf-8'));
+  }
   if (typeof TextEncoder !== 'undefined') {
     return new TextEncoder().encode(text);
   }
@@ -88,6 +100,9 @@ export function encodeText(text: string): Uint8Array {
 }
 
 export function decodeText(bytes: Uint8Array): string {
+  if (typeof Buffer !== 'undefined') {
+      return Buffer.from(bytes).toString('utf-8');
+  }
   if (typeof TextDecoder !== 'undefined') {
     return new TextDecoder().decode(bytes);
   }
