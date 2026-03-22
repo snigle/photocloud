@@ -1,17 +1,25 @@
 import type { IAuthRepository, AuthResponse } from '../domain/types';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
+console.log('AuthRepository: API_URL =', API_URL);
 
 export class AuthRepository implements IAuthRepository {
+  private async handleError(response: Response, message: string): Promise<never> {
+    const body = await response.text().catch(() => 'no body');
+    const errorMsg = `${message} (status: ${response.status}, url: ${response.url}, body: ${body})`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+
   async devLogin(email: string): Promise<AuthResponse> {
     const response = await fetch(`${API_URL}/auth/dev?email=${encodeURIComponent(email)}`);
-    if (!response.ok) throw new Error('Failed to dev login');
+    if (!response.ok) return await this.handleError(response, 'Failed to dev login');
     return await response.json();
   }
 
   async googleLogin(token: string): Promise<AuthResponse> {
     const response = await fetch(`${API_URL}/auth/google?token=${encodeURIComponent(token)}`);
-    if (!response.ok) throw new Error('Failed to google login');
+    if (!response.ok) return await this.handleError(response, 'Failed to google login');
     return await response.json();
   }
 
@@ -20,13 +28,14 @@ export class AuthRepository implements IAuthRepository {
     if (redirectUrl) {
       url += `&redirect_url=${encodeURIComponent(redirectUrl)}`;
     }
+    console.log('AuthRepository: Requesting magic link from', url);
     const response = await fetch(url);
-    if (!response.ok) throw new Error('Failed to request magic link');
+    if (!response.ok) return await this.handleError(response, 'Failed to request magic link');
   }
 
   async validateMagicLink(token: string): Promise<AuthResponse> {
     const response = await fetch(`${API_URL}/auth/magic-link/callback?token=${encodeURIComponent(token)}`);
-    if (!response.ok) throw new Error('Failed to validate magic link');
+    if (!response.ok) return await this.handleError(response, 'Failed to validate magic link');
     return await response.json();
   }
 
@@ -34,7 +43,7 @@ export class AuthRepository implements IAuthRepository {
     const response = await fetch(`${API_URL}/auth/passkey/register/begin?email=${encodeURIComponent(email)}`, {
       credentials: 'include'
     });
-    if (!response.ok) throw new Error('Failed to begin passkey registration');
+    if (!response.ok) return await this.handleError(response, 'Failed to begin passkey registration');
     return await response.json();
   }
 
@@ -45,14 +54,14 @@ export class AuthRepository implements IAuthRepository {
       body: JSON.stringify(credential),
       credentials: 'include'
     });
-    if (!response.ok) throw new Error('Failed to finish passkey registration');
+    if (!response.ok) return await this.handleError(response, 'Failed to finish passkey registration');
   }
 
   async beginPasskeyLogin(email: string): Promise<any> {
     const response = await fetch(`${API_URL}/auth/passkey/login/begin?email=${encodeURIComponent(email)}`, {
       credentials: 'include'
     });
-    if (!response.ok) throw new Error('Failed to begin passkey login');
+    if (!response.ok) return await this.handleError(response, 'Failed to begin passkey login');
     return await response.json();
   }
 
@@ -63,7 +72,7 @@ export class AuthRepository implements IAuthRepository {
       body: JSON.stringify(credential),
       credentials: 'include'
     });
-    if (!response.ok) throw new Error('Failed to finish passkey login');
+    if (!response.ok) return await this.handleError(response, 'Failed to finish passkey login');
     return await response.json();
   }
 

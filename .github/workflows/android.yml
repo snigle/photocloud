@@ -46,7 +46,9 @@ jobs:
           EXPO_PUBLIC_VERSION: ${{ github.sha }}
         run: |
           SHORT_SHA=$(echo "${EXPO_PUBLIC_VERSION}" | cut -c1-7)
-          EXPO_PUBLIC_VERSION=${SHORT_SHA} eas build --platform android --profile preview --local --non-interactive --output build-android.apk
+          export EXPO_PUBLIC_VERSION=${SHORT_SHA}
+          export EXPO_PUBLIC_API_URL=https://photocloud.alwaysdata.net
+          eas build --platform android --profile preview --local --non-interactive --output build-android.apk
 
       - name: Upload APK
         if: env.EXPO_TOKEN != ''
