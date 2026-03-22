@@ -33,8 +33,10 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
   useEffect(() => {
     const token = route?.params?.token;
     if (token) {
-        console.log('Token detected in route params, validating...');
+        console.log('AuthScreen: Token detected in route params, validating...');
         handleMagicLinkValidation(token);
+    } else {
+        console.log('AuthScreen: No token detected in route params');
     }
   }, [route?.params?.token]);
 
@@ -115,11 +117,16 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
     setLoading(true);
     setError(null);
     try {
-      // Use #/login for better support on static hosting (GH Pages)
-      // Linking.createURL might miss the base path in some hosting environments.
-      // We explicitly construct the full URL to ensure it includes window.location.pathname.
-      const base = getBaseDir();
-      const redirectUrl = window.location.origin + base + '#/login';
+      let redirectUrl = Linking.createURL('login');
+      
+      if (Platform.OS === 'web') {
+        const base = getBaseDir();
+        redirectUrl = window.location.origin + base + '#/login';
+      } else if (redirectUrl.startsWith('photocloud://')) {
+        // Use HTTPS link on mobile so it's clickable in email clients
+        // Android is configured to handle this host via App Links
+        redirectUrl = 'https://photocloud.ovh/#/login';
+      }
 
       console.log('Requesting magic link with redirect:', redirectUrl);
       await authUseCase.requestMagicLink(email, redirectUrl);
@@ -130,6 +137,9 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
       setLoading(false);
     }
   };
+
+  const isLocalhost = Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hostname === 'localhost';
+  const showDevButtons = getIsStaging() || (process.env.NODE_ENV === 'development') || isLocalhost;
 
   return (
     <KeyboardAvoidingView
@@ -208,7 +218,7 @@ const AuthScreen: React.FC<Props> = ({ onLogin, authUseCase, route }) => {
               Sign in with Google
             </Button>
 
-            {(getIsStaging() || (process.env.NODE_ENV === 'development' && Platform.OS === 'web') || (typeof window !== 'undefined' && window.location.hostname === 'localhost')) && (
+            {showDevButtons && (
               <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 16 }}>
                 <Button
                   mode="text"
