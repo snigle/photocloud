@@ -53,7 +53,10 @@ describe('AuthRepository', () => {
 
   it('should throw error on failed login', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
-      ok: false
+      ok: false,
+      status: 401,
+      url: `${API_URL}/auth/dev?email=dev%40test.local`,
+      text: async () => 'Unauthorized'
     });
 
     await expect(authRepo.devLogin('dev@test.local')).rejects.toThrow('Failed to dev login');

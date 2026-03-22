@@ -41,6 +41,7 @@ func RegisterHandlers(
 	mux.HandleFunc("/auth/passkey/login/finish", handlePasskeyLoginFinish(webAuthn, getS3CredsUseCase))
 	mux.HandleFunc("/version", handleVersion())
 	mux.HandleFunc("/credentials", handleCredentials(getS3CredsUseCase))
+	mux.HandleFunc("/.well-known/assetlinks.json", handleAssetLinks())
 }
 
 func handleDevAuth(devAuth *auth.DevAuthenticator, getS3CredsUseCase *usecase.GetS3CredentialsUseCase, masterKey []byte) http.HandlerFunc {
@@ -88,9 +89,13 @@ func isAllowedRedirect(redirectURL string) bool {
 	if frontendURL == "" {
 		frontendURL = "http://localhost:8081"
 	}
-	allowedOrigins := []string{frontendURL, "photocloud://", "http://localhost:8081", "exp://", "https://photocloud.ovh"}
+	allowedOrigins := []string{frontendURL, "photocloud://", "photocloud://login", "http://localhost:8081", "exp://", "https://photocloud.ovh"}
 	for _, origin := range allowedOrigins {
-		if redirectURL == origin || strings.HasPrefix(redirectURL, origin+"/") || strings.HasPrefix(redirectURL, origin+"?") {
+		if redirectURL == origin || strings.HasPrefix(redirectURL, origin+"/") || strings.HasPrefix(redirectURL, origin+"?") || strings.HasPrefix(redirectURL, origin+"/#") {
+			return true
+		}
+		// Special case for custom schemes that might not have a trailing slash in the whitelist
+		if strings.HasSuffix(origin, "://") && strings.HasPrefix(redirectURL, origin) {
 			return true
 		}
 	}
@@ -286,4 +291,39 @@ func returnS3Credentials(w http.ResponseWriter, r *http.Request, useCase *usecas
 		S3Credentials: creds,
 		Email:         email,
 	})
+}
+
+func handleAssetLinks() http.HandlerFunc {
+	type assetLink struct {
+		Relation []string `json:"relation"`
+		Target   struct {
+			Namespace              string   `json:"namespace"`
+			PackageName            string   `json:"package_name"`
+			Sha256CertFingerprints []string `json:"sha256_cert_fingerprints"`
+		} `json:"target"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		sha := os.Getenv("ANDROID_SHA256")
+		if sha == "" {
+			// Placeholder - should be configured in production
+			sha = "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+		}
+		links := []assetLink{
+			{
+				Relation: []string{"delegate_permission/common.handle_all_urls"},
+				Target: struct {
+					Namespace              string   `json:"namespace"`
+					PackageName            string   `json:"package_name"`
+					Sha256CertFingerprints []string `json:"sha256_cert_fingerprints"`
+				}{
+					Namespace:              "android_app",
+					PackageName:            "com.snigle.photocloud",
+					Sha256CertFingerprints: []string{sha},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(links)
+	}
 }

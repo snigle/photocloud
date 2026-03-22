@@ -173,16 +173,33 @@ export default function App() {
 
   useEffect(() => {
     const handleDeepLink = async (url: string) => {
+      console.log('App: Received deep link:', url);
       const parsed = Linking.parse(url);
-      const token = (parsed.queryParams?.token as string);
+      console.log('App: Parsed URL:', JSON.stringify(parsed, null, 2));
+
+      let token = (parsed.queryParams?.token as string);
+
+      // Fallback for cases where Linking.parse might miss the token in complex URLs
+      if (!token && url.includes('token=')) {
+        const match = url.match(/[?&]token=([^&#]+)/);
+        if (match) {
+          token = match[1];
+          console.log('App: Token extracted via fallback regex:', token);
+        }
+      }
+
       if (token && token !== 'login' && !processedTokens.current.has(token)) {
+        console.log('App: Validating token:', token);
         processedTokens.current.add(token);
         try {
           const res = await authUseCase.validateMagicLink(token);
+          console.log('App: Token validated successfully for', res.email);
           login(res, res.email);
         } catch (err) {
           console.error('App: Magic link validation failed', err);
         }
+      } else if (!token) {
+          console.log('App: No token found in URL');
       }
     };
     Linking.getInitialURL().then((url) => { if (url) handleDeepLink(url); });
