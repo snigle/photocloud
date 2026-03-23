@@ -230,6 +230,7 @@ function AppContent({ session, loading, login, logout, authUseCase }: any) {
 
   const renderDrawerContent = useCallback((props: any) => {
     const isDev = session?.email === 'dev@photocloud.local' || session?.email === 'dev2@photocloud.local';
+      const isDevBuild = process.env.EXPO_PUBLIC_VERSION === 'dev' || !process.env.EXPO_PUBLIC_VERSION;
 
     const handleRegisterPasskey = async () => {
       if (!session) return;
@@ -275,6 +276,11 @@ function AppContent({ session, loading, login, logout, authUseCase }: any) {
           {isDev && (
             <Button icon="delete-forever" mode="text" textColor={APP_THEME.colors.error} onPress={handleClearDev} style={{ marginTop: 10, marginHorizontal: 10 }} contentStyle={{ justifyContent: 'flex-start' }}>
               Nettoyer compte Dev
+            </Button>
+          )}
+          {isDevBuild && (
+            <Button icon="bug" mode="text" onPress={() => DebugLogger.showBuffer()} style={{ marginTop: 10, marginHorizontal: 10 }} contentStyle={{ justifyContent: 'flex-start' }}>
+                Logs de débug
             </Button>
           )}
         </DrawerContentScrollView>

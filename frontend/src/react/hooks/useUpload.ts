@@ -65,9 +65,7 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
             await new Promise(resolve => setTimeout(resolve, 300));
           } catch (e: any) {
             console.error(`Failed to upload ${asset.name}`, e);
-            if (Platform.OS === 'android') {
-                Alert.alert('Upload Error', `Failed to upload ${asset.name}: ${e.message}`);
-            }
+            setError(`Failed to upload ${asset.name}: ${e.message}`);
             // Continue with other assets
           } finally {
             current++;
@@ -85,9 +83,6 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
       return true; // Success
     } catch (err: any) {
       console.error('Upload error:', err);
-      if (Platform.OS === 'android') {
-          Alert.alert('General Upload Error', err.message || 'Failed to start upload');
-      }
       setError(err.message || 'Failed to upload photo');
       return false;
     } finally {
