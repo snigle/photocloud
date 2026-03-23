@@ -75,10 +75,10 @@ export async function md5Async(data: Uint8Array): Promise<Uint8Array> {
     }
     try {
         const Crypto = require('expo-crypto');
-        const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        // Passing Uint8Array directly to expo-crypto is more reliable on Android
         const arrayBuffer = await Crypto.digest(
             Crypto.CryptoDigestAlgorithm.MD5,
-            buffer as ArrayBuffer
+            data
         );
         return new Uint8Array(arrayBuffer);
     } catch (e) {
@@ -93,10 +93,10 @@ export async function md5HexAsync(data: Uint8Array): Promise<string> {
     }
     try {
         const Crypto = require('expo-crypto');
-        const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        // Passing Uint8Array directly to expo-crypto is more reliable on Android
         const arrayBuffer = await Crypto.digest(
             Crypto.CryptoDigestAlgorithm.MD5,
-            buffer as ArrayBuffer
+            data
         );
         const bytes = new Uint8Array(arrayBuffer);
         let hex = '';
