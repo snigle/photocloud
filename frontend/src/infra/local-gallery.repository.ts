@@ -83,17 +83,15 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
         try {
             const db = await this.dbPromise;
             const rows = await db.getAllAsync('SELECT * FROM local_assets_index ORDER BY creationDate DESC');
-            if (rows && rows.length > 0) {
-                return rows.map((row: any) => ({
-                    id: row.id,
-                    uri: row.uri,
-                    creationDate: row.creationDate,
-                    size: 0,
-                    width: row.width,
-                    height: row.height,
-                    type: 'local'
-                }));
-            }
+            return rows.map((row: any) => ({
+                id: row.id,
+                uri: row.uri,
+                creationDate: row.creationDate,
+                size: 0,
+                width: row.width,
+                height: row.height,
+                type: 'local'
+            }));
         } catch (e) {
             console.error('Error reading local_assets_index', e);
         }

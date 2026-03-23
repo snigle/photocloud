@@ -40,7 +40,7 @@ export class UploadUseCase {
     // Extract EXIF date if timestamp is missing
     if (!timestamp) {
         try {
-            const parser = ExifParserFactory.create(originalData.buffer);
+            const parser = ExifParserFactory.create(originalData.buffer as ArrayBuffer);
             const exif = parser.parse();
             if (exif.tags?.CreateDate) {
                 timestamp = exif.tags.CreateDate;
