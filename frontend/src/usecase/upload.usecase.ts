@@ -1,8 +1,9 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
+import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { IS3Repository, ILocalGalleryRepository, S3Credentials, UploadedPhoto } from '../domain/types';
-import { encodeText, decodeText, md5Hex } from '../infra/utils';
+import { encodeText, decodeText, md5HexAsync } from '../infra/utils';
 import { GlobalLock } from '../infra/locks';
 
 export class UploadUseCase {
@@ -25,7 +26,7 @@ export class UploadUseCase {
     // 1. Process images
     const originalData = await this.uriToUint8Array(uri);
 
-    const hash = md5Hex(originalData);
+    const hash = await md5HexAsync(originalData);
 
     // Check if already exists in local cache (synced with cloud)
     if (await this.localRepo.existsById(hash)) {
@@ -133,7 +134,19 @@ export class UploadUseCase {
   }
 
   private async uriToUint8Array(uri: string): Promise<Uint8Array> {
+    if (Platform.OS !== 'web' && (uri.startsWith('file:') || uri.startsWith('content:'))) {
+        try {
+            const file = new File(uri);
+            return await file.bytes();
+        } catch (e: any) {
+            console.error(`Failed to read local file with FileSystem: ${uri}`, e);
+            throw new Error(`Failed to read local file: ${e.message}`);
+        }
+    }
     const response = await fetch(uri);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch URI: ${uri} (status: ${response.status})`);
+    }
     const buffer = await response.arrayBuffer();
     return new Uint8Array(buffer);
   }

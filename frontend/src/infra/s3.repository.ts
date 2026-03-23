@@ -10,11 +10,14 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { IS3Repository, S3Credentials, UploadedPhoto } from '../domain/types';
-import { base64ToUint8Array, uint8ArrayToBase64, decodeText, md5 } from './utils';
+import { base64ToUint8Array, uint8ArrayToBase64, decodeText, md5Async } from './utils';
 import { ThumbnailCache } from './thumbnail-cache';
+import DebugLogger from './debug-logger';
 
 // Cache S3 clients by credentials to reuse connection pools
 const s3Clients = new Map<string, S3Client>();
+
+let s3ErrorCount = 0;
 
 export class S3Repository implements IS3Repository {
   private s3: S3Client;
@@ -44,7 +47,7 @@ export class S3Repository implements IS3Repository {
     if (customKey === null) return null;
     if (customKey) {
         const binaryKey = base64ToUint8Array(customKey);
-        const hash = md5(binaryKey);
+        const hash = await md5Async(binaryKey);
         const keyMD5 = uint8ArrayToBase64(hash);
         return {
             algorithm: 'AES256',
@@ -59,7 +62,7 @@ export class S3Repository implements IS3Repository {
     const binaryKey = base64ToUint8Array(key);
 
     // Compute MD5 of the binary key using our cross-platform utility
-    const hash = md5(binaryKey);
+    const hash = await md5Async(binaryKey);
 
     const keyMD5 = uint8ArrayToBase64(hash);
 
@@ -246,8 +249,19 @@ export class S3Repository implements IS3Repository {
     await this.s3.send(command);
   }
 
+  private isAndroid(): boolean {
+      if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') {
+          try {
+              const { Platform } = require('react-native');
+              return Platform.OS === 'android';
+          } catch (e) {
+              return false;
+          }
+      }
+      return false;
+  }
+
   async getFile(bucket: string, key: string, customSSEKey?: string | null): Promise<Uint8Array> {
-    console.log(`S3: getFile ${key} (SSE: ${customSSEKey ? 'yes' : 'no'})`);
     const isThumbnail = key.includes('/thumbnail/');
     if (isThumbnail && customSSEKey === undefined) {
         const cached = ThumbnailCache.get(key);
@@ -255,6 +269,39 @@ export class S3Repository implements IS3Repository {
     }
 
     const sse = await this.getSSE(customSSEKey);
+
+    if (this.isAndroid()) {
+        try {
+            // Direct fetch bypasses ChecksumStream Blob issue
+            const url = await this.getDownloadUrl(bucket, key, customSSEKey);
+            const headers: Record<string, string> = {};
+            if (sse) {
+                headers['x-amz-server-side-encryption-customer-algorithm'] = sse.algorithm;
+                headers['x-amz-server-side-encryption-customer-key'] = sse.key;
+                headers['x-amz-server-side-encryption-customer-key-MD5'] = sse.keyMD5;
+            }
+
+            const response = await fetch(url, { headers });
+            if (!response.ok) {
+                const text = await response.text().catch(() => 'no body');
+                throw new Error(`Fetch failed with status ${response.status}: ${text}`);
+            }
+            const blob = await response.blob();
+            const result = await new Promise<Uint8Array>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+                reader.onerror = () => reject(new Error('Failed to read response as ArrayBuffer'));
+                reader.readAsArrayBuffer(blob);
+            });
+            if (isThumbnail) {
+                ThumbnailCache.set(key, { data: result });
+            }
+            return result;
+        } catch (e) {
+            DebugLogger.error('Android Fetch', `Failed for ${key}, falling back to SDK`, e);
+        }
+    }
+
     const command = new GetObjectCommand({
       Bucket: bucket,
       Key: key,
@@ -265,14 +312,33 @@ export class S3Repository implements IS3Repository {
       } : {}),
     });
 
-    const data = await this.s3.send(command);
+    let data;
+    try {
+        data = await this.s3.send(command);
+    } catch (e: any) {
+        DebugLogger.error('S3 Fetch', `Failed to fetch ${key}`, e);
+        throw e;
+    }
+
     if (!data.Body) {
+      DebugLogger.error('S3 Body', `No body in response for ${key}`);
       throw new Error('No body in S3 response');
     }
 
+    // Android/React Native body might be in data.Body._bodyBlob or similar if not standard
+    const body = (data.Body as any)._bodyBlob || (data.Body as any).body || data.Body;
+
+    if (!isThumbnail && this.isAndroid()) {
+        try {
+            DebugLogger.log('S3 Body Info', `${key}: type=${typeof body}, constructor=${body.constructor?.name}, keys=${Object.keys(data.Body).join(',')}`);
+        } catch (e) {
+            DebugLogger.log('S3 Body Info', `${key}: type=${typeof body}`);
+        }
+    }
+
     // Robust transformation: try transformToUint8Array first, then fallback to manual stream consumption
-    if (typeof (data.Body as any).transformToUint8Array === 'function') {
-        const bytes = await (data.Body as any).transformToUint8Array();
+    if (typeof (body as any).transformToUint8Array === 'function') {
+        const bytes = await (body as any).transformToUint8Array();
         const result = new Uint8Array(bytes);
         if (isThumbnail) {
             ThumbnailCache.set(key, { data: result });
@@ -281,7 +347,7 @@ export class S3Repository implements IS3Repository {
     }
 
     // Fallback for environments where transformToUint8Array is not available (e.g. some browser versions)
-    const reader = (data.Body as any).getReader ? (data.Body as any).getReader() : null;
+    const reader = (body as any).getReader ? (body as any).getReader() : null;
     if (reader) {
         const chunks: Uint8Array[] = [];
         while (true) {
@@ -302,16 +368,47 @@ export class S3Repository implements IS3Repository {
         return result;
     }
 
-    // Last resort: if it's already a Uint8Array or similar
-    if (data.Body instanceof Uint8Array) {
-        const result = data.Body as Uint8Array;
+    // Handle Blob (common in React Native fetch)
+    if (body && (typeof (body as any).arrayBuffer === 'function' || (typeof Blob !== 'undefined' && body instanceof Blob))) {
+        console.log(`S3: using arrayBuffer/Blob conversion for ${key}`);
+        let buffer: ArrayBuffer;
+        try {
+            if (typeof (body as any).arrayBuffer === 'function') {
+                buffer = await (body as any).arrayBuffer();
+            } else {
+                // Fallback for environments where Blob.arrayBuffer() is missing
+                buffer = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result as ArrayBuffer);
+                    reader.onerror = (e) => {
+                        console.error(`S3: FileReader error for ${key}`, e);
+                        reject(new Error('Failed to read Blob as ArrayBuffer'));
+                    };
+                    reader.readAsArrayBuffer(body as Blob);
+                });
+            }
+        } catch (err: any) {
+            DebugLogger.error('S3 Transform', `Failed to transform ${key}`, err);
+            throw err;
+        }
+        const result = new Uint8Array(buffer);
         if (isThumbnail) {
             ThumbnailCache.set(key, { data: result });
         }
         return result;
     }
 
-    throw new Error('Unsupported S3 body type');
+    // Last resort: if it's already a Uint8Array or similar
+    if (body instanceof Uint8Array) {
+        const result = body as Uint8Array;
+        if (isThumbnail) {
+            ThumbnailCache.set(key, { data: result });
+        }
+        return result;
+    }
+
+    DebugLogger.error('S3 Body Type', `Unsupported body type for ${key}: ${typeof body}`);
+    throw new Error(`Unsupported S3 body type: ${typeof body}`);
   }
 
   async exists(bucket: string, key: string, customSSEKey?: string | null): Promise<boolean> {

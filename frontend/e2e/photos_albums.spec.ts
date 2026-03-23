@@ -50,8 +50,8 @@ test.describe('Photos and Albums Flow', () => {
     await page.getByTestId('new-album-title-input').fill(albumTitle);
     await page.getByTestId('confirm-create-album-button').click();
 
-    // Verify dialog closed
-    await expect(page.getByText('Ajouter aux albums')).not.toBeVisible({ timeout: 15000 });
+    // Verify dialog closed (we check the dialog title)
+    await expect(page.getByRole('heading', { name: 'Ajouter aux albums' })).not.toBeVisible({ timeout: 15000 });
 
     // 3. Go to Albums screen and verify
     await page.goto('/#');

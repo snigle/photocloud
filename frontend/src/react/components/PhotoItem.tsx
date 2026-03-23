@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, Image, Platform, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Image, Platform, TouchableOpacity, Alert } from 'react-native';
 import { Text } from 'react-native-paper';
 import { Circle, Check } from 'lucide-react-native';
+import { File, Directory, Paths } from 'expo-file-system';
 import { S3Repository } from '../../infra/s3.repository';
 import type { S3Credentials, Photo } from '../../domain/types';
 import { uint8ArrayToBase64 } from '../../infra/utils';
 import { ThumbnailCache } from '../../infra/thumbnail-cache';
+import DebugLogger from '../../infra/debug-logger';
 
 export const PhotoItem = React.memo(({
     photo,
@@ -85,8 +87,33 @@ export const PhotoItem = React.memo(({
                   if (Platform.OS === 'web') {
                       const blob = new Blob([data as any], { type: 'image/jpeg' });
                       displayUrl = URL.createObjectURL(blob);
+                  } else if (Platform.OS === 'android') {
+                      // On Android, writing to a temp file is more reliable and memory-efficient than large base64 strings
+                      try {
+                          if (typeof Buffer === 'undefined') {
+                              DebugLogger.error('Polyfill', 'Buffer is undefined in PhotoItem');
+                          }
+                          const tempDir = new Directory(Paths.cache, 'photos');
+                          if (!tempDir.exists) {
+                              tempDir.create({ intermediates: true, idempotent: true });
+                          }
+                          const filename = photo.key.split('/').pop()!.replace('.enc', '.jpg');
+                          const tempFile = new File(tempDir, filename);
+                          const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+                          tempFile.write(bytes);
+                          displayUrl = tempFile.uri;
+                          if (photo.key.includes('original')) {
+                              DebugLogger.log('Photo Saved', `Saved ${photo.key} to ${displayUrl} (size: ${bytes.length})`);
+                          }
+                      } catch (err: any) {
+                          DebugLogger.error('Photo Write', `Failed for ${photo.key}`, err);
+                          // Fallback to base64 if temp file fails
+                          const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+                          displayUrl = `data:image/jpeg;base64,${uint8ArrayToBase64(bytes)}`;
+                      }
                   } else {
-                      const base64 = uint8ArrayToBase64(data);
+                      const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+                      const base64 = uint8ArrayToBase64(bytes);
                       displayUrl = `data:image/jpeg;base64,${base64}`;
                   }
 
@@ -96,8 +123,8 @@ export const PhotoItem = React.memo(({
                   }
                   setUrl(displayUrl);
               }
-          } catch (err) {
-              console.error('Failed to load cloud image', err);
+          } catch (err: any) {
+              DebugLogger.error('Photo Load', `Failed for ${photo.key}`, err);
               if (isMounted) setError(true);
           }
       };

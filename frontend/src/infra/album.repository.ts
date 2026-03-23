@@ -1,7 +1,9 @@
-import type { IAlbumRepository, Album, IS3Repository } from '../domain/types';
+import type { IAlbumRepository, Album, IS3Repository, UploadedPhoto } from '../domain/types';
 import { encodeText, decodeText, uint8ArrayToBase64, limitConcurrency } from './utils';
 import { GlobalLock } from './locks';
 import * as Crypto from 'expo-crypto';
+import { Alert, Platform } from 'react-native';
+import DebugLogger from './debug-logger';
 
 // Simple memory cache for albums index to speed up navigation
 export const albumsCache = new Map<string, { data: Album[], timestamp: number }>();
@@ -143,23 +145,35 @@ export class AlbumRepository implements IAlbumRepository {
 
         try {
             // 3. Try to Load Index
-            console.log(`AlbumRepository: Fetching index ${indexKey}`);
+            DebugLogger.log('Album Fetch', `Fetching index ${indexKey} for ${email}`);
             const indexData = await this.s3Repo.getFile(bucket, indexKey);
-            const albums = JSON.parse(decodeText(indexData)) as Album[];
+            const decoded = decodeText(indexData);
+            DebugLogger.log('Album Index Loaded', `${indexKey}: len=${decoded.length}, start=${decoded.substring(0, 50)}`);
+            let albums;
+            try {
+                albums = JSON.parse(decoded) as Album[];
+            } catch (err: any) {
+                DebugLogger.error('Album JSON Parse', `Failed for ${indexKey}`, err);
+                throw err;
+            }
 
+            DebugLogger.log('Album Filtering', `Filtering ${albums.length} albums for ${email}`);
             localAlbums = albums.filter(a => {
                 if (!a.albumKey) {
-                    console.warn(`AlbumRepository: Hiding incompatible old album ${a.id} from index`);
+                    DebugLogger.log('Album Filter Skip', `Hiding incompatible old album ${a.id} (no albumKey)`);
                     needsIndexUpdate = true;
                     return false;
                 }
                 // Only keep local albums in the local index
-                if (a.ownerEmail && a.ownerEmail !== email) {
+                const owner = a.ownerEmail || email; // Fallback to current email if owner missing (old format)
+                if (owner.toLowerCase() !== email.toLowerCase()) {
+                    DebugLogger.log('Album Filter Skip', `Filtering out album ${a.id} because owner ${owner} !== ${email}`);
                     needsIndexUpdate = true;
                     return false;
                 }
                 return true;
             });
+            DebugLogger.log('Album Found', `Found ${localAlbums.length} local albums after filtering`);
 
             // Check if any local album in index has photoKeys (should be light)
             if (localAlbums.some(a => a.photoKeys !== undefined)) {
@@ -168,7 +182,9 @@ export class AlbumRepository implements IAlbumRepository {
 
         } catch (e: any) {
             if (e.name !== 'NoSuchKey' && e.$metadata?.httpStatusCode !== 404) {
-                console.error(`Failed to load index ${indexKey}, falling back to full listing`, e);
+                DebugLogger.error('Album Index Fetch', `Failed for ${indexKey}`, e);
+            } else {
+                DebugLogger.log('Album Index Missing', `404 for ${indexKey}, falling back to full listing`);
             }
 
             // 4. Fallback: Full Listing
@@ -221,7 +237,9 @@ export class AlbumRepository implements IAlbumRepository {
         albumsCache.set(indexKey, { data: lightLocalAlbums, timestamp: Date.now() });
 
         // 7. Return combined list (with full photoKeys for shared if they were just discovered, or light if preferred)
-        return [...localAlbums, ...sharedAlbums];
+        const combined = [...localAlbums, ...sharedAlbums];
+        DebugLogger.log('Albums Result', `Returning ${combined.length} albums (${localAlbums.length} local, ${sharedAlbums.length} shared) for ${email}`);
+        return combined;
     })();
 
     pendingRequests.set(indexKey, request);

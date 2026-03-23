@@ -8,6 +8,8 @@ config.resolver.extraNodeModules = {
   crypto: require.resolve('crypto-browserify'),
   stream: require.resolve('stream-browserify'),
   buffer: require.resolve('buffer'),
+  process: require.resolve('process/browser'),
+  events: require.resolve('events'),
 };
 
 // FIX: Exclure le dossier android et les fichiers temporaires de build

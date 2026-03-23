@@ -20,6 +20,7 @@ import { AuthRepository } from './src/infra/auth.repository';
 import { AuthUseCase } from './src/usecase/auth.usecase';
 import { BACKGROUND_SYNC_TASK } from './src/domain/constants';
 import { S3Repository } from './src/infra/s3.repository';
+import DebugLogger from './src/infra/debug-logger';
 
 const AppContext = createContext<any>(null);
 const Stack = createNativeStackNavigator();
@@ -162,6 +163,10 @@ const MainDrawerNavigator = () => {
 
 export default function App() {
   const { session, loading, login, logout } = useAuth();
+
+  useEffect(() => {
+    DebugLogger.log('App Started', `Env: ${Platform.OS}, Staging: ${isStaging}`);
+  }, []);
   const [backendVersion, setBackendVersion] = React.useState('...');
   const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
 

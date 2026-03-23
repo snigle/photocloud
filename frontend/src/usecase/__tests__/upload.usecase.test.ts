@@ -7,6 +7,11 @@ jest.mock('expo-media-library', () => ({
   getAssetInfoAsync: jest.fn(),
 }));
 
+jest.mock('expo-file-system', () => ({
+  readAsStringAsync: jest.fn(),
+  EncodingType: { Base64: 'base64' }
+}));
+
 jest.mock('react-native', () => ({
   Platform: { OS: 'web' },
 }));

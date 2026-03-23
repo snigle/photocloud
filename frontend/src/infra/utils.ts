@@ -2,7 +2,14 @@ import SparkMD5 from 'spark-md5';
 
 const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
+function isReactNative(): boolean {
+    return typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
+}
+
 export function uint8ArrayToBase64(bytes: Uint8Array): string {
+  if (typeof Buffer !== 'undefined') {
+      return Buffer.from(bytes).toString('base64');
+  }
   let result = '';
   const len = bytes.length;
   for (let i = 0; i < len; i += 3) {
@@ -32,20 +39,82 @@ export async function limitConcurrency<T>(tasks: (() => Promise<T>)[], limit: nu
 }
 
 export function md5(data: Uint8Array): Uint8Array {
-  const hashHex = md5Hex(data);
-  const result = new Uint8Array(hashHex.length / 2);
-  for (let i = 0; i < hashHex.length; i += 2) {
-    result[i / 2] = parseInt(hashHex.substring(i, i + 2), 16);
-  }
-  return result;
+    if (typeof Buffer !== 'undefined') {
+        try {
+            const crypto = require('crypto');
+            const hash = crypto.createHash('md5').update(Buffer.from(data)).digest();
+            return new Uint8Array(hash);
+        } catch (e) {
+            console.warn('Crypto module not available, falling back to SparkMD5', e);
+        }
+    }
+    const hashHex = md5Hex(data);
+    const result = new Uint8Array(hashHex.length / 2);
+    for (let i = 0; i < hashHex.length; i += 2) {
+        result[i / 2] = parseInt(hashHex.substring(i, i + 2), 16);
+    }
+    return result;
 }
 
 export function md5Hex(data: Uint8Array): string {
-  const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-  return SparkMD5.ArrayBuffer.hash(buffer as any);
+    if (typeof Buffer !== 'undefined') {
+        try {
+            const crypto = require('crypto');
+            return crypto.createHash('md5').update(Buffer.from(data)).digest('hex');
+        } catch (e) {
+            console.warn('Crypto module not available, falling back to SparkMD5', e);
+        }
+    }
+    const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    return SparkMD5.ArrayBuffer.hash(buffer as any);
+}
+
+export async function md5Async(data: Uint8Array): Promise<Uint8Array> {
+    if (!isReactNative()) {
+        return md5(data);
+    }
+    try {
+        const Crypto = require('expo-crypto');
+        const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        const arrayBuffer = await Crypto.digest(
+            Crypto.CryptoDigestAlgorithm.MD5,
+            buffer as ArrayBuffer
+        );
+        return new Uint8Array(arrayBuffer);
+    } catch (e) {
+        console.warn('Crypto.digest failed, falling back to SparkMD5', e);
+        return md5(data);
+    }
+}
+
+export async function md5HexAsync(data: Uint8Array): Promise<string> {
+    if (!isReactNative()) {
+        return md5Hex(data);
+    }
+    try {
+        const Crypto = require('expo-crypto');
+        const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        const arrayBuffer = await Crypto.digest(
+            Crypto.CryptoDigestAlgorithm.MD5,
+            buffer as ArrayBuffer
+        );
+        const bytes = new Uint8Array(arrayBuffer);
+        let hex = '';
+        for (let i = 0; i < bytes.length; i++) {
+            hex += bytes[i].toString(16).padStart(2, '0');
+        }
+        return hex;
+    } catch (e) {
+        console.warn('Crypto.digest (hex) failed, falling back to SparkMD5', e);
+        return md5Hex(data);
+    }
 }
 
 export function base64ToUint8Array(base64: string): Uint8Array {
+  if (typeof Buffer !== 'undefined') {
+      const buf = Buffer.from(base64, 'base64');
+      return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+  }
   const binaryString = base64.replace(/=/g, '');
   const len = binaryString.length;
   const bytes = new Uint8Array(Math.floor((len * 3) / 4));
@@ -69,6 +138,9 @@ export function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 export function encodeText(text: string): Uint8Array {
+  if (typeof Buffer !== 'undefined') {
+      return new Uint8Array(Buffer.from(text, 'utf-8'));
+  }
   if (typeof TextEncoder !== 'undefined') {
     return new TextEncoder().encode(text);
   }
@@ -81,6 +153,9 @@ export function encodeText(text: string): Uint8Array {
 }
 
 export function decodeText(bytes: Uint8Array): string {
+  if (typeof Buffer !== 'undefined') {
+      return Buffer.from(bytes).toString('utf-8');
+  }
   if (typeof TextDecoder !== 'undefined') {
     return new TextDecoder().decode(bytes);
   }
