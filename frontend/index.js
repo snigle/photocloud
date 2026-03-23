@@ -8,6 +8,7 @@ import process from 'process';
 global.process = process;
 
 import * as TaskManager from 'expo-task-manager';
+import * as BackgroundTask from 'expo-background-task';
 import { SyncPhotosUseCase } from './src/usecase/sync-photos.usecase';
 import { S3Repository } from './src/infra/s3.repository';
 import { LocalGalleryRepository } from './src/infra/local-gallery.repository';
@@ -23,7 +24,7 @@ if (Platform.OS !== 'web') {
             const stored = await AsyncStorage.getItem('@photocloud_session');
             if (!stored) {
                 console.log('Background task: No session found, skipping');
-                return;
+                return BackgroundTask.BackgroundTaskResult.Success;
             }
 
             const session = JSON.parse(stored);
@@ -34,10 +35,10 @@ if (Platform.OS !== 'web') {
 
             const count = await syncUseCase.execute(session.creds, session.email);
             console.log(`Background task: Synced ${count} photos`);
-            return count > 0 ? 1 : 0;
+            return BackgroundTask.BackgroundTaskResult.Success;
         } catch (error) {
             console.error('Background task failed:', error);
-            return 0;
+            return BackgroundTask.BackgroundTaskResult.Failed;
         }
     });
 }

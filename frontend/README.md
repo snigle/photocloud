@@ -71,3 +71,18 @@ export default defineConfig([
   },
 ])
 ```
+
+## Run on WSL / Android
+Run api go dev on wsl:
+source .env && go run ./cmd/api
+
+on powershell:
+ & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -d reverse tcp:8080 tcp:8080
+ & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -d reverse tcp:8081 tcp:8082
+
+on WSL get the IP :
+hostname -I
+
+on admin power shell
+netsh interface portproxy add v4tov4 listenport=8082 listenaddress=0.0.0.0 connectport=8082 connectaddress=172.x.x.x
+netsh interface portproxy add v4tov4 listenport=8080 listenaddress=0.0.0.0 connectport=8080 connectaddress=172.x.x.x

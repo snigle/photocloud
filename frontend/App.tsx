@@ -7,7 +7,7 @@ import * as Linking from 'expo-linking';
 import { NavigationContainer, getStateFromPath, getPathFromState } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import * as BackgroundFetch from 'expo-background-fetch';
+import * as BackgroundTask from 'expo-background-task';
 
 import { useAuth } from './src/react/hooks/useAuth';
 import { getBaseDir, getIsStaging } from './src/react/utils/routing-utils';
@@ -230,7 +230,7 @@ function AppContent({ session, loading, login, logout, authUseCase }: any) {
 
   const renderDrawerContent = useCallback((props: any) => {
     const isDev = session?.email === 'dev@photocloud.local' || session?.email === 'dev2@photocloud.local';
-      const isDevBuild = process.env.EXPO_PUBLIC_VERSION === 'dev' || !process.env.EXPO_PUBLIC_VERSION;
+      const isDevBuild = process.env.EXPO_PUBLIC_VERSION === 'dev' || !process.env.EXPO_PUBLIC_VERSION || __DEV__;
 
     const handleRegisterPasskey = async () => {
       if (!session) return;
@@ -303,10 +303,8 @@ function AppContent({ session, loading, login, logout, authUseCase }: any) {
 
   useEffect(() => {
     if (session && Platform.OS !== 'web') {
-      BackgroundFetch.registerTaskAsync(BACKGROUND_SYNC_TASK, {
-        minimumInterval: 15 * 60,
-        stopOnTerminate: false,
-        startOnBoot: true,
+      BackgroundTask.registerTaskAsync(BACKGROUND_SYNC_TASK, {
+        minimumInterval: 15,
       }).catch(err => console.error('Failed to register background task', err));
     }
   }, [session]);
