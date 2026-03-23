@@ -227,6 +227,7 @@ function AppContent({ session, loading, login, logout, authUseCase }: any) {
   }, [authUseCase, login]);
 
   const { progress } = useSync();
+  const { triggerSync, isSyncSupported } = useBackgroundSync(session);
 
   const renderDrawerContent = useCallback((props: any) => {
     const isDev = session?.email === 'dev@photocloud.local' || session?.email === 'dev2@photocloud.local';
@@ -266,10 +267,34 @@ function AppContent({ session, loading, login, logout, authUseCase }: any) {
       }
     };
 
+    const handleForceSync = async () => {
+      if (!isSyncSupported) {
+        Alert.alert('Info', 'Synchronisation manuelle indisponible sur cette plateforme.');
+        return;
+      }
+
+      try {
+        const synced = await triggerSync(false);
+        Alert.alert('Synchronisation', `${synced} photo(s) envoyee(s).`);
+      } catch (err: any) {
+        Alert.alert('Erreur', 'Echec de la synchronisation : ' + (err?.message || 'erreur inconnue'));
+      }
+    };
+
     return (
       <View style={{ flex: 1 }}>
         <DrawerContentScrollView {...props}>
           <DrawerItemList {...props} />
+          <Button
+            icon="sync"
+            mode="text"
+            onPress={handleForceSync}
+            disabled={!isSyncSupported || progress.isSyncing}
+            style={{ marginTop: 10, marginHorizontal: 10 }}
+            contentStyle={{ justifyContent: 'flex-start' }}
+          >
+            Forcer la synchronisation
+          </Button>
           <Button icon="fingerprint" mode="text" onPress={handleRegisterPasskey} style={{ marginTop: 10, marginHorizontal: 10 }} contentStyle={{ justifyContent: 'flex-start' }}>
             Enregistrer Passkey
           </Button>
@@ -297,9 +322,7 @@ function AppContent({ session, loading, login, logout, authUseCase }: any) {
         </View>
       </View>
     );
-  }, [backendVersion, authUseCase, session, logout, progress]);
-
-  useBackgroundSync(session);
+  }, [backendVersion, authUseCase, session, logout, progress, triggerSync, isSyncSupported]);
 
   useEffect(() => {
     if (session && Platform.OS !== 'web') {

@@ -57,7 +57,10 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
               if (buffer) {
                 try {
                     const result = ExifParserFactory.create(buffer).parse();
-                    creationDate = result.tags?.CreateDate ? new Date(result.tags.CreateDate * 1000).getTime() / 1000 : undefined;
+                    const tags = result.tags || {};
+                    console.log('EXIF tags found:', Object.keys(tags));
+                    console.log('EXIF CreateDate:', tags.CreateDate);
+                    creationDate = tags.CreateDate ? new Date(tags.CreateDate * 1000).getTime() / 1000 : undefined;
                 } catch (exifError) {
                     console.log('Failed to parse EXIF', exifError);
                 }
