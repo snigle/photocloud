@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { ILocalGalleryRepository, LocalPhoto, Photo, Folder } from '../domain/types';
-import { GlobalLock } from './locks';
 
 // We use dynamic imports for native-only libraries to avoid crashes on web
 let SQLite: any;
@@ -12,26 +11,13 @@ if (Platform.OS !== 'web') {
 export class LocalGalleryRepository implements ILocalGalleryRepository {
   private dbPromise: Promise<any> | null = null;
   private indexedDBPromise: Promise<IDBDatabase> | null = null;
-    private static sharedDbPromise: Promise<any> | null = null;
-    private static sharedIndexedDbPromise: Promise<IDBDatabase> | null = null;
-    private static initPromise: Promise<void> | null = null;
-        private static fullScanPromise: Promise<LocalPhoto[]> | null = null;
-        private static localIndexPersistPromise: Promise<void> | null = null;
 
   constructor() {
     if (Platform.OS !== 'web') {
-        if (!LocalGalleryRepository.sharedDbPromise) {
-            LocalGalleryRepository.sharedDbPromise = SQLite.openDatabaseAsync('gallery.db');
-        }
-        this.dbPromise = LocalGalleryRepository.sharedDbPromise;
-        if (!LocalGalleryRepository.initPromise) {
-            LocalGalleryRepository.initPromise = this.initDb();
-        }
+        this.dbPromise = SQLite.openDatabaseAsync('gallery.db');
+        this.initDb();
     } else {
-        if (!LocalGalleryRepository.sharedIndexedDbPromise) {
-            LocalGalleryRepository.sharedIndexedDbPromise = this.initIndexedDB();
-        }
-        this.indexedDBPromise = LocalGalleryRepository.sharedIndexedDbPromise;
+        this.indexedDBPromise = this.initIndexedDB();
     }
   }
 
@@ -57,71 +43,38 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
     if (Platform.OS === 'web' || !this.dbPromise) return;
     try {
         const db = await this.dbPromise;
-                await this.withSqliteWriteLock(async () => {
-                        await db.execAsync('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
-                        await db.execAsync(`
-                            CREATE TABLE IF NOT EXISTS photos (
-                                id TEXT PRIMARY KEY,
-                                type TEXT,
-                                creationDate INTEGER,
-                                size INTEGER,
-                                width INTEGER,
-                                height INTEGER,
-                                uri TEXT,
-                                s3_key TEXT
-                            );
-                            CREATE INDEX IF NOT EXISTS idx_creationDate ON photos(creationDate);
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS photos (
+            id TEXT PRIMARY KEY,
+            type TEXT,
+            creationDate INTEGER,
+            size INTEGER,
+            width INTEGER,
+            height INTEGER,
+            uri TEXT,
+            s3_key TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_creationDate ON photos(creationDate);
 
-                            CREATE TABLE IF NOT EXISTS uploaded_assets (
-                                localId TEXT PRIMARY KEY,
-                                cloudId TEXT
-                            );
+          CREATE TABLE IF NOT EXISTS uploaded_assets (
+            localId TEXT PRIMARY KEY,
+            cloudId TEXT
+          );
 
-                            CREATE TABLE IF NOT EXISTS local_assets_index (
-                                id TEXT PRIMARY KEY,
-                                uri TEXT,
-                                creationDate INTEGER,
-                                width INTEGER,
-                                height INTEGER,
-                                folderId TEXT
-                            );
-                            CREATE INDEX IF NOT EXISTS idx_local_creationDate ON local_assets_index(creationDate);
-                        `);
-                });
+          CREATE TABLE IF NOT EXISTS local_assets_index (
+            id TEXT PRIMARY KEY,
+            uri TEXT,
+            creationDate INTEGER,
+            width INTEGER,
+            height INTEGER,
+            folderId TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_local_creationDate ON local_assets_index(creationDate);
+        `);
     } catch (e) {
         console.error('Failed to initialize SQLite DB', e);
-                LocalGalleryRepository.initPromise = null;
     }
   }
-
-    private async withSqliteWriteLock<T>(
-        operation: () => Promise<T>,
-        options?: { maxAttempts?: number; logBusyWarnings?: boolean }
-    ): Promise<T> {
-        const maxAttempts = options?.maxAttempts ?? 5;
-        const logBusyWarnings = options?.logBusyWarnings ?? true;
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            const release = await GlobalLock.acquire('sqlite-write');
-            try {
-                return await operation();
-            } catch (e: any) {
-                const message = String(e?.message || e || '');
-                const isLocked = /database is locked|SQLITE_BUSY/i.test(message);
-                if (!isLocked || attempt === maxAttempts) {
-                    throw e;
-                }
-                const backoffMs = attempt * 120;
-                if (logBusyWarnings) {
-                    console.warn(`SQLite locked, retrying write (${attempt}/${maxAttempts}) in ${backoffMs}ms`);
-                }
-                await new Promise(resolve => setTimeout(resolve, backoffMs));
-            } finally {
-                release();
-            }
-        }
-
-        throw new Error('SQLite write retry failed unexpectedly');
-    }
 
   async listLocalPhotos(useCache: boolean = true): Promise<LocalPhoto[]> {
     if (Platform.OS === 'web') return [];
@@ -144,86 +97,63 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
         }
     }
 
-    if (LocalGalleryRepository.fullScanPromise) {
-        return LocalGalleryRepository.fullScanPromise;
-    }
+    try {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') return [];
 
-    LocalGalleryRepository.fullScanPromise = (async () => {
-        try {
-            const { status } = await MediaLibrary.requestPermissionsAsync();
-            if (status !== 'granted') return [];
+        let photos: LocalPhoto[] = [];
+        let hasNextPage = true;
+        let after: string | undefined = undefined;
 
-            let photos: LocalPhoto[] = [];
-            let hasNextPage = true;
-            let after: string | undefined = undefined;
+        while (hasNextPage) {
+          const pagedInfo = await MediaLibrary.getAssetsAsync({
+            first: 500,
+            after,
+            mediaType: 'photo',
+            sortBy: [[MediaLibrary.SortBy.creationTime, false]]
+          });
 
-            while (hasNextPage) {
-              const pagedInfo = await MediaLibrary.getAssetsAsync({
-                first: 500,
-                after,
-                mediaType: 'photo',
-                sortBy: [[MediaLibrary.SortBy.creationTime, false]]
-              });
+          const assets = pagedInfo.assets.map(asset => ({
+            id: asset.id,
+            uri: asset.uri,
+            creationDate: asset.creationTime / 1000,
+            size: 0,
+            width: asset.width,
+            height: asset.height,
+            type: 'local' as const,
+          }));
 
-              const assets = pagedInfo.assets.map(asset => ({
-                id: asset.id,
-                uri: asset.uri,
-                creationDate: asset.creationTime / 1000,
-                size: 0,
-                width: asset.width,
-                height: asset.height,
-                type: 'local' as const,
-              }));
-
-              photos = [...photos, ...assets];
-              hasNextPage = pagedInfo.hasNextPage;
-              after = pagedInfo.endCursor;
-            }
-
-            // Persisting the local index can be expensive, so keep it off the critical path.
-            void this.persistLocalIndexInBackground(photos);
-
-            return photos;
-        } catch (e) {
-            console.error('Error listing local photos:', e);
-            return [];
-        } finally {
-            LocalGalleryRepository.fullScanPromise = null;
+          photos = [...photos, ...assets];
+          hasNextPage = pagedInfo.hasNextPage;
+          after = pagedInfo.endCursor;
         }
-    })();
 
-    return LocalGalleryRepository.fullScanPromise;
-  }
+        // Update local index cache
+        if (this.dbPromise) {
+            try {
+                const db = await this.dbPromise;
+                await db.withTransactionAsync(async () => {
+                    await db.runAsync('DELETE FROM local_assets_index');
+                    const stmt = await db.prepareAsync('INSERT INTO local_assets_index (id, uri, creationDate, width, height) VALUES (?, ?, ?, ?, ?)');
+                    try {
+                        for (const p of photos) {
+                            await stmt.executeAsync([p.id, p.uri, p.creationDate, p.width, p.height]);
+                        }
+                    } finally {
+                        await stmt.finalizeAsync();
+                    }
+                });
+                console.log(`Local index updated with ${photos.length} photos`);
+            } catch (err) {
+                console.error('Failed to update local assets index', err);
+            }
+        }
 
-  private async persistLocalIndexInBackground(photos: LocalPhoto[]): Promise<void> {
-      if (!this.dbPromise) return;
-
-      if (LocalGalleryRepository.localIndexPersistPromise) {
-          return LocalGalleryRepository.localIndexPersistPromise;
-      }
-
-      LocalGalleryRepository.localIndexPersistPromise = (async () => {
-          try {
-              const db = await this.dbPromise;
-              await this.withSqliteWriteLock(async () => {
-                  await db.withTransactionAsync(async () => {
-                      await db.runAsync('DELETE FROM local_assets_index');
-                      for (const p of photos) {
-                          await db.runAsync(
-                              'INSERT INTO local_assets_index (id, uri, creationDate, width, height) VALUES (?, ?, ?, ?, ?)',
-                              [p.id, p.uri, p.creationDate, p.width, p.height]
-                          );
-                      }
-                  });
-              }, { maxAttempts: 2, logBusyWarnings: false });
-          } catch (e) {
-              console.error('Failed to persist local_assets_index in background', e);
-          } finally {
-              LocalGalleryRepository.localIndexPersistPromise = null;
-          }
-      })();
-
-      return LocalGalleryRepository.localIndexPersistPromise;
+        return photos;
+    } catch (e) {
+        console.error('Error listing local photos:', e);
+        return [];
+    }
   }
 
   async listFolders(): Promise<Folder[]> {
@@ -312,21 +242,19 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
     if (!this.dbPromise) return;
     const db = await this.dbPromise;
     try {
-        await this.withSqliteWriteLock(async () => {
-            await db.runAsync(
-                'INSERT OR REPLACE INTO photos (id, type, creationDate, size, width, height, uri, s3_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                [
-                    photo.id,
-                    photo.type,
-                    photo.creationDate,
-                    photo.size,
-                    photo.width,
-                    photo.height,
-                    (photo as any).uri || null,
-                    (photo as any).key || null
-                ]
-            );
-        });
+        await db.runAsync(
+            'INSERT OR REPLACE INTO photos (id, type, creationDate, size, width, height, uri, s3_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                photo.id,
+                photo.type,
+                photo.creationDate,
+                photo.size,
+                photo.width,
+                photo.height,
+                (photo as any).uri || null,
+                (photo as any).key || null
+            ]
+        );
     } catch (e) {
         console.error('Error saving single photo to SQLite cache:', e);
     }
@@ -353,26 +281,28 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
     if (!this.dbPromise) return;
     const db = await this.dbPromise;
     try {
-        await this.withSqliteWriteLock(async () => {
-            await db.withTransactionAsync(async () => {
-                await db.runAsync('DELETE FROM photos');
+        await db.withTransactionAsync(async () => {
+            await db.runAsync('DELETE FROM photos');
 
+            const statement = await db.prepareAsync(
+                'INSERT INTO photos (id, type, creationDate, size, width, height, uri, s3_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            try {
                 for (const photo of photos) {
-                    await db.runAsync(
-                        'INSERT INTO photos (id, type, creationDate, size, width, height, uri, s3_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                        [
-                            photo.id,
-                            photo.type,
-                            photo.creationDate,
-                            photo.size,
-                            photo.width,
-                            photo.height,
-                            (photo as any).uri || null,
-                            (photo as any).key || null
-                        ]
-                    );
+                    await statement.executeAsync([
+                        photo.id,
+                        photo.type,
+                        photo.creationDate,
+                        photo.size,
+                        photo.width,
+                        photo.height,
+                        (photo as any).uri || null,
+                        (photo as any).key || null
+                    ]);
                 }
-            });
+            } finally {
+                await statement.finalizeAsync();
+            }
         });
     } catch (e) {
         console.error('Error saving to SQLite cache:', e);
@@ -509,9 +439,7 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
 
       const db = await this.dbPromise;
       if (!db) return;
-      await this.withSqliteWriteLock(async () => {
-          await db.runAsync('INSERT OR REPLACE INTO uploaded_assets (localId, cloudId) VALUES (?, ?)', [localId, cloudId]);
-      });
+      await db.runAsync('INSERT OR REPLACE INTO uploaded_assets (localId, cloudId) VALUES (?, ?)', [localId, cloudId]);
   }
 
   async getUploadedLocalIds(): Promise<Set<string>> {
@@ -551,8 +479,6 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
 
       const db = await this.dbPromise;
       if (!db) return;
-      await this.withSqliteWriteLock(async () => {
-          await db.runAsync('DELETE FROM photos WHERE id = ?', [id]);
-      });
+      await db.runAsync('DELETE FROM photos WHERE id = ?', [id]);
   }
 }

@@ -10,16 +10,12 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const isSyncing = useRef(false);
   const syncPromise = useRef<Promise<void> | null>(null);
-  const isInitialLoadRunning = useRef(false);
-  const syncStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const PAGE_SIZE = 100;
-  const SYNC_DELAY_WHEN_GALLERY_READY_MS = 5000;
-  const SYNC_DELAY_WHEN_GALLERY_EMPTY_MS = 400;
 
   const galleryUseCase = useMemo(() => {
     if (!creds) return null;
@@ -40,7 +36,7 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
 
     syncPromise.current = (async () => {
         console.log('useGallery: Starting synchronization');
-      setSyncing(true);
+        isSyncing.current = true;
         try {
             await galleryUseCase.sync(creds, email);
 
@@ -58,7 +54,7 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
             console.warn('useGallery: Sync failed', err);
             throw err;
         } finally {
-          setSyncing(false);
+            isSyncing.current = false;
             syncPromise.current = null;
         }
     })();
@@ -66,79 +62,40 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
     return syncPromise.current;
   }, [galleryUseCase, creds, email]);
 
-  const scheduleBackgroundSync = useCallback((hasImmediateGallery: boolean) => {
-    if (syncStartTimerRef.current) {
-      clearTimeout(syncStartTimerRef.current);
-      syncStartTimerRef.current = null;
-    }
-
-    const delayMs = hasImmediateGallery
-      ? SYNC_DELAY_WHEN_GALLERY_READY_MS
-      : SYNC_DELAY_WHEN_GALLERY_EMPTY_MS;
-
-    syncStartTimerRef.current = setTimeout(() => {
-      syncStartTimerRef.current = null;
-      void performSync().catch(() => {});
-    }, delayMs);
-  }, [performSync]);
-
   const loadInitial = useCallback(async () => {
     if (!galleryUseCase || !creds || !email) return;
-    if (isInitialLoadRunning.current) return;
-    isInitialLoadRunning.current = true;
 
     if (photosRef.current.length === 0) {
         setLoading(true);
     }
 
     try {
-      // 1. Load only first page from cache for fast first paint
-      const cachedPhotos = await galleryUseCase.getPhotos(PAGE_SIZE, 0);
+      // 1. Load from cache first
+      const cachedPhotos = await galleryUseCase.getPhotos(100000, 0);
       const totalInCache = await galleryUseCase.getTotalCount();
-      const hasImmediateGallery = cachedPhotos.length > 0;
 
       if (cachedPhotos.length > 0) {
           setPhotos(cachedPhotos);
           setTotalCount(totalInCache);
-          setHasMore(totalInCache > cachedPhotos.length);
-        } else {
-          // If the merged cache is empty, show local device photos first while full sync runs.
-          void (async () => {
-            try {
-              const localRepo = new LocalGalleryRepository();
-              let localPhotos = await localRepo.listLocalPhotos(true);
-              if (localPhotos.length === 0) {
-                localPhotos = await localRepo.listLocalPhotos(false);
-              }
-
-              if (photosRef.current.length === 0 && localPhotos.length > 0) {
-                const sorted = [...localPhotos].sort((a, b) => b.creationDate - a.creationDate);
-                const firstPage = sorted.slice(0, PAGE_SIZE);
-                setPhotos(firstPage);
-                setTotalCount(sorted.length);
-                setHasMore(sorted.length > firstPage.length);
-              }
-            } catch (e) {
-              console.warn('useGallery: local-first preload failed', e);
-            }
-          })();
       }
 
-      // 2. Continue expensive work in background to keep UI responsive
-      void galleryUseCase
-        .getCloudIndex(creds, email)
-        .then(setCloudIndex)
-        .catch((err: any) => setError(err?.message || 'Failed to fetch cloud index'));
+      // 2. Get cloud index
+      const index = await galleryUseCase.getCloudIndex(creds, email);
+      setCloudIndex(index);
 
-      // 3. Start sync with delay so the gallery render remains prioritized.
-      scheduleBackgroundSync(hasImmediateGallery);
+      // 3. Trigger sync and wait for it if cache was empty
+      // This ensures we don't show "No photos found" while the first sync is running
+      if (cachedPhotos.length === 0) {
+          await performSync();
+      } else {
+          performSync().catch(() => {});
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch photos');
     } finally {
       setLoading(false);
-      isInitialLoadRunning.current = false;
     }
-  }, [galleryUseCase, creds, email, scheduleBackgroundSync]);
+  }, [galleryUseCase, creds, email, performSync]);
 
   const loadMore = useCallback(async () => {
   }, []);
@@ -146,10 +103,7 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.race([
-        performSync(),
-        new Promise<void>(resolve => setTimeout(resolve, 10000)),
-      ]);
+      await performSync();
     } catch (err: any) {
       setError(err.message || 'Failed to refresh photos');
     } finally {
@@ -201,30 +155,9 @@ export const useGallery = (creds: S3Credentials | null, email: string | null) =>
       }
   }, [galleryUseCase, creds, refresh]);
 
-  const pruneMissingCloudPhoto = useCallback(async (id: string) => {
-    setPhotos(prev => prev.filter(p => !p || p.id !== id));
-    setTotalCount(prev => Math.max(0, prev - 1));
-
-    try {
-      const localRepo = new LocalGalleryRepository();
-      await localRepo.deleteFromCache(id);
-    } catch (e) {
-      console.warn('useGallery: failed to prune missing cloud photo from cache', e);
-    }
-  }, []);
-
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
 
-  useEffect(() => {
-    return () => {
-      if (syncStartTimerRef.current) {
-        clearTimeout(syncStartTimerRef.current);
-        syncStartTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  return { photos, totalCount, cloudIndex, loading, refreshing, syncing, error, refresh, loadMore, hasMore, addPhoto, deletePhotos, pruneMissingCloudPhoto };
+  return { photos, totalCount, cloudIndex, loading, refreshing, error, refresh, loadMore, hasMore, addPhoto, deletePhotos };
 };

@@ -35,34 +35,28 @@ export class UploadUseCase {
         return null;
     }
 
-    let timestamp = this.normalizeTimestamp(creationDate);
+    let timestamp = creationDate;
 
-    // Extract EXIF date if timestamp is missing
-    if (!timestamp) {
-        try {
-            const parser = ExifParserFactory.create(originalData.buffer as ArrayBuffer);
-            const exif = parser.parse();
-            const tags = exif.tags || {};
-            console.log('Upload EXIF tags found:', Object.keys(tags));
-            if (exif.tags?.CreateDate) {
-                timestamp = this.normalizeTimestamp(exif.tags.CreateDate);
-            } else if (exif.tags?.DateTimeOriginal) {
-                timestamp = this.normalizeTimestamp(exif.tags.DateTimeOriginal);
-            }
-            console.log('Upload EXIF selected timestamp:', timestamp);
-        } catch (e) {
-            console.log('Failed to parse EXIF for date', e);
+    // Extract EXIF date - always prefer EXIF over passed creationDate if available
+    try {
+        const buf = originalData.buffer instanceof ArrayBuffer ? originalData.buffer : new Uint8Array(originalData).buffer;
+        const parser = ExifParserFactory.create(buf);
+        const exif = parser.parse();
+        if (exif.tags?.CreateDate) {
+            timestamp = typeof exif.tags.CreateDate === 'number' ? exif.tags.CreateDate : Math.floor(new Date(exif.tags.CreateDate).getTime() / 1000);
+        } else if (exif.tags?.DateTimeOriginal) {
+            timestamp = typeof exif.tags.DateTimeOriginal === 'number' ? exif.tags.DateTimeOriginal : Math.floor(new Date(exif.tags.DateTimeOriginal).getTime() / 1000);
         }
-    } else {
-        console.log(`Upload timestamp provided (${timestamp}), skipping EXIF parse for ${filename}`);
+    } catch (e) {
+        console.log('Failed to parse EXIF for date', e);
     }
 
-    // Try to get actual creation date from MediaLibrary if on native and timestamp is still missing
+    // Try to get actual creation date from MediaLibrary if on native and timestamp is still missing (e.g. no EXIF)
     if (!timestamp && Platform.OS !== 'web') {
         try {
             const asset = await MediaLibrary.getAssetInfoAsync(uri);
             if (asset && asset.creationTime) {
-                timestamp = this.normalizeTimestamp(asset.creationTime);
+                timestamp = Math.floor(asset.creationTime / 1000);
             }
         } catch (e) {
             console.log('Failed to get asset info for timestamp', e);
@@ -158,16 +152,6 @@ export class UploadUseCase {
 
     return uploadedPhoto;
   }
-
-    private normalizeTimestamp(value: unknown): number | undefined {
-        if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-            return undefined;
-        }
-
-        // Some sources provide milliseconds, others seconds (sometimes fractional).
-        const seconds = value > 1e12 ? value / 1000 : value;
-        return Math.floor(seconds);
-    }
 
   private async uriToUint8Array(uri: string): Promise<Uint8Array> {
     if (Platform.OS !== 'web' && (uri.startsWith('file:') || uri.startsWith('content:'))) {

@@ -21,8 +21,7 @@ export const PhotoItem = React.memo(({
     onDragStart,
     onDragEnter,
     onDragEnd,
-    customSSEKey,
-    onCloudMissing
+    customSSEKey
 }: {
     photo: Photo | null,
     creds: S3Credentials,
@@ -35,8 +34,7 @@ export const PhotoItem = React.memo(({
     onDragStart: (id: string) => void,
     onDragEnter: (id: string) => void,
     onDragEnd: () => void,
-    customSSEKey?: string,
-    onCloudMissing?: (id: string) => void
+    customSSEKey?: string
 }) => {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<boolean>(false);
@@ -128,11 +126,6 @@ export const PhotoItem = React.memo(({
               }
           } catch (err: any) {
               DebugLogger.error('Photo Load', `Failed for ${photo.key}`, err);
-              const message = String(err?.message || err || '');
-              const isMissingRemote = /NoSuchKey|404|NotFound/i.test(message);
-              if (isMissingRemote && onCloudMissing) {
-                  onCloudMissing(photo.id);
-              }
               if (isMounted) setError(true);
           }
       };
@@ -146,7 +139,7 @@ export const PhotoItem = React.memo(({
     return () => {
         isMounted = false;
     };
-    }, [photo?.id, photo?.type, (photo as any)?.key, (photo as any)?.uri, creds, customSSEKey, onCloudMissing]);
+  }, [photo?.id, photo?.type, (photo as any)?.key, (photo as any)?.uri, creds]);
 
   const handleSelect = useCallback((e: any) => {
     if (!photo) return;

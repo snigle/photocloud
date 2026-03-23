@@ -25,19 +25,20 @@ describe('S3Repository', () => {
         const mockSend = jest.fn();
         (repo as any).s3.send = mockSend;
 
-        // Mock getFile for index.json
         mockSend.mockImplementation(async (command) => {
-            if (command.constructor.name === 'GetObjectCommand') {
+            // listFolders uses delimiter '/'
+            if (command.constructor.name === 'ListObjectsV2Command' && (command as any).input.Delimiter === '/') {
                 return {
-                    Body: {
-                        transformToUint8Array: () => Promise.resolve(new TextEncoder().encode(JSON.stringify({ years: [2024] })))
-                    }
+                    CommonPrefixes: [
+                        { Prefix: 'users/test@example.com/2024/' }
+                    ]
                 };
             }
+            // listFolder (private) for thumbnails or broad scan
             if (command.constructor.name === 'ListObjectsV2Command') {
                 return {
                     Contents: [
-                        { Key: 'users/test@example.com/2024/original/1.enc', Size: 100, LastModified: new Date() }
+                        { Key: 'users/test@example.com/2024/thumbnail/1.enc', Size: 100, LastModified: new Date() }
                     ]
                 };
             }

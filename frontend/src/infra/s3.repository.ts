@@ -113,12 +113,12 @@ export class S3Repository implements IS3Repository {
             for (const p of photos) {
                 // Ignore photos in albums or config folders
                 if (p.key.startsWith(albumsPrefix) || p.key.startsWith(configPrefix)) continue;
-                // Gallery listing is driven by thumbnails only.
-                // This prevents stale entries when non-thumbnail variants linger after remote deletions.
-                if (!p.key.includes('/thumbnail/')) continue;
+                // Exclude any keys that don't match our expected photo structure to avoid orphans
+                if (!p.key.includes('/thumbnail/') && !p.key.includes('/original/') && !p.key.includes('/1080p/')) continue;
 
                 const existing = allPhotosMap.get(p.id);
-                if (!existing) {
+                // Prefer thumbnail keys for better gallery performance
+                if (!existing || p.key.includes('/thumbnail/')) {
                     allPhotosMap.set(p.id, p);
                 }
             }

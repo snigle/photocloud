@@ -4262,10 +4262,10 @@ expo-auth-session@~55.0.9:
     expo-web-browser "~55.0.10"
     invariant "^2.2.4"
 
-expo-background-task@^55.0.10:
+expo-background-fetch@~55.0.10:
   version "55.0.10"
-  resolved "https://registry.yarnpkg.com/expo-background-task/-/expo-background-task-55.0.10.tgz#1cec7afe82784d7463455580c2d07e8d07122b79"
-  integrity sha512-mkwdS8T34P0pSphr08yv9lsQ6pd1pMgFdVq0wd3Ane3h5heZj/il6mes/b8OQDoxtD3mLFj7yKDYOU9dAwSrJA==
+  resolved "https://registry.yarnpkg.com/expo-background-fetch/-/expo-background-fetch-55.0.10.tgz#fe09e08c6a11b8c7651d1882ddc7ca378afb361e"
+  integrity sha512-JRSlQ2GEigUxKqHi11xLPz5/T02O7YzsV1xNKDOxr2SXSERmAN9WFD9l2F9SDw5tUz53ewI1kndHQ6FmSu+7Tw==
   dependencies:
     expo-task-manager "~55.0.10"
 

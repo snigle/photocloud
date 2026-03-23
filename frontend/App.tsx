@@ -7,7 +7,7 @@ import * as Linking from 'expo-linking';
 import { NavigationContainer, getStateFromPath, getPathFromState } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import * as BackgroundTask from 'expo-background-task';
+import * as BackgroundFetch from 'expo-background-fetch';
 
 import { useAuth } from './src/react/hooks/useAuth';
 import { getBaseDir, getIsStaging } from './src/react/utils/routing-utils';
@@ -227,11 +227,10 @@ function AppContent({ session, loading, login, logout, authUseCase }: any) {
   }, [authUseCase, login]);
 
   const { progress } = useSync();
-  const { triggerSync, isSyncSupported } = useBackgroundSync(session);
 
   const renderDrawerContent = useCallback((props: any) => {
     const isDev = session?.email === 'dev@photocloud.local' || session?.email === 'dev2@photocloud.local';
-      const isDevBuild = process.env.EXPO_PUBLIC_VERSION === 'dev' || !process.env.EXPO_PUBLIC_VERSION || __DEV__;
+      const isDevBuild = process.env.EXPO_PUBLIC_VERSION === 'dev' || !process.env.EXPO_PUBLIC_VERSION;
 
     const handleRegisterPasskey = async () => {
       if (!session) return;
@@ -267,34 +266,10 @@ function AppContent({ session, loading, login, logout, authUseCase }: any) {
       }
     };
 
-    const handleForceSync = async () => {
-      if (!isSyncSupported) {
-        Alert.alert('Info', 'Synchronisation manuelle indisponible sur cette plateforme.');
-        return;
-      }
-
-      try {
-        const synced = await triggerSync(false);
-        Alert.alert('Synchronisation', `${synced} photo(s) envoyee(s).`);
-      } catch (err: any) {
-        Alert.alert('Erreur', 'Echec de la synchronisation : ' + (err?.message || 'erreur inconnue'));
-      }
-    };
-
     return (
       <View style={{ flex: 1 }}>
         <DrawerContentScrollView {...props}>
           <DrawerItemList {...props} />
-          <Button
-            icon="sync"
-            mode="text"
-            onPress={handleForceSync}
-            disabled={!isSyncSupported || progress.isSyncing}
-            style={{ marginTop: 10, marginHorizontal: 10 }}
-            contentStyle={{ justifyContent: 'flex-start' }}
-          >
-            Forcer la synchronisation
-          </Button>
           <Button icon="fingerprint" mode="text" onPress={handleRegisterPasskey} style={{ marginTop: 10, marginHorizontal: 10 }} contentStyle={{ justifyContent: 'flex-start' }}>
             Enregistrer Passkey
           </Button>
@@ -322,12 +297,16 @@ function AppContent({ session, loading, login, logout, authUseCase }: any) {
         </View>
       </View>
     );
-  }, [backendVersion, authUseCase, session, logout, progress, triggerSync, isSyncSupported]);
+  }, [backendVersion, authUseCase, session, logout, progress]);
+
+  useBackgroundSync(session);
 
   useEffect(() => {
     if (session && Platform.OS !== 'web') {
-      BackgroundTask.registerTaskAsync(BACKGROUND_SYNC_TASK, {
-        minimumInterval: 15,
+      BackgroundFetch.registerTaskAsync(BACKGROUND_SYNC_TASK, {
+        minimumInterval: 15 * 60,
+        stopOnTerminate: false,
+        startOnBoot: true,
       }).catch(err => console.error('Failed to register background task', err));
     }
   }, [session]);

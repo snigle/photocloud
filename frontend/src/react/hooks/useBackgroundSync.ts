@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useSync } from './useSync';
 import { SyncPhotosUseCase } from '../../usecase/sync-photos.usecase';
@@ -20,40 +20,39 @@ export const useBackgroundSync = (session: { creds: S3Credentials, email: string
         );
     }, [session]);
 
-    const triggerSync = useCallback(async (stopOnMax: boolean = false): Promise<number> => {
-        if (Platform.OS === 'web' || !session || !syncUseCase) return 0;
-        if (isForegroundSyncing.current) return 0;
-
-        isForegroundSyncing.current = true;
-        setSyncing(true);
-
-        try {
-            return await syncUseCase.execute(
-                session.creds,
-                session.email,
-                (synced, total) => updateProgress(synced, total),
-                stopOnMax
-            );
-        } catch (error) {
-            console.error('Foreground sync failed:', error);
-            return 0;
-        } finally {
-            setSyncing(false);
-            isForegroundSyncing.current = false;
-        }
-    }, [session, syncUseCase, setSyncing, updateProgress]);
-
     useEffect(() => {
         if (Platform.OS === 'web' || !session || !syncUseCase) return;
 
         let isMounted = true;
 
         const runSync = async () => {
-            if (!isMounted) return;
-            await triggerSync(false);
+            if (isForegroundSyncing.current) return;
+            isForegroundSyncing.current = true;
+            setSyncing(true);
+
+            try {
+                // Continuous sync while app is open
+                // We run in a loop with a small delay between batches if needed,
+                // but execute() now supports running until completion if stopOnMax is false.
+                await syncUseCase.execute(
+                    session.creds,
+                    session.email,
+                    (synced, total) => {
+                        if (isMounted) updateProgress(synced, total);
+                    },
+                    false // stopOnMax = false for foreground sync
+                );
+            } catch (error) {
+                console.error('Foreground sync failed:', error);
+            } finally {
+                if (isMounted) {
+                    setSyncing(false);
+                    isForegroundSyncing.current = false;
+                }
+            }
         };
 
-        void runSync();
+        runSync();
 
         // Optional: setup a timer to re-check every few minutes if new photos arrived
         const interval = setInterval(runSync, 5 * 60 * 1000);
@@ -62,10 +61,5 @@ export const useBackgroundSync = (session: { creds: S3Credentials, email: string
             isMounted = false;
             clearInterval(interval);
         };
-    }, [session, syncUseCase, triggerSync]);
-
-    return {
-        triggerSync,
-        isSyncSupported: Platform.OS !== 'web' && !!session && !!syncUseCase,
-    };
+    }, [session, syncUseCase, updateProgress, setSyncing]);
 };

@@ -35,7 +35,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
   // Memoize creds to ensure stability for PhotoItem memoization
   const stableCreds = useMemo(() => creds, [creds.access, creds.secret, creds.bucket, creds.endpoint]);
 
-  const { photos, totalCount, cloudIndex, loading, refreshing, syncing, error, refresh, loadMore, addPhoto, deletePhotos, pruneMissingCloudPhoto } = useGallery(stableCreds, email);
+  const { photos, totalCount, cloudIndex, loading, refreshing, error, refresh, loadMore, addPhoto, deletePhotos } = useGallery(stableCreds, email);
   const { upload, uploadSingle, uploading, progress, error: uploadError } = useUpload(creds, email);
   const [currentYear, setCurrentYear] = useState<string | null>(null);
   const [showYearIndicator, setShowYearIndicator] = useState(false);
@@ -142,10 +142,9 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
             onDragStart={startDragging}
             onDragEnter={handleDragEnter}
             onDragEnd={stopDragging}
-            onCloudMissing={pruneMissingCloudPhoto}
         />
     );
-  }, [stableCreds, itemSize, handleItemPress, selectedIds, handleSelect, handleLongPress, isSelectionMode, startDragging, handleDragEnter, stopDragging, pruneMissingCloudPhoto]);
+  }, [stableCreds, itemSize, handleItemPress, selectedIds, handleSelect, handleLongPress, isSelectionMode, startDragging, handleDragEnter, stopDragging]);
 
   const handleScroll = useCallback((event: any) => {
       const offsetY = event.nativeEvent.contentOffset.y;
@@ -266,16 +265,7 @@ const GalleryScreen: React.FC<Props> = ({ creds, email, onLogout, onMenu }) => {
           onScroll={handleScroll}
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}
-          ListFooterComponent={
-            (loading || syncing) && photos.length > 0 ? (
-              <View style={{ marginVertical: 14, alignItems: 'center' }}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-                <Text variant="bodySmall" style={{ marginTop: 6, opacity: 0.7 }}>
-                  Synchronisation en cours...
-                </Text>
-              </View>
-            ) : null
-          }
+          ListFooterComponent={loading && photos.length > 0 ? <ActivityIndicator style={{ margin: 20 }} /> : null}
           ListEmptyComponent={
             loading && photos.length === 0 ? (
                 <View style={styles.center}>

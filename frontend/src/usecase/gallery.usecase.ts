@@ -3,10 +3,6 @@ import { decodeText, encodeText } from '../infra/utils';
 import { GlobalLock } from '../infra/locks';
 
 export class GalleryUseCase {
-    private static readonly LOCAL_INDEX_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-    private static lastLocalIndexRefreshAt = 0;
-    private static localIndexRefreshPromise: Promise<void> | null = null;
-
   constructor(
     private s3Repo: IS3Repository,
     private localRepo: ILocalGalleryRepository
@@ -18,15 +14,8 @@ export class GalleryUseCase {
    */
   async sync(creds: S3Credentials, email: string): Promise<void> {
     try {
-        // Use cached local index for fast sync; rebuild periodically in background.
-        let local = await this.localRepo.listLocalPhotos(true);
-        let shouldRefreshLocalIndexInBackground = false;
-        if (local.length === 0) {
-            local = await this.localRepo.listLocalPhotos(false);
-            GalleryUseCase.lastLocalIndexRefreshAt = Date.now();
-        } else {
-            shouldRefreshLocalIndexInBackground = true;
-        }
+        // Fetch local photos (fast load from index)
+        const local = await this.localRepo.listLocalPhotos(true);
 
         // Fetch cloud photos
         const cloud = await this.s3Repo.listPhotos(creds.bucket, email);
@@ -44,39 +33,22 @@ export class GalleryUseCase {
         // Update index counts based on actual cloud photos found
         await this.reindexCloud(creds, email, cloud);
 
-        // Run local index refresh after sync writes to reduce DB contention.
-        if (shouldRefreshLocalIndexInBackground) {
-            void this.refreshLocalIndexInBackground();
-        }
-
+        // Run full local re-indexing in background after first show
+        // We use a small delay to ensure the UI has time to render the initial results
+        setTimeout(async () => {
+            try {
+                await this.localRepo.listLocalPhotos(false);
+                // Trigger a cache refresh after indexing
+                const all = await this.localRepo.loadFromCache(100000, 0);
+                await this.localRepo.saveToCache(all);
+            } catch (err) {
+                console.error('Background local indexing failed', err);
+            }
+        }, 1000);
     } catch (e) {
         console.error('GalleryUseCase sync error:', e);
         throw e;
     }
-  }
-
-  private async refreshLocalIndexInBackground(): Promise<void> {
-      const now = Date.now();
-      if (now - GalleryUseCase.lastLocalIndexRefreshAt < GalleryUseCase.LOCAL_INDEX_REFRESH_INTERVAL_MS) {
-          return;
-      }
-
-      if (GalleryUseCase.localIndexRefreshPromise) {
-          return GalleryUseCase.localIndexRefreshPromise;
-      }
-
-      GalleryUseCase.lastLocalIndexRefreshAt = now;
-      GalleryUseCase.localIndexRefreshPromise = (async () => {
-          try {
-              await this.localRepo.listLocalPhotos(false);
-          } catch (err) {
-              console.warn('Background local index refresh failed', err);
-          } finally {
-              GalleryUseCase.localIndexRefreshPromise = null;
-          }
-      })();
-
-      return GalleryUseCase.localIndexRefreshPromise;
   }
 
   /**

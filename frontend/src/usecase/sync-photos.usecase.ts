@@ -1,4 +1,4 @@
-import { IS3Repository, ILocalGalleryRepository, S3Credentials, LocalPhoto } from '../domain/types';
+import { IS3Repository, ILocalGalleryRepository, S3Credentials, Photo } from '../domain/types';
 import { SyncSettingsRepository } from '../infra/sync-settings.repository';
 import { UploadUseCase } from './upload.usecase';
 
@@ -22,7 +22,7 @@ export class SyncPhotosUseCase {
     const uploadUseCase = new UploadUseCase(this.s3Repo, this.localRepo);
 
     // 1. Calculate total and identify photos to sync
-    let allPhotosToSync: LocalPhoto[] = [];
+    let allPhotosToSync: any[] = [];
     let totalInFolders = 0;
 
     for (const folderId of settings.enabledFolders) {
@@ -50,10 +50,9 @@ export class SyncPhotosUseCase {
 
         try {
             console.log(`Syncing: uploading ${photo.id}`);
-            const originalFilename = this.extractFilenameFromUri(photo.uri, photo.id);
             const uploaded = await uploadUseCase.execute(
                 photo.uri,
-                originalFilename,
+                `sync-${photo.id}.jpg`,
                 creds,
                 email,
                 false,
@@ -73,21 +72,4 @@ export class SyncPhotosUseCase {
 
     return syncCount;
   }
-
-    private extractFilenameFromUri(uri: string, fallbackId: string): string {
-        const fallback = `sync-${fallbackId}.jpg`;
-
-        if (!uri) return fallback;
-
-        try {
-            const withoutQuery = uri.split('?')[0];
-            const lastSegment = withoutQuery.split('/').pop();
-            if (!lastSegment) return fallback;
-
-            const decoded = decodeURIComponent(lastSegment).trim();
-            return decoded.length > 0 ? decoded : fallback;
-        } catch {
-            return fallback;
-        }
-    }
 }

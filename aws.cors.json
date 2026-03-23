@@ -3,7 +3,7 @@
         {
             "AllowedHeaders": ["*"],
             "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-            "AllowedOrigins": ["http://localhost:8081", "http://localhost:8082"],
+            "AllowedOrigins": ["http://localhost:8081"],
             "ExposeHeaders": ["Access-Control-Allow-Origin"]
         }
    ]

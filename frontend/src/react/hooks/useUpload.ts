@@ -44,30 +44,11 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
           if (!asset) break;
 
           try {
-                        let creationDate: number | undefined;
-              let buffer: ArrayBuffer | undefined;
-              if (Platform.OS !== 'web' && (asset.uri.startsWith('file://') || asset.uri.startsWith('content://'))) {
-                const bytes = await new File(asset.uri).bytes();
-                buffer = bytes.buffer;
-              } else {
-                const response = await fetch(asset.uri);
-                buffer = await response.arrayBuffer();
-              }
-
-              if (buffer) {
-                try {
-                    const result = ExifParserFactory.create(buffer).parse();
-                    const tags = result.tags || {};
-                    console.log('EXIF tags found:', Object.keys(tags));
-                    console.log('EXIF CreateDate:', tags.CreateDate);
-                    creationDate = tags.CreateDate ? new Date(tags.CreateDate * 1000).getTime() / 1000 : undefined;
-                } catch (exifError) {
-                    console.log('Failed to parse EXIF', exifError);
-                }
-              }
-            if (!creationDate && (asset as any).file?.lastModified) {
+            let creationDate: number | undefined;
+            if ((asset as any).file?.lastModified) {
                 creationDate = Math.floor((asset as any).file.lastModified / 1000);
             }
+            // EXIF parsing is now handled by UploadUseCase.execute
             const uploaded = await uploadUseCase.execute(asset.uri, asset.name, creds, email, false, (asset as any).id, creationDate);
             if (uploaded && onUploadSuccess) {
                 onUploadSuccess(uploaded);
