@@ -36,8 +36,8 @@ export class UploadUseCase {
 
     let timestamp = creationDate || Math.floor(Date.now() / 1000);
 
-    // Try to get actual creation date from MediaLibrary if on native
-    if (Platform.OS !== 'web') {
+    // Try to get actual creation date from MediaLibrary if on native and timestamp is just "now"
+    if (!creationDate && Platform.OS !== 'web') {
         try {
             const asset = await MediaLibrary.getAssetInfoAsync(uri);
             if (asset && asset.creationTime) {
