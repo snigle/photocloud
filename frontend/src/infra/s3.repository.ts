@@ -274,8 +274,18 @@ export class S3Repository implements IS3Repository {
         try {
             // Direct fetch bypasses ChecksumStream Blob issue
             const url = await this.getDownloadUrl(bucket, key, customSSEKey);
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`Fetch failed with status ${response.status}`);
+            const headers: Record<string, string> = {};
+            if (sse) {
+                headers['x-amz-server-side-encryption-customer-algorithm'] = sse.algorithm;
+                headers['x-amz-server-side-encryption-customer-key'] = sse.key;
+                headers['x-amz-server-side-encryption-customer-key-MD5'] = sse.keyMD5;
+            }
+
+            const response = await fetch(url, { headers });
+            if (!response.ok) {
+                const text = await response.text().catch(() => 'no body');
+                throw new Error(`Fetch failed with status ${response.status}: ${text}`);
+            }
             const blob = await response.blob();
             const result = await new Promise<Uint8Array>((resolve, reject) => {
                 const reader = new FileReader();
@@ -318,7 +328,7 @@ export class S3Repository implements IS3Repository {
     // Android/React Native body might be in data.Body._bodyBlob or similar if not standard
     const body = (data.Body as any)._bodyBlob || (data.Body as any).body || data.Body;
 
-    if (!isThumbnail) {
+    if (!isThumbnail && this.isAndroid()) {
         try {
             DebugLogger.log('S3 Body Info', `${key}: type=${typeof body}, constructor=${body.constructor?.name}, keys=${Object.keys(data.Body).join(',')}`);
         } catch (e) {
