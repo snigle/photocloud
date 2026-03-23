@@ -12,7 +12,6 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { IS3Repository, S3Credentials, UploadedPhoto } from '../domain/types';
 import { base64ToUint8Array, uint8ArrayToBase64, decodeText, md5Async } from './utils';
 import { ThumbnailCache } from './thumbnail-cache';
-import { Alert, Platform } from 'react-native';
 import DebugLogger from './debug-logger';
 
 // Cache S3 clients by credentials to reuse connection pools
@@ -250,6 +249,18 @@ export class S3Repository implements IS3Repository {
     await this.s3.send(command);
   }
 
+  private isAndroid(): boolean {
+      if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') {
+          try {
+              const { Platform } = require('react-native');
+              return Platform.OS === 'android';
+          } catch (e) {
+              return false;
+          }
+      }
+      return false;
+  }
+
   async getFile(bucket: string, key: string, customSSEKey?: string | null): Promise<Uint8Array> {
     const isThumbnail = key.includes('/thumbnail/');
     if (isThumbnail && customSSEKey === undefined) {
@@ -258,6 +269,29 @@ export class S3Repository implements IS3Repository {
     }
 
     const sse = await this.getSSE(customSSEKey);
+
+    if (this.isAndroid()) {
+        try {
+            // Direct fetch bypasses ChecksumStream Blob issue
+            const url = await this.getDownloadUrl(bucket, key, customSSEKey);
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Fetch failed with status ${response.status}`);
+            const blob = await response.blob();
+            const result = await new Promise<Uint8Array>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+                reader.onerror = () => reject(new Error('Failed to read response as ArrayBuffer'));
+                reader.readAsArrayBuffer(blob);
+            });
+            if (isThumbnail) {
+                ThumbnailCache.set(key, { data: result });
+            }
+            return result;
+        } catch (e) {
+            DebugLogger.error('Android Fetch', `Failed for ${key}, falling back to SDK`, e);
+        }
+    }
+
     const command = new GetObjectCommand({
       Bucket: bucket,
       Key: key,

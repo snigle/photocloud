@@ -145,7 +145,7 @@ export class AlbumRepository implements IAlbumRepository {
 
         try {
             // 3. Try to Load Index
-            console.log(`AlbumRepository: Fetching index ${indexKey}`);
+            DebugLogger.log('Album Fetch', `Fetching index ${indexKey} for ${email}`);
             const indexData = await this.s3Repo.getFile(bucket, indexKey);
             const decoded = decodeText(indexData);
             DebugLogger.log('Album Index Loaded', `${indexKey}: len=${decoded.length}, start=${decoded.substring(0, 50)}`);
