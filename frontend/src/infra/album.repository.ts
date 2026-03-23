@@ -1,7 +1,8 @@
-import type { IAlbumRepository, Album, IS3Repository } from '../domain/types';
+import type { IAlbumRepository, Album, IS3Repository, UploadedPhoto } from '../domain/types';
 import { encodeText, decodeText, uint8ArrayToBase64, limitConcurrency } from './utils';
 import { GlobalLock } from './locks';
 import * as Crypto from 'expo-crypto';
+import { Alert, Platform } from 'react-native';
 
 // Simple memory cache for albums index to speed up navigation
 export const albumsCache = new Map<string, { data: Album[], timestamp: number }>();
@@ -147,8 +148,18 @@ export class AlbumRepository implements IAlbumRepository {
             const indexData = await this.s3Repo.getFile(bucket, indexKey);
             const decoded = decodeText(indexData);
             console.log(`AlbumRepository: Loaded index ${indexKey}, length: ${decoded.length}`);
-            const albums = JSON.parse(decoded) as Album[];
+            let albums;
+            try {
+                albums = JSON.parse(decoded) as Album[];
+            } catch (err: any) {
+                console.error(`AlbumRepository: Failed to parse index JSON: ${decoded.substring(0, 100)}`, err);
+                if (Platform.OS === 'android') {
+                    Alert.alert('JSON Parse Error', `Failed to parse albums index: ${err.message}`);
+                }
+                throw err;
+            }
 
+            console.log(`AlbumRepository: Filtering ${albums.length} albums for email: ${email}`);
             localAlbums = albums.filter(a => {
                 if (!a.albumKey) {
                     console.warn(`AlbumRepository: Hiding incompatible old album ${a.id} from index`);
@@ -156,12 +167,14 @@ export class AlbumRepository implements IAlbumRepository {
                     return false;
                 }
                 // Only keep local albums in the local index
-                if (a.ownerEmail && a.ownerEmail !== email) {
+                if (a.ownerEmail && a.ownerEmail.toLowerCase() !== email.toLowerCase()) {
+                    console.log(`AlbumRepository: Filtering out album ${a.id} because owner ${a.ownerEmail} !== ${email}`);
                     needsIndexUpdate = true;
                     return false;
                 }
                 return true;
             });
+            console.log(`AlbumRepository: Found ${localAlbums.length} local albums after filtering`);
 
             // Check if any local album in index has photoKeys (should be light)
             if (localAlbums.some(a => a.photoKeys !== undefined)) {

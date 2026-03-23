@@ -3,7 +3,7 @@ import * as MediaLibrary from 'expo-media-library';
 import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { IS3Repository, ILocalGalleryRepository, S3Credentials, UploadedPhoto } from '../domain/types';
-import { encodeText, decodeText, md5Hex } from '../infra/utils';
+import { encodeText, decodeText, md5HexAsync } from '../infra/utils';
 import { GlobalLock } from '../infra/locks';
 
 export class UploadUseCase {
@@ -26,7 +26,7 @@ export class UploadUseCase {
     // 1. Process images
     const originalData = await this.uriToUint8Array(uri);
 
-    const hash = md5Hex(originalData);
+    const hash = await md5HexAsync(originalData);
 
     // Check if already exists in local cache (synced with cloud)
     if (await this.localRepo.existsById(hash)) {

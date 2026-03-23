@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, ActivityIndicator, Image, Platform, TouchableOpacity, Alert } from 'react-native';
 import { Text } from 'react-native-paper';
 import { Circle, Check } from 'lucide-react-native';
+import { File, Directory, Paths } from 'expo-file-system';
 import { S3Repository } from '../../infra/s3.repository';
 import type { S3Credentials, Photo } from '../../domain/types';
 import { uint8ArrayToBase64 } from '../../infra/utils';
@@ -85,8 +86,25 @@ export const PhotoItem = React.memo(({
                   if (Platform.OS === 'web') {
                       const blob = new Blob([data as any], { type: 'image/jpeg' });
                       displayUrl = URL.createObjectURL(blob);
+                  } else if (Platform.OS === 'android') {
+                      // On Android, writing to a temp file is more reliable and memory-efficient than large base64 strings
+                      try {
+                          const tempDir = new Directory(Paths.cache, 'photos');
+                          if (!tempDir.exists) {
+                              tempDir.create();
+                          }
+                          const filename = photo.key.split('/').pop()!.replace('.enc', '.jpg');
+                          const tempFile = new File(tempDir, filename);
+                          const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+                          tempFile.write(bytes);
+                          displayUrl = tempFile.uri;
+                      } catch (err: any) {
+                          console.error('Failed to write temp photo file on Android', err);
+                          // Fallback to base64 if temp file fails
+                          const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+                          displayUrl = `data:image/jpeg;base64,${uint8ArrayToBase64(bytes)}`;
+                      }
                   } else {
-                      // On Android, ensure we have a proper Uint8Array before converting to base64
                       const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
                       const base64 = uint8ArrayToBase64(bytes);
                       displayUrl = `data:image/jpeg;base64,${base64}`;

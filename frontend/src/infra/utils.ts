@@ -1,4 +1,5 @@
 import SparkMD5 from 'spark-md5';
+import * as Crypto from 'expo-crypto';
 
 const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
@@ -41,7 +42,7 @@ export function md5(data: Uint8Array): Uint8Array {
             const hash = crypto.createHash('md5').update(Buffer.from(data)).digest();
             return new Uint8Array(hash);
         } catch (e) {
-            console.warn('Crypto module not available, falling back to manual MD5', e);
+            console.warn('Crypto module not available, falling back to SparkMD5', e);
         }
     }
     const hashHex = md5Hex(data);
@@ -63,6 +64,23 @@ export function md5Hex(data: Uint8Array): string {
     }
     const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
     return SparkMD5.ArrayBuffer.hash(buffer as any);
+}
+
+export async function md5Async(data: Uint8Array): Promise<Uint8Array> {
+    const base64 = await Crypto.digestAsync(
+        Crypto.CryptoDigestAlgorithm.MD5,
+        data,
+        { encoding: Crypto.CryptoEncoding.BASE64 }
+    );
+    return base64ToUint8Array(base64);
+}
+
+export async function md5HexAsync(data: Uint8Array): Promise<string> {
+    return await Crypto.digestAsync(
+        Crypto.CryptoDigestAlgorithm.MD5,
+        data,
+        { encoding: Crypto.CryptoEncoding.HEX }
+    );
 }
 
 export function base64ToUint8Array(base64: string): Uint8Array {
