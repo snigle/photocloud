@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { IS3Repository, ILocalGalleryRepository, S3Credentials, UploadedPhoto } from '../domain/types';
 import { encodeText, decodeText, md5HexAsync } from '../infra/utils';
 import { GlobalLock } from '../infra/locks';
+import { ExifParserFactory } from 'ts-exif-parser';
 
 export class UploadUseCase {
   private static indexedYears = new Set<string>();
@@ -34,10 +35,25 @@ export class UploadUseCase {
         return null;
     }
 
-    let timestamp = creationDate || Math.floor(Date.now() / 1000);
+    let timestamp = creationDate;
 
-    // Try to get actual creation date from MediaLibrary if on native and timestamp is just "now"
-    if (!creationDate && Platform.OS !== 'web') {
+    // Extract EXIF date if timestamp is missing
+    if (!timestamp) {
+        try {
+            const parser = ExifParserFactory.create(originalData.buffer);
+            const exif = parser.parse();
+            if (exif.tags?.CreateDate) {
+                timestamp = exif.tags.CreateDate;
+            } else if (exif.tags?.DateTimeOriginal) {
+                timestamp = exif.tags.DateTimeOriginal;
+            }
+        } catch (e) {
+            console.log('Failed to parse EXIF for date', e);
+        }
+    }
+
+    // Try to get actual creation date from MediaLibrary if on native and timestamp is still missing
+    if (!timestamp && Platform.OS !== 'web') {
         try {
             const asset = await MediaLibrary.getAssetInfoAsync(uri);
             if (asset && asset.creationTime) {
@@ -46,6 +62,11 @@ export class UploadUseCase {
         } catch (e) {
             console.log('Failed to get asset info for timestamp', e);
         }
+    }
+
+    // Fallback to now
+    if (!timestamp) {
+        timestamp = Math.floor(Date.now() / 1000);
     }
 
     const photoId = `${timestamp}-${hash}`;

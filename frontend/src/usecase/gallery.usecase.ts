@@ -34,7 +34,10 @@ export class GalleryUseCase {
         await this.reindexCloud(creds, email, cloud);
 
         // Run full local re-indexing in background after first show
-        this.localRepo.listLocalPhotos(false).catch(err => console.error('Background local indexing failed', err));
+        // We use a small delay to ensure the UI has time to render the initial results
+        setTimeout(() => {
+            this.localRepo.listLocalPhotos(false).catch(err => console.error('Background local indexing failed', err));
+        }, 1000);
     } catch (e) {
         console.error('GalleryUseCase sync error:', e);
         throw e;
