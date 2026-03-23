@@ -1,7 +1,10 @@
 import SparkMD5 from 'spark-md5';
-import * as Crypto from 'expo-crypto';
 
 const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+function isReactNative(): boolean {
+    return typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
+}
 
 export function uint8ArrayToBase64(bytes: Uint8Array): string {
   if (typeof Buffer !== 'undefined') {
@@ -67,20 +70,42 @@ export function md5Hex(data: Uint8Array): string {
 }
 
 export async function md5Async(data: Uint8Array): Promise<Uint8Array> {
-    const base64 = await Crypto.digestAsync(
-        Crypto.CryptoDigestAlgorithm.MD5,
-        data,
-        { encoding: Crypto.CryptoEncoding.BASE64 }
-    );
-    return base64ToUint8Array(base64);
+    if (!isReactNative()) {
+        return md5(data);
+    }
+    try {
+        const Crypto = require('expo-crypto');
+        const arrayBuffer = await Crypto.digest(
+            Crypto.CryptoDigestAlgorithm.MD5,
+            data.buffer as ArrayBuffer
+        );
+        return new Uint8Array(arrayBuffer);
+    } catch (e) {
+        console.warn('Crypto.digest failed, falling back to SparkMD5', e);
+        return md5(data);
+    }
 }
 
 export async function md5HexAsync(data: Uint8Array): Promise<string> {
-    return await Crypto.digestAsync(
-        Crypto.CryptoDigestAlgorithm.MD5,
-        data,
-        { encoding: Crypto.CryptoEncoding.HEX }
-    );
+    if (!isReactNative()) {
+        return md5Hex(data);
+    }
+    try {
+        const Crypto = require('expo-crypto');
+        const arrayBuffer = await Crypto.digest(
+            Crypto.CryptoDigestAlgorithm.MD5,
+            data.buffer as ArrayBuffer
+        );
+        const bytes = new Uint8Array(arrayBuffer);
+        let hex = '';
+        for (let i = 0; i < bytes.length; i++) {
+            hex += bytes[i].toString(16).padStart(2, '0');
+        }
+        return hex;
+    } catch (e) {
+        console.warn('Crypto.digest (hex) failed, falling back to SparkMD5', e);
+        return md5Hex(data);
+    }
 }
 
 export function base64ToUint8Array(base64: string): Uint8Array {

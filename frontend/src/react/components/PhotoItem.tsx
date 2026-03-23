@@ -7,6 +7,7 @@ import { S3Repository } from '../../infra/s3.repository';
 import type { S3Credentials, Photo } from '../../domain/types';
 import { uint8ArrayToBase64 } from '../../infra/utils';
 import { ThumbnailCache } from '../../infra/thumbnail-cache';
+import DebugLogger from '../../infra/debug-logger';
 
 export const PhotoItem = React.memo(({
     photo,
@@ -89,17 +90,23 @@ export const PhotoItem = React.memo(({
                   } else if (Platform.OS === 'android') {
                       // On Android, writing to a temp file is more reliable and memory-efficient than large base64 strings
                       try {
+                          if (typeof Buffer === 'undefined') {
+                              DebugLogger.error('Polyfill', 'Buffer is undefined in PhotoItem');
+                          }
                           const tempDir = new Directory(Paths.cache, 'photos');
                           if (!tempDir.exists) {
-                              tempDir.create();
+                              tempDir.create({ intermediates: true, idempotent: true });
                           }
                           const filename = photo.key.split('/').pop()!.replace('.enc', '.jpg');
                           const tempFile = new File(tempDir, filename);
                           const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
                           tempFile.write(bytes);
                           displayUrl = tempFile.uri;
+                          if (photo.key.includes('original')) {
+                              DebugLogger.log('Photo Saved', `Saved ${photo.key} to ${displayUrl} (size: ${bytes.length})`);
+                          }
                       } catch (err: any) {
-                          console.error('Failed to write temp photo file on Android', err);
+                          DebugLogger.error('Photo Write', `Failed for ${photo.key}`, err);
                           // Fallback to base64 if temp file fails
                           const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
                           displayUrl = `data:image/jpeg;base64,${uint8ArrayToBase64(bytes)}`;
@@ -117,13 +124,7 @@ export const PhotoItem = React.memo(({
                   setUrl(displayUrl);
               }
           } catch (err: any) {
-              console.error('Failed to load cloud image', err);
-              if (Platform.OS === 'android') {
-                  // Alert the error only once to avoid spamming the user if multiple photos fail.
-                  // But we use a ref to track if we already alerted.
-                  // Actually, better to just log or use a toast, but user asked for visibility.
-                  // Let's keep it simple for now, maybe only alert if it's a specific "Unsupported Body type" or "SSE" error
-              }
+              DebugLogger.error('Photo Load', `Failed for ${photo.key}`, err);
               if (isMounted) setError(true);
           }
       };

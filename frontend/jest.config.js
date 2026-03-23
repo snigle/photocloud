@@ -3,11 +3,11 @@ module.exports = {
   testEnvironment: 'node',
   testMatch: ['**/*.test.ts'],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
+    '^.+\\.(ts|tsx|js|jsx)$': ['ts-jest', {
       tsconfig: 'tsconfig.json',
     }],
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(expo|@expo|expo-file-system|expo-asset|expo-constants|expo-modules-core|react-native|@react-native|@react-navigation|@react-native-community|lucide-react-native)/)',
+    'node_modules/(?!(expo|@expo|expo-crypto|expo-file-system|expo-asset|expo-constants|expo-modules-core|react-native|@react-native|@react-navigation|@react-native-community|lucide-react-native)/)',
   ],
 };

@@ -13,6 +13,7 @@ import type { IS3Repository, S3Credentials, UploadedPhoto } from '../domain/type
 import { base64ToUint8Array, uint8ArrayToBase64, decodeText, md5Async } from './utils';
 import { ThumbnailCache } from './thumbnail-cache';
 import { Alert, Platform } from 'react-native';
+import DebugLogger from './debug-logger';
 
 // Cache S3 clients by credentials to reuse connection pools
 const s3Clients = new Map<string, S3Client>();
@@ -250,7 +251,6 @@ export class S3Repository implements IS3Repository {
   }
 
   async getFile(bucket: string, key: string, customSSEKey?: string | null): Promise<Uint8Array> {
-    console.log(`S3: getFile ${key} (SSE: ${customSSEKey ? 'yes' : 'no'})`);
     const isThumbnail = key.includes('/thumbnail/');
     if (isThumbnail && customSSEKey === undefined) {
         const cached = ThumbnailCache.get(key);
@@ -272,27 +272,28 @@ export class S3Repository implements IS3Repository {
     try {
         data = await this.s3.send(command);
     } catch (e: any) {
-        console.error(`S3: getFile ${key} request failed`, e);
-        if (Platform.OS === 'android') {
-            s3ErrorCount++;
-            Alert.alert(`S3 Error #${s3ErrorCount}`, `Failed to fetch ${key}: ${e.message}`);
-        }
+        DebugLogger.error('S3 Fetch', `Failed to fetch ${key}`, e);
         throw e;
     }
 
     if (!data.Body) {
-      console.error(`S3: getFile ${key} failed - No body in response`);
+      DebugLogger.error('S3 Body', `No body in response for ${key}`);
       throw new Error('No body in S3 response');
     }
 
     // Android/React Native body might be in data.Body._bodyBlob or similar if not standard
-    const body = (data.Body as any)._bodyBlob || data.Body;
+    const body = (data.Body as any)._bodyBlob || (data.Body as any).body || data.Body;
 
-    console.log(`S3: getFile ${key} body type: ${typeof body}, constructor: ${body.constructor?.name}`);
+    if (!isThumbnail) {
+        try {
+            DebugLogger.log('S3 Body Info', `${key}: type=${typeof body}, constructor=${body.constructor?.name}, keys=${Object.keys(data.Body).join(',')}`);
+        } catch (e) {
+            DebugLogger.log('S3 Body Info', `${key}: type=${typeof body}`);
+        }
+    }
 
     // Robust transformation: try transformToUint8Array first, then fallback to manual stream consumption
     if (typeof (body as any).transformToUint8Array === 'function') {
-        console.log(`S3: using transformToUint8Array for ${key}`);
         const bytes = await (body as any).transformToUint8Array();
         const result = new Uint8Array(bytes);
         if (isThumbnail) {
@@ -343,11 +344,7 @@ export class S3Repository implements IS3Repository {
                 });
             }
         } catch (err: any) {
-            console.error(`S3: arrayBuffer/Blob conversion failed for ${key}`, err);
-            if (Platform.OS === 'android') {
-                s3ErrorCount++;
-                Alert.alert(`S3 Transform Error #${s3ErrorCount}`, `Failed to transform ${key}: ${err.message}`);
-            }
+            DebugLogger.error('S3 Transform', `Failed to transform ${key}`, err);
             throw err;
         }
         const result = new Uint8Array(buffer);
@@ -366,11 +363,7 @@ export class S3Repository implements IS3Repository {
         return result;
     }
 
-    console.error(`Unsupported S3 body type for ${key}: ${typeof body}`);
-    if (Platform.OS === 'android') {
-        s3ErrorCount++;
-        Alert.alert(`S3 Body Error #${s3ErrorCount}`, `Unsupported body type for ${key}: ${typeof body}`);
-    }
+    DebugLogger.error('S3 Body Type', `Unsupported body type for ${key}: ${typeof body}`);
     throw new Error(`Unsupported S3 body type: ${typeof body}`);
   }
 
