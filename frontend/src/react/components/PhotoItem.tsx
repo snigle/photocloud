@@ -86,7 +86,9 @@ export const PhotoItem = React.memo(({
                       const blob = new Blob([data as any], { type: 'image/jpeg' });
                       displayUrl = URL.createObjectURL(blob);
                   } else {
-                      const base64 = uint8ArrayToBase64(data);
+                      // On Android, ensure we have a proper Uint8Array before converting to base64
+                      const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+                      const base64 = uint8ArrayToBase64(bytes);
                       displayUrl = `data:image/jpeg;base64,${base64}`;
                   }
 

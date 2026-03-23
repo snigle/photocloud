@@ -145,7 +145,9 @@ export class AlbumRepository implements IAlbumRepository {
             // 3. Try to Load Index
             console.log(`AlbumRepository: Fetching index ${indexKey}`);
             const indexData = await this.s3Repo.getFile(bucket, indexKey);
-            const albums = JSON.parse(decodeText(indexData)) as Album[];
+            const decoded = decodeText(indexData);
+            console.log(`AlbumRepository: Loaded index ${indexKey}, length: ${decoded.length}`);
+            const albums = JSON.parse(decoded) as Album[];
 
             localAlbums = albums.filter(a => {
                 if (!a.albumKey) {
@@ -168,7 +170,9 @@ export class AlbumRepository implements IAlbumRepository {
 
         } catch (e: any) {
             if (e.name !== 'NoSuchKey' && e.$metadata?.httpStatusCode !== 404) {
-                console.error(`Failed to load index ${indexKey}, falling back to full listing`, e);
+                console.error(`AlbumRepository: Failed to load index ${indexKey}, falling back to full listing`, e);
+            } else {
+                console.log(`AlbumRepository: Index ${indexKey} not found (404), falling back to full listing`);
             }
 
             // 4. Fallback: Full Listing
@@ -221,7 +225,9 @@ export class AlbumRepository implements IAlbumRepository {
         albumsCache.set(indexKey, { data: lightLocalAlbums, timestamp: Date.now() });
 
         // 7. Return combined list (with full photoKeys for shared if they were just discovered, or light if preferred)
-        return [...localAlbums, ...sharedAlbums];
+        const combined = [...localAlbums, ...sharedAlbums];
+        console.log(`AlbumRepository: Returning ${combined.length} combined albums (${localAlbums.length} local, ${sharedAlbums.length} shared) for ${email}`);
+        return combined;
     })();
 
     pendingRequests.set(indexKey, request);

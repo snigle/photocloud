@@ -267,11 +267,15 @@ export class S3Repository implements IS3Repository {
 
     const data = await this.s3.send(command);
     if (!data.Body) {
+      console.error(`S3: getFile ${key} failed - No body in response`);
       throw new Error('No body in S3 response');
     }
 
+    console.log(`S3: getFile ${key} body type: ${typeof data.Body}, constructor: ${(data.Body as any).constructor?.name}`);
+
     // Robust transformation: try transformToUint8Array first, then fallback to manual stream consumption
     if (typeof (data.Body as any).transformToUint8Array === 'function') {
+        console.log(`S3: using transformToUint8Array for ${key}`);
         const bytes = await (data.Body as any).transformToUint8Array();
         const result = new Uint8Array(bytes);
         if (isThumbnail) {
@@ -303,7 +307,8 @@ export class S3Repository implements IS3Repository {
     }
 
     // Handle Blob (common in React Native fetch)
-    if (data.Body && (typeof (data.Body as any).arrayBuffer === 'function' || data.Body instanceof Blob)) {
+    if (data.Body && (typeof (data.Body as any).arrayBuffer === 'function' || (typeof Blob !== 'undefined' && data.Body instanceof Blob))) {
+        console.log(`S3: using arrayBuffer/Blob conversion for ${key}`);
         let buffer: ArrayBuffer;
         if (typeof (data.Body as any).arrayBuffer === 'function') {
             buffer = await (data.Body as any).arrayBuffer();
@@ -312,7 +317,10 @@ export class S3Repository implements IS3Repository {
             buffer = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result as ArrayBuffer);
-                reader.onerror = () => reject(new Error('Failed to read Blob as ArrayBuffer'));
+                reader.onerror = (e) => {
+                    console.error(`S3: FileReader error for ${key}`, e);
+                    reject(new Error('Failed to read Blob as ArrayBuffer'));
+                };
                 reader.readAsArrayBuffer(data.Body as Blob);
             });
         }
