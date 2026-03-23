@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { IS3Repository, ILocalGalleryRepository, S3Credentials, UploadedPhoto } from '../domain/types';
 import { encodeText, decodeText, md5HexAsync } from '../infra/utils';
 import { GlobalLock } from '../infra/locks';
+import { ExifParserFactory } from 'ts-exif-parser';
 
 export class UploadUseCase {
   private static indexedYears = new Set<string>();
@@ -34,10 +35,24 @@ export class UploadUseCase {
         return null;
     }
 
-    let timestamp = creationDate || Math.floor(Date.now() / 1000);
+    let timestamp = creationDate;
 
-    // Try to get actual creation date from MediaLibrary if on native
-    if (Platform.OS !== 'web') {
+    // Extract EXIF date - always prefer EXIF over passed creationDate if available
+    try {
+        const buf = originalData.buffer instanceof ArrayBuffer ? originalData.buffer : new Uint8Array(originalData).buffer;
+        const parser = ExifParserFactory.create(buf);
+        const exif = parser.parse();
+        if (exif.tags?.CreateDate) {
+            timestamp = typeof exif.tags.CreateDate === 'number' ? exif.tags.CreateDate : Math.floor(new Date(exif.tags.CreateDate).getTime() / 1000);
+        } else if (exif.tags?.DateTimeOriginal) {
+            timestamp = typeof exif.tags.DateTimeOriginal === 'number' ? exif.tags.DateTimeOriginal : Math.floor(new Date(exif.tags.DateTimeOriginal).getTime() / 1000);
+        }
+    } catch (e) {
+        console.log('Failed to parse EXIF for date', e);
+    }
+
+    // Try to get actual creation date from MediaLibrary if on native and timestamp is still missing (e.g. no EXIF)
+    if (!timestamp && Platform.OS !== 'web') {
         try {
             const asset = await MediaLibrary.getAssetInfoAsync(uri);
             if (asset && asset.creationTime) {
@@ -46,6 +61,11 @@ export class UploadUseCase {
         } catch (e) {
             console.log('Failed to get asset info for timestamp', e);
         }
+    }
+
+    // Fallback to now
+    if (!timestamp) {
+        timestamp = Math.floor(Date.now() / 1000);
     }
 
     const photoId = `${timestamp}-${hash}`;

@@ -7,19 +7,18 @@ class DebugLogger {
         return typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
     }
 
-    private static async showBuffer() {
+    static async showBuffer() {
         if (this.pendingMessages.length === 0 || this.isShowing) return;
 
         try {
             const { Alert, Platform } = require('react-native');
             if (Platform.OS !== 'android') {
-                this.pendingMessages = [];
+                // Keep messages for manual check if needed
                 return;
             }
 
             this.isShowing = true;
             const messages = [...this.pendingMessages];
-            this.pendingMessages = [];
 
             const fullMessage = messages.join('\n\n');
 
@@ -27,7 +26,10 @@ class DebugLogger {
                 Alert.alert(
                     `Debug Summary (${messages.length} events)`,
                     fullMessage,
-                    [{ text: 'OK', onPress: () => resolve() }],
+                    [{ text: 'Vider', style: 'destructive', onPress: () => {
+                        this.pendingMessages = [];
+                        resolve();
+                    } }, { text: 'Fermer', onPress: () => resolve() }],
                     { onDismiss: () => resolve() }
                 );
             });
@@ -35,10 +37,6 @@ class DebugLogger {
             console.error('DebugLogger failed to show alert', e);
         } finally {
             this.isShowing = false;
-            // Schedule next buffer check if messages arrived while showing
-            if (this.pendingMessages.length > 0) {
-                setTimeout(() => this.showBuffer(), 500);
-            }
         }
     }
 
@@ -48,14 +46,13 @@ class DebugLogger {
         this.pendingMessages.push(formatted);
 
         // Keep buffer manageable
-        if (this.pendingMessages.length > 20) {
+        if (this.pendingMessages.length > 100) {
             this.pendingMessages.shift();
         }
 
         if (!this.isReactNative()) return;
 
-        if (this.timer) clearTimeout(this.timer);
-        this.timer = setTimeout(() => this.showBuffer(), 1000);
+        // Auto-show disabled, keeping it for manual call via UI
     }
 
     static log(event: string, message: string) {

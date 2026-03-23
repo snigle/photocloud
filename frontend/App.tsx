@@ -19,6 +19,8 @@ import AlbumDetailScreen from './src/react/screens/AlbumDetailScreen';
 import { AuthRepository } from './src/infra/auth.repository';
 import { AuthUseCase } from './src/usecase/auth.usecase';
 import { BACKGROUND_SYNC_TASK } from './src/domain/constants';
+import { SyncProvider, useSync } from './src/react/hooks/useSync';
+import { useBackgroundSync } from './src/react/hooks/useBackgroundSync';
 import { S3Repository } from './src/infra/s3.repository';
 import DebugLogger from './src/infra/debug-logger';
 
@@ -164,11 +166,23 @@ const MainDrawerNavigator = () => {
 export default function App() {
   const { session, loading, login, logout } = useAuth();
 
+  const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SyncProvider>
+          <AppContent session={session} loading={loading} login={login} logout={logout} authUseCase={authUseCase} />
+      </SyncProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+function AppContent({ session, loading, login, logout, authUseCase }: any) {
+
   useEffect(() => {
     DebugLogger.log('App Started', `Env: ${Platform.OS}, Staging: ${isStaging}`);
   }, []);
   const [backendVersion, setBackendVersion] = React.useState('...');
-  const authUseCase = useMemo(() => new AuthUseCase(authRepo), []);
 
   useEffect(() => {
     authUseCase.getVersion().then(setBackendVersion).catch(() => setBackendVersion('err'));
@@ -212,8 +226,11 @@ export default function App() {
     return () => subscription.remove();
   }, [authUseCase, login]);
 
+  const { progress } = useSync();
+
   const renderDrawerContent = useCallback((props: any) => {
     const isDev = session?.email === 'dev@photocloud.local' || session?.email === 'dev2@photocloud.local';
+      const isDevBuild = process.env.EXPO_PUBLIC_VERSION === 'dev' || !process.env.EXPO_PUBLIC_VERSION;
 
     const handleRegisterPasskey = async () => {
       if (!session) return;
@@ -261,15 +278,28 @@ export default function App() {
               Nettoyer compte Dev
             </Button>
           )}
+          {isDevBuild && (
+            <Button icon="bug" mode="text" onPress={() => DebugLogger.showBuffer()} style={{ marginTop: 10, marginHorizontal: 10 }} contentStyle={{ justifyContent: 'flex-start' }}>
+                Logs de débug
+            </Button>
+          )}
         </DrawerContentScrollView>
         <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#eee', opacity: 0.5 }}>
+          {progress.total > 0 && (
+            <Text style={{ fontSize: 12, marginBottom: 4, fontWeight: '500' }}>
+                Synchronisation : {progress.synced} / {progress.total}
+                {progress.isSyncing && " ..."}
+            </Text>
+          )}
           <Text style={{ fontSize: 10 }}>v-front: {process.env.EXPO_PUBLIC_VERSION || 'dev'}</Text>
           <Text style={{ fontSize: 10 }}>v-back: {backendVersion}</Text>
           {isStaging && <Text style={{ fontSize: 10, color: '#e65100', fontWeight: 'bold' }}>STAGING</Text>}
         </View>
       </View>
     );
-  }, [backendVersion, authUseCase, session, logout]);
+  }, [backendVersion, authUseCase, session, logout, progress]);
+
+  useBackgroundSync(session);
 
   useEffect(() => {
     if (session && Platform.OS !== 'web') {
@@ -290,8 +320,7 @@ export default function App() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <AppContext.Provider value={{ session, login, logout, authUseCase, renderDrawerContent, isStaging }}>
+    <AppContext.Provider value={{ session, login, logout, authUseCase, renderDrawerContent, isStaging }}>
         <PaperProvider theme={APP_THEME}>
           <StatusBar style="auto" />
           <View style={styles.container}>
@@ -309,8 +338,7 @@ export default function App() {
             </NavigationContainer>
           </View>
         </PaperProvider>
-      </AppContext.Provider>
-    </GestureHandlerRootView>
+    </AppContext.Provider>
   );
 }
 

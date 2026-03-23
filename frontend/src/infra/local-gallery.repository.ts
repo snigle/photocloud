@@ -60,14 +60,43 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
             localId TEXT PRIMARY KEY,
             cloudId TEXT
           );
+
+          CREATE TABLE IF NOT EXISTS local_assets_index (
+            id TEXT PRIMARY KEY,
+            uri TEXT,
+            creationDate INTEGER,
+            width INTEGER,
+            height INTEGER,
+            folderId TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_local_creationDate ON local_assets_index(creationDate);
         `);
     } catch (e) {
         console.error('Failed to initialize SQLite DB', e);
     }
   }
 
-  async listLocalPhotos(): Promise<LocalPhoto[]> {
-    if (Platform.OS === 'web') return []; // Web doesn't support local media library access this way
+  async listLocalPhotos(useCache: boolean = true): Promise<LocalPhoto[]> {
+    if (Platform.OS === 'web') return [];
+
+    if (useCache && this.dbPromise) {
+        try {
+            const db = await this.dbPromise;
+            const rows = await db.getAllAsync('SELECT * FROM local_assets_index ORDER BY creationDate DESC');
+            return rows.map((row: any) => ({
+                id: row.id,
+                uri: row.uri,
+                creationDate: row.creationDate,
+                size: 0,
+                width: row.width,
+                height: row.height,
+                type: 'local'
+            }));
+        } catch (e) {
+            console.error('Error reading local_assets_index', e);
+        }
+    }
+
     try {
         const { status } = await MediaLibrary.requestPermissionsAsync();
         if (status !== 'granted') return [];
@@ -97,6 +126,27 @@ export class LocalGalleryRepository implements ILocalGalleryRepository {
           photos = [...photos, ...assets];
           hasNextPage = pagedInfo.hasNextPage;
           after = pagedInfo.endCursor;
+        }
+
+        // Update local index cache
+        if (this.dbPromise) {
+            try {
+                const db = await this.dbPromise;
+                await db.withTransactionAsync(async () => {
+                    await db.runAsync('DELETE FROM local_assets_index');
+                    const stmt = await db.prepareAsync('INSERT INTO local_assets_index (id, uri, creationDate, width, height) VALUES (?, ?, ?, ?, ?)');
+                    try {
+                        for (const p of photos) {
+                            await stmt.executeAsync([p.id, p.uri, p.creationDate, p.width, p.height]);
+                        }
+                    } finally {
+                        await stmt.finalizeAsync();
+                    }
+                });
+                console.log(`Local index updated with ${photos.length} photos`);
+            } catch (err) {
+                console.error('Failed to update local assets index', err);
+            }
         }
 
         return photos;

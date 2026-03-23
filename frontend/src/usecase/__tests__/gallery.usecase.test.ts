@@ -56,9 +56,9 @@ describe('GalleryUseCase', () => {
     await galleryUseCase.sync(mockCreds, 'test@example.com');
 
     expect(mockS3Repo.listPhotos).toHaveBeenCalledWith(mockCreds.bucket, 'test@example.com');
-    // Note: Local photos are currently disabled in GalleryUseCase.sync
     expect(mockLocalRepo.saveToCache).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({ id: 'cloud1' }),
+      expect.objectContaining({ id: 'local1' }),
     ]));
   });
 

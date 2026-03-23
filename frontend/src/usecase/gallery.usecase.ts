@@ -14,24 +14,37 @@ export class GalleryUseCase {
    */
   async sync(creds: S3Credentials, email: string): Promise<void> {
     try {
-        // Fetch local photos - DISABLED for now to fix Android white screen
-        // const local = await this.localRepo.listLocalPhotos();
+        // Fetch local photos (fast load from index)
+        const local = await this.localRepo.listLocalPhotos(true);
 
         // Fetch cloud photos
         const cloud = await this.s3Repo.listPhotos(creds.bucket, email);
 
         // De-duplicate local photos that are already uploaded
-        // const uploadedLocalIds = await this.localRepo.getUploadedLocalIds();
-        // const filteredLocal = local.filter(p => !uploadedLocalIds.has(p.id));
+        const uploadedLocalIds = await this.localRepo.getUploadedLocalIds();
+        const filteredLocal = local.filter(p => !uploadedLocalIds.has(p.id));
 
         // Merge and sort
-        const all = [...cloud].sort((a, b) => b.creationDate - a.creationDate);
+        const all = [...cloud, ...filteredLocal].sort((a, b) => b.creationDate - a.creationDate);
 
         // Update cache
         await this.localRepo.saveToCache(all);
 
         // Update index counts based on actual cloud photos found
         await this.reindexCloud(creds, email, cloud);
+
+        // Run full local re-indexing in background after first show
+        // We use a small delay to ensure the UI has time to render the initial results
+        setTimeout(async () => {
+            try {
+                await this.localRepo.listLocalPhotos(false);
+                // Trigger a cache refresh after indexing
+                const all = await this.localRepo.loadFromCache(100000, 0);
+                await this.localRepo.saveToCache(all);
+            } catch (err) {
+                console.error('Background local indexing failed', err);
+            }
+        }, 1000);
     } catch (e) {
         console.error('GalleryUseCase sync error:', e);
         throw e;

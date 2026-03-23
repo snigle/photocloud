@@ -44,19 +44,11 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
           if (!asset) break;
 
           try {
-                        let creationDate: number | undefined;
-              if (Platform.OS !== 'web' && (asset.uri.startsWith('file://') || asset.uri.startsWith('content://'))) {
-                const bytes = await new File(asset.uri).bytes();
-                const result = ExifParserFactory.create(bytes.buffer).parse();
-                creationDate = result.tags?.CreateDate ? new Date(result.tags.CreateDate * 1000).getTime() / 1000 : new Date().getTime() / 1000;
-              } else if (asset.file) {
-                const bytes = await asset.file.bytes()
-                const result = ExifParserFactory.create(bytes.buffer).parse();
-                creationDate = result.tags?.CreateDate ? new Date(result.tags.CreateDate * 1000).getTime() / 1000 : new Date().getTime() / 1000;
-              }
-            if (!creationDate && (asset as any).file?.lastModified) {
+            let creationDate: number | undefined;
+            if ((asset as any).file?.lastModified) {
                 creationDate = Math.floor((asset as any).file.lastModified / 1000);
             }
+            // EXIF parsing is now handled by UploadUseCase.execute
             const uploaded = await uploadUseCase.execute(asset.uri, asset.name, creds, email, false, (asset as any).id, creationDate);
             if (uploaded && onUploadSuccess) {
                 onUploadSuccess(uploaded);
@@ -65,9 +57,7 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
             await new Promise(resolve => setTimeout(resolve, 300));
           } catch (e: any) {
             console.error(`Failed to upload ${asset.name}`, e);
-            if (Platform.OS === 'android') {
-                Alert.alert('Upload Error', `Failed to upload ${asset.name}: ${e.message}`);
-            }
+            setError(`Failed to upload ${asset.name}: ${e.message}`);
             // Continue with other assets
           } finally {
             current++;
@@ -85,9 +75,6 @@ export const useUpload = (creds: S3Credentials | null, email: string | null) => 
       return true; // Success
     } catch (err: any) {
       console.error('Upload error:', err);
-      if (Platform.OS === 'android') {
-          Alert.alert('General Upload Error', err.message || 'Failed to start upload');
-      }
       setError(err.message || 'Failed to upload photo');
       return false;
     } finally {

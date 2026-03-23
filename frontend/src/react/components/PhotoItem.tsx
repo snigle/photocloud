@@ -57,6 +57,7 @@ export const PhotoItem = React.memo(({
 
     if (!photo) {
         setUrl(null);
+        setIsUploaded(false);
         return;
     }
 
