@@ -8,7 +8,7 @@ export interface Folder {
 }
 
 export interface ILocalGalleryRepository {
-  listLocalPhotos(): Promise<LocalPhoto[]>;
+  listLocalPhotos(useCache?: boolean): Promise<LocalPhoto[]>;
   listFolders(): Promise<Folder[]>;
   getPhotosByFolder(folderId: string, limit?: number): Promise<LocalPhoto[]>;
   saveToCache(photos: Photo[]): Promise<void>;

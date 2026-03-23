@@ -14,8 +14,8 @@ export class GalleryUseCase {
    */
   async sync(creds: S3Credentials, email: string): Promise<void> {
     try {
-        // Fetch local photos
-        const local = await this.localRepo.listLocalPhotos();
+        // Fetch local photos (fast load from index)
+        const local = await this.localRepo.listLocalPhotos(true);
 
         // Fetch cloud photos
         const cloud = await this.s3Repo.listPhotos(creds.bucket, email);
@@ -32,6 +32,9 @@ export class GalleryUseCase {
 
         // Update index counts based on actual cloud photos found
         await this.reindexCloud(creds, email, cloud);
+
+        // Run full local re-indexing in background after first show
+        this.localRepo.listLocalPhotos(false).catch(err => console.error('Background local indexing failed', err));
     } catch (e) {
         console.error('GalleryUseCase sync error:', e);
         throw e;
